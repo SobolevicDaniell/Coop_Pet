@@ -1,3 +1,4 @@
+// Assets/Scripts/Game/Gameplay/InteractionController.cs
 using Fusion;
 using UnityEngine;
 using Zenject;
@@ -21,24 +22,34 @@ namespace Game
                     var pick = hit.collider.GetComponent<PickableItem>();
                     if (pick != null)
                     {
-                        RPC_PickItem(pick.Object, Object.InputAuthority);
+                        // 1) запрос на сервер: "хочу подобрать этот объект"
+                        RPC_RequestPick(pick.Object, Object.InputAuthority);
                     }
                 }
             }
         }
 
+        // 1) Серверная часть: деспавним предмет и шлём обратно itemId
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        void RPC_PickItem(NetworkObject pickableNetObj, PlayerRef requester, RpcInfo info = default)
+        void RPC_RequestPick(NetworkObject pickableNetObj, PlayerRef requester)
         {
             if (pickableNetObj == null) return;
 
-            // получаем наш компонент и удаляем его
             var pickable = pickableNetObj.GetComponent<PickableItem>();
+            if (pickable == null) return;
+
             pickable.OnPicked(runner);
 
-            // на клиенте добавляем в слоты
-            if (info.Source == requester)
-                inventory.AddToQuickSlot(pickable.Definition);
+            // отправляем назад на клиент строковый идентификатор
+            RPC_ConfirmPick(requester, pickable.ItemId);
+        }
+
+        // 2) Клиентская часть: получаем itemId и добавляем в сервис
+        [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
+        void RPC_ConfirmPick(PlayerRef target, string itemId)
+        {
+            // Fusion уже доставил это именно нужному клиенту
+            inventory.AddToQuickSlot(itemId);
         }
     }
 }

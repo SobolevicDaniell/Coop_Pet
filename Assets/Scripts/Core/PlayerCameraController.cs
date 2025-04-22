@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using Fusion;
 
 namespace Game.Network
@@ -10,6 +10,7 @@ namespace Game.Network
 
         private void Start()
         {
+            Cursor.lockState = CursorLockMode.Locked;
             if (Object.HasInputAuthority)
             {
                 EnableLocalCamera();

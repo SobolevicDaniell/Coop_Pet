@@ -14,12 +14,14 @@ namespace Game
             if (item != null)
             {
                 icon.sprite = item.Icon;
-                //icon.enabled = true;
-                countText.text = count > 1 ? count.ToString() : string.Empty;
+                icon.enabled = true;
+                countText.text = (count > 1)
+                    ? count.ToString()
+                    : string.Empty;
             }
             else
             {
-                //icon.enabled = false;
+                icon.enabled = false;
                 countText.text = string.Empty;
             }
         }

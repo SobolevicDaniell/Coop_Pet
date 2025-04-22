@@ -1,24 +1,31 @@
+// Assets/Scripts/Game/Gameplay/PickableItem.cs
 using Fusion;
-using Game;
 using UnityEngine;
 using Zenject;
 
-public class PickableItem : NetworkBehaviour
+namespace Game
 {
-    [SerializeField] private string itemId;
-    private ItemSO itemDef;
-
-    [Inject] private ItemDatabaseSO db;
-
-    void Awake()
+    public class PickableItem : NetworkBehaviour
     {
-        itemDef = db.Get(itemId);
-    }
+        [SerializeField] private string itemId;
+        private ItemSO itemDef;
+        [Inject] private ItemDatabaseSO db;
 
-    public ItemSO Definition => itemDef;
+        // публичный идентификатор для RPC
+        public string ItemId => itemId;
+        // локальное определение
+        public ItemSO Definition => itemDef;
 
-    public void OnPicked(NetworkRunner runner)
-    {
-        runner.Despawn(Object);
+        private void Awake()
+        {
+            // на старте подгружаем ScriptableObject из базы
+            itemDef = db.Get(itemId);
+        }
+
+        public void OnPicked(NetworkRunner runner)
+        {
+            // просто деспавним себя на сервере
+            runner.Despawn(Object);
+        }
     }
 }

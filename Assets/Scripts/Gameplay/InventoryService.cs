@@ -1,23 +1,30 @@
+// Assets/Scripts/Game/InventoryService.cs
 using System;
+using UnityEngine;
 
 namespace Game
 {
     public class InventoryService
     {
         public event Action OnQuickSlotsChanged;
-
         private readonly InventorySlot[] quickSlots;
+        private readonly ItemDatabaseSO db;
 
-        public InventoryService()
+        // через Zenject передаём базу предметов
+        public InventoryService(ItemDatabaseSO db)
         {
+            this.db = db;
             quickSlots = new InventorySlot[10];
             for (int i = 0; i < quickSlots.Length; i++)
                 quickSlots[i] = new InventorySlot();
         }
 
+        // добавление существующего ScriptableObject
         public bool AddToQuickSlot(ItemSO item)
         {
-            // сначала пытаемся добавить в уже существующий стак
+            if (item == null) return false;
+
+            // пробуем докинуть в стак
             for (int i = 0; i < quickSlots.Length; i++)
             {
                 var slot = quickSlots[i];
@@ -40,7 +47,14 @@ namespace Game
                     return true;
                 }
             }
-            return false; // нет места
+            return false; // места нет
+        }
+
+        // добавление по сетевому идентификатору
+        public bool AddToQuickSlot(string itemId)
+        {
+            var item = db.Get(itemId);
+            return AddToQuickSlot(item);
         }
 
         public InventorySlot[] GetQuickSlots() => quickSlots;
