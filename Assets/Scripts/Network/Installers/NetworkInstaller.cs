@@ -1,5 +1,6 @@
-// Assets/Scripts/Game/Installers/NetworkInstaller.cs
+п»ї// Assets/Scripts/Game/Installers/NetworkInstaller.cs
 using Fusion;
+using Game;
 using Game.Network;
 using UnityEngine;
 using Zenject;
@@ -11,53 +12,64 @@ namespace Game
         [Header("Player Prefab & Callbacks")]
         [SerializeField] private GameObject _playerPrefab;
         [SerializeField] private NetworkCallbacks _networkCallbacks;
-        [SerializeField] private ItemDatabaseSO itemDatabase;
+
+        [Header("Inventory")]
+        [SerializeField] private ItemDatabaseSO _itemDatabase;
 
         public override void InstallBindings()
         {
-            // Fusion Runner
-            Container.Bind<NetworkRunner>()
-                     .FromComponentInHierarchy()
-                     .AsSingle();
+            // Runner РёР· СЃС†РµРЅС‹
+            Container
+                .Bind<NetworkRunner>()
+                .FromComponentInHierarchy()
+                .AsCached();
 
-            // Префаб игрока
-            Container.Bind<GameObject>()
-                     .WithId("PlayerPrefab")
-                     .FromInstance(_playerPrefab)
-                     .AsSingle();
+            // РџСЂРµС„Р°Р± РёРіСЂРѕРєР°
+            Container
+                .Bind<GameObject>()
+                .WithId("PlayerPrefab")
+                .FromInstance(_playerPrefab)
+                .AsSingle();
 
-            // Фабрика спавна игрока
-            Container.Bind<IPlayerFactory>()
-                     .To<PlayerFactory>()
-                     .AsSingle();
-            Container.Bind<PlayerSpawner>()
-                     .AsSingle();
+            // Factory & Spawner
+            Container
+                .Bind<IPlayerFactory>()
+                .To<PlayerFactory>()
+                .AsSingle();
+            Container
+                .Bind<PlayerSpawner>()
+                .AsSingle();
 
-            // InputHandler
-            Container.Bind<InputHandler>()
-                     .FromComponentInHierarchy()
-                     .AsSingle();
+            // InputHandler РёР· СЃС†РµРЅС‹
+            Container
+                .Bind<InputHandler>()
+                .FromComponentInHierarchy()
+                .AsCached();
 
-            // Колбэки Fusion
-            Container.BindInterfacesAndSelfTo<NetworkCallbacks>()
-                     .FromInstance(_networkCallbacks)
-                     .AsSingle();
+            // Fusion callbacks
+            Container
+                .BindInterfacesAndSelfTo<NetworkCallbacks>()
+                .FromInstance(_networkCallbacks)
+                .AsSingle();
 
-            // База предметов
-            Container.Bind<ItemDatabaseSO>()
-                     .FromInstance(itemDatabase)
-                     .AsSingle();
+            // Р‘Р°Р·Р° РїСЂРµРґРјРµС‚РѕРІ
+            Container
+                .Bind<ItemDatabaseSO>()
+                .FromInstance(_itemDatabase)
+                .AsSingle();
 
-            // Сервис инвентаря: передаём базу для lookup по itemId
-            Container.Bind<InventoryService>()
-                     .AsSingle()
-                     .WithArguments(itemDatabase)
-                     .NonLazy();
+            // РЎРµСЂРІРёСЃ РёРЅРІРµРЅС‚Р°СЂСЏ
+            Container
+                .Bind<InventoryService>()
+                .AsSingle()                        // в†ђ РЎРЅР°С‡Р°Р»Р° СѓРєР°Р·С‹РІР°РµРј scope
+                .WithArguments(_itemDatabase)      // в†ђ РџРѕС‚РѕРј Р°СЂРіСѓРјРµРЅС‚С‹ РґР»СЏ РєРѕРЅСЃС‚СЂСѓРєС‚РѕСЂР°
+                .NonLazy();                        // в†ђ Р СЃРѕР·РґР°С‘Рј СЃСЂР°Р·Сѓ
 
-            // UI для подсказок
-            Container.Bind<InteractionPromptView>()
-                     .FromComponentInHierarchy()
-                     .AsSingle();
+            // UI РїРѕРґСЃРєР°Р·РѕРє
+            Container
+                .Bind<InteractionPromptView>()
+                .FromComponentInHierarchy()
+                .AsCached();
         }
     }
 }

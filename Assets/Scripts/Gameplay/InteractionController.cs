@@ -1,4 +1,4 @@
-// Assets/Scripts/Game/Gameplay/InteractionController.cs
+п»ї// Assets/Scripts/Gameplay/InteractionController.cs
 using Fusion;
 using UnityEngine;
 using Zenject;
@@ -7,49 +7,73 @@ namespace Game
 {
     public class InteractionController : NetworkBehaviour
     {
+        [Header("РќР°СЃС‚СЂРѕР№РєРё РІР·Р°РёРјРѕРґРµР№СЃС‚РІРёСЏ")]
         [SerializeField] private float range = 2f;
-        [Inject] private InventoryService inventory;
-        [Inject] private NetworkRunner runner;
 
-        void Update()
+        [Inject] private InventoryService _inventory;
+        [Inject] private NetworkRunner _networkRunner;
+        [Inject] private InteractionPromptView _promptView;
+
+        private Camera _camera;
+
+        private void Start()
         {
-            if (!Object.HasInputAuthority) return;
-
-            if (Input.GetKeyDown(KeyCode.E))
-            {
-                if (Physics.Raycast(transform.position, transform.forward, out var hit, range))
-                {
-                    var pick = hit.collider.GetComponent<PickableItem>();
-                    if (pick != null)
-                    {
-                        // 1) запрос на сервер: "хочу подобрать этот объект"
-                        RPC_RequestPick(pick.Object, Object.InputAuthority);
-                    }
-                }
-            }
+            // РџРѕР»СѓС‡Р°РµРј РѕСЃРЅРѕРІРЅСѓСЋ РєР°РјРµСЂСѓ СЂР°Р· Рё РЅР°РІСЃРµРіРґР°
+            _camera = Camera.main;
+            _promptView.Hide();
         }
 
-        // 1) Серверная часть: деспавним предмет и шлём обратно itemId
+        private void Update()
+        {
+            if (!Object.HasInputAuthority)
+                return;
+
+            if (_camera == null)
+                return;
+
+            // 1. Р РµР№РєР°СЃС‚ РѕС‚ РїРѕР·РёС†РёРё Рё РЅР°РїСЂР°РІР»РµРЅРёСЏ РєР°РјРµСЂС‹
+            if (Physics.Raycast(_camera.transform.position, _camera.transform.forward, out var hit, range))
+            {
+                // 2. РџСЂРѕРІРµСЂСЏРµРј, РµСЃС‚СЊ Р»Рё Сѓ РїРѕРїР°РґР°РЅРёСЏ PickableItem
+                if (hit.collider.TryGetComponent<PickableItem>(out var pickable))
+                {
+                    _promptView.Show();
+
+                    if (Input.GetKeyDown(KeyCode.E))
+                    {
+                        // 3. РЁР»С‘Рј Р·Р°РїСЂРѕСЃ РЅР° СЃРµСЂРІРµСЂ
+                        RPC_RequestPick(pickable.Object);
+                        Debug.Log("Picked: " + pickable.ItemId);
+                    }
+
+                    return; // РІС‹С…РѕРґРёРј, С‡С‚РѕР±С‹ РЅРµ СЃРєСЂС‹С‚СЊ РїРѕРґСЃРєР°Р·РєСѓ
+                }
+            }
+
+            // Р•СЃР»Рё РЅРёС‡РµРіРѕ РЅРµ РїРѕРїР°Р»Рѕ вЂ” СЃРєСЂС‹РІР°РµРј РїРѕРґСЃРєР°Р·РєСѓ
+            _promptView.Hide();
+        }
+
+        // --- SERVER SIDE ---
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        void RPC_RequestPick(NetworkObject pickableNetObj, PlayerRef requester)
+        void RPC_RequestPick(NetworkObject pickableNetObj, RpcInfo info = default)
         {
             if (pickableNetObj == null) return;
 
-            var pickable = pickableNetObj.GetComponent<PickableItem>();
-            if (pickable == null) return;
+            var pick = pickableNetObj.GetComponent<PickableItem>();
+            if (pick == null) return;
 
-            pickable.OnPicked(runner);
-
-            // отправляем назад на клиент строковый идентификатор
-            RPC_ConfirmPick(requester, pickable.ItemId);
+            _networkRunner.Despawn(pickableNetObj);
+            RPC_ConfirmPick(info.Source, pick.ItemId);
         }
 
-        // 2) Клиентская часть: получаем itemId и добавляем в сервис
+        // --- CLIENT SIDE ---
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
-        void RPC_ConfirmPick(PlayerRef target, string itemId)
+        void RPC_ConfirmPick(PlayerRef target, string itemId, RpcInfo info = default)
         {
-            // Fusion уже доставил это именно нужному клиенту
-            inventory.AddToQuickSlot(itemId);
+            bool added = _inventory.AddToQuickSlot(itemId);
+            if (!added)
+                Debug.LogWarning($"[Inventory] РќРµ СѓРґР°Р»РѕСЃСЊ РґРѕР±Р°РІРёС‚СЊ РїСЂРµРґРјРµС‚ СЃ id='{itemId}'");
         }
     }
 }
