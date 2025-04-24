@@ -2,6 +2,7 @@ using Fusion;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Zenject;
+using System.Threading.Tasks;
 
 namespace Game.Network
 {
@@ -11,13 +12,17 @@ namespace Game.Network
         [Inject] private NetworkCallbacks _callbacks;
 
         [Header("Session")]
-        [SerializeField] string _sessionName = "TestRoom";
-        [SerializeField] GameMode _mode = GameMode.AutoHostOrClient;
+        [SerializeField] private string _sessionName = "TestRoom";
+        [SerializeField] private GameMode _mode = GameMode.AutoHostOrClient;
 
-        async void Start()
+        private async void Start()
         {
+            // ќжидаем один кадр, чтобы Zenject успел выполнить InstallBindings
+            await Task.Yield();
+
             var sceneRef = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
             var info = new NetworkSceneInfo();
+
             if (sceneRef.IsValid)
                 info.AddSceneRef(sceneRef, LoadSceneMode.Additive);
 

@@ -47,10 +47,12 @@ namespace Game
                 .AsCached();
 
             // Fusion callbacks
+            // Привязываем NetworkCallbacks как компонент из сцены, чтобы Zenject мог сделать полной инъекцию
             Container
                 .BindInterfacesAndSelfTo<NetworkCallbacks>()
-                .FromInstance(_networkCallbacks)
-                .AsSingle();
+                .FromComponentInHierarchy()
+                .AsCached();
+
 
             // База предметов
             Container
@@ -61,15 +63,22 @@ namespace Game
             // Сервис инвентаря
             Container
                 .Bind<InventoryService>()
-                .AsSingle()                        // ← Сначала указываем scope
-                .WithArguments(_itemDatabase)      // ← Потом аргументы для конструктора
-                .NonLazy();                        // ← И создаём сразу
+                .AsSingle()
+                .WithArguments(_itemDatabase)
+                .NonLazy();
 
             // UI подсказок
             Container
                 .Bind<InteractionPromptView>()
                 .FromComponentInHierarchy()
                 .AsCached();
+
+            // Контроллер локальной камеры игрока
+            Container
+                .Bind<PlayerCameraController>()
+                .FromComponentInHierarchy()
+                .AsCached();
         }
+
     }
 }

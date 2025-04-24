@@ -109,7 +109,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _movement: {fileID: 8058412645505935507}
-  _playerCamera: {fileID: 614458143632551072}
+  _cameraController: {fileID: 5312262753086261753}
 --- !u!114 &4402347777045086714
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -155,8 +155,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: de0f99ad6073c7d4d869b47c3e43becf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _maxDistance: 3
-  _cam: {fileID: 614458143632551072}
+  range: 2
 --- !u!114 &8058412645505935507
 MonoBehaviour:
   m_ObjectHideFlags: 0

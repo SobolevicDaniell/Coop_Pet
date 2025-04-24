@@ -7,24 +7,19 @@ namespace Game.Network
 {
     public class NetworkCallbacks : MonoBehaviour, INetworkRunnerCallbacks
     {
-        PlayerSpawner _spawner;
-        InputHandler _inputHandler;
-
-        [Inject]
-        void Construct(PlayerSpawner spawner, InputHandler inputHandler)
-        {
-            _spawner = spawner;
-            _inputHandler = inputHandler;
-        }
+        [Inject] private PlayerSpawner _spawner;
+        [Inject] private InputHandler _inputHandler;
 
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
         {
-            if (runner.IsServer) _spawner.SpawnPlayer(runner, player);
+            if (runner.IsServer)
+                _spawner.SpawnPlayer(runner, player);
         }
 
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
         {
-            if (runner.IsServer) _spawner.RemovePlayer(runner, player);
+            if (runner.IsServer)
+                _spawner.RemovePlayer(runner, player);
         }
 
         public void OnInput(NetworkRunner runner, NetworkInput input)
@@ -32,7 +27,7 @@ namespace Game.Network
             _inputHandler.ProvideNetworkInput(runner, input);
         }
 
-        // Все остальные колбэки делаем пустыми:
+        // Остальные колбэки – пустые
         public void OnConnectedToServer(NetworkRunner runner) { }
         public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
