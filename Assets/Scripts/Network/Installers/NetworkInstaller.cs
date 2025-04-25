@@ -1,6 +1,4 @@
-﻿// Assets/Scripts/Game/Installers/NetworkInstaller.cs
-using Fusion;
-using Game;
+﻿using Fusion;
 using Game.Network;
 using UnityEngine;
 using Zenject;
@@ -11,7 +9,6 @@ namespace Game
     {
         [Header("Player Prefab & Callbacks")]
         [SerializeField] private GameObject _playerPrefab;
-        [SerializeField] private NetworkCallbacks _networkCallbacks;
 
         [Header("Inventory")]
         [SerializeField] private ItemDatabaseSO _itemDatabase;
@@ -51,7 +48,9 @@ namespace Game
             Container
                 .BindInterfacesAndSelfTo<NetworkCallbacks>()
                 .FromComponentInHierarchy()
-                .AsCached();
+                .AsCached()
+                .NonLazy();
+            
 
 
             // База предметов
@@ -76,6 +75,11 @@ namespace Game
             // Контроллер локальной камеры игрока
             Container
                 .Bind<PlayerCameraController>()
+                .FromComponentInHierarchy()
+                .AsCached();
+
+            Container
+                .Bind<MonoBehaviour>()
                 .FromComponentInHierarchy()
                 .AsCached();
         }

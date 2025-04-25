@@ -13,22 +13,27 @@ namespace Game.Network
 
         [Header("Session")]
         [SerializeField] private string _sessionName = "TestRoom";
-        [SerializeField] private GameMode _mode = GameMode.AutoHostOrClient;
 
         private async void Start()
         {
-            // Ожидаем один кадр, чтобы Zenject успел выполнить InstallBindings
+            // Ожидаем один кадр для инициализации Zenject
             await Task.Yield();
+
+            // Получаем режим из PlayerPrefs
+            GameMode mode = GameMode.AutoHostOrClient;
+            if (PlayerPrefs.HasKey("GameMode"))
+            {
+                mode = (GameMode)System.Enum.Parse(typeof(GameMode), PlayerPrefs.GetString("GameMode"));
+            }
 
             var sceneRef = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
             var info = new NetworkSceneInfo();
-
             if (sceneRef.IsValid)
                 info.AddSceneRef(sceneRef, LoadSceneMode.Additive);
 
             var args = new StartGameArgs
             {
-                GameMode = _mode,
+                GameMode = mode,
                 SessionName = _sessionName,
                 Scene = info,
                 SceneManager = GetComponent<NetworkSceneManagerDefault>()
@@ -41,7 +46,7 @@ namespace Game.Network
                 return;
             }
 
-            Debug.Log($"{_mode} started");
+            Debug.Log($"{mode} started");
             _runner.AddCallbacks(_callbacks);
         }
     }
