@@ -15,6 +15,7 @@ namespace Game
 
         public override void InstallBindings()
         {
+            Debug.Log("StartInstalling");
             // Runner из сцены
             Container
                 .Bind<NetworkRunner>()
@@ -48,8 +49,7 @@ namespace Game
             Container
                 .BindInterfacesAndSelfTo<NetworkCallbacks>()
                 .FromComponentInHierarchy()
-                .AsCached()
-                .NonLazy();
+                .AsCached();
             
 
 
@@ -82,6 +82,9 @@ namespace Game
                 .Bind<MonoBehaviour>()
                 .FromComponentInHierarchy()
                 .AsCached();
+
+
+
         }
 
     }

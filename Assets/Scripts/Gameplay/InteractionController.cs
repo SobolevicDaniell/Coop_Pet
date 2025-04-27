@@ -1,5 +1,4 @@
-﻿// Assets/Scripts/Gameplay/InteractionController.cs
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 using Zenject;
 
@@ -15,43 +14,50 @@ namespace Game
         private InteractionPromptView _promptView;
         private Camera _camera;
 
-        // Zenject вызовет этот метод сразу после биндинга зависимостей.
-        // PromptView помечен опциональным:
-        [Inject]
-        public void Construct(
-            InventoryService inventory,
-            NetworkRunner runner,
-            [InjectOptional] InteractionPromptView promptView)
+        private bool _isInitialized;
+        private bool _isSpawned;
+
+        public void Init(InventoryService inventory, NetworkRunner runner, InteractionPromptView promptView)
         {
             _inventory = inventory;
             _networkRunner = runner;
             _promptView = promptView;
+
+            _isInitialized = true;
+            TryInitialize();
         }
 
-        private void Start()
+        public override void Spawned()
         {
-            if (!Object.HasInputAuthority)
+            _isSpawned = true;
+            TryInitialize();
+        }
+
+        private void TryInitialize()
+        {
+            if (!_isInitialized || !_isSpawned)
                 return;
 
-            // Если Zenject не заинжектил promptView — ищем сами:
-            if (_promptView == null)
+            if (HasInputAuthority)
             {
-                _promptView = FindObjectOfType<InteractionPromptView>();
+                _camera = Camera.main;
+
+                if (_camera == null)
+                    Debug.LogError("[InteractionController] Camera.main не найдена!", this);
+
+                if (_promptView == null)
+                    _promptView = FindObjectOfType<InteractionPromptView>();
+
                 if (_promptView == null)
                     Debug.LogError("[InteractionController] InteractionPromptView не найден!", this);
+                else
+                    _promptView.Hide();
             }
-
-            _camera = Camera.main;
-            if (_camera == null)
-                Debug.LogError("[InteractionController] Camera.main не найдена!", this);
-
-            // Прячем подсказку, если она есть
-            _promptView?.Hide();
         }
 
         private void Update()
         {
-            if (!Object.HasInputAuthority || _camera == null || _promptView == null)
+            if (!_isInitialized || !_isSpawned || !HasInputAuthority || _camera == null || _promptView == null)
                 return;
 
             if (Physics.Raycast(_camera.transform.position, _camera.transform.forward, out var hit, range)
@@ -59,8 +65,10 @@ namespace Game
             {
                 _promptView.Show();
                 if (Input.GetKeyDown(KeyCode.E))
+                {
                     RPC_RequestPick(pickable.Object);
-
+                    Debug.Log($"[InteractionController] Request pick: {pickable.ItemId}");
+                }
                 return;
             }
 
@@ -85,6 +93,12 @@ namespace Game
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
         void RPC_ConfirmPick(PlayerRef target, string itemId, RpcInfo info = default)
         {
+            if (_inventory == null)
+            {
+                Debug.LogError("[InteractionController] InventoryService не проинжектирован!", this);
+                return;
+            }
+
             bool added = _inventory.AddToQuickSlot(itemId);
             if (!added)
                 Debug.LogWarning($"[Inventory] Не удалось добавить предмет с id='{itemId}'");

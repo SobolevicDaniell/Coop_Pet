@@ -1,4 +1,4 @@
-using Fusion;
+п»їusing Fusion;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Zenject;
@@ -16,10 +16,8 @@ namespace Game.Network
 
         private async void Start()
         {
-            // Ожидаем один кадр для инициализации Zenject
-            await Task.Yield();
+            //await Task.Yield();
 
-            // Получаем режим из PlayerPrefs
             GameMode mode = GameMode.AutoHostOrClient;
             if (PlayerPrefs.HasKey("GameMode"))
             {
@@ -36,7 +34,7 @@ namespace Game.Network
                 GameMode = mode,
                 SessionName = _sessionName,
                 Scene = info,
-                SceneManager = GetComponent<NetworkSceneManagerDefault>()
+                SceneManager = GetComponent<NetworkSceneManagerDefault>(),
             };
 
             var result = await _runner.StartGame(args);
@@ -47,6 +45,7 @@ namespace Game.Network
             }
 
             Debug.Log($"{mode} started");
+
             _runner.AddCallbacks(_callbacks);
         }
     }

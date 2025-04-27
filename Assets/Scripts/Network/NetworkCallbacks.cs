@@ -12,8 +12,18 @@ namespace Game.Network
 
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
         {
-            if (runner.IsServer)
-                _spawner.SpawnPlayer(runner, player);
+            if (!runner.IsServer)
+                return;
+
+            // Убираем фильтрацию по LocalPlayer
+            // Просто прогоняем каждого через вашу фабрику:
+            _spawner.SpawnPlayer(runner, player);
+            Debug.Log($"[Server] Spawned Player: {player}");
+        }
+
+
+        public void OnConnectedToServer(NetworkRunner runner)
+        {
         }
 
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
@@ -27,8 +37,6 @@ namespace Game.Network
             _inputHandler.ProvideNetworkInput(runner, input);
         }
 
-        // Остальные колбэки – пустые
-        public void OnConnectedToServer(NetworkRunner runner) { }
         public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
