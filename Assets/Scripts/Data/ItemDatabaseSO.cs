@@ -1,3 +1,4 @@
+// Assets/Scripts/Inventory/ItemDatabaseSO.cs
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -7,17 +8,16 @@ namespace Game
     public class ItemDatabaseSO : ScriptableObject
     {
         public List<ItemSO> Items;
-        private Dictionary<string, ItemSO> lookup;
+        private Dictionary<string, ItemSO> _lookup;
 
         public ItemSO Get(string id)
         {
-            if (lookup == null)
+            if (_lookup == null)
             {
-                lookup = new Dictionary<string, ItemSO>();
-                foreach (var it in Items)
-                    lookup[it.Id] = it;
+                _lookup = new Dictionary<string, ItemSO>();
+                foreach (var i in Items) _lookup[i.Id] = i;
             }
-            lookup.TryGetValue(id, out var so);
+            _lookup.TryGetValue(id, out var so);
             return so;
         }
     }

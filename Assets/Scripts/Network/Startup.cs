@@ -1,8 +1,10 @@
-﻿using Fusion;
+﻿// Startup.cs
+using Fusion;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using Zenject;
 using System.Threading.Tasks;
+using UnityEngine.SceneManagement;
+using Game.Gameplay;
 
 namespace Game.Network
 {
@@ -10,43 +12,49 @@ namespace Game.Network
     {
         [Inject] private NetworkRunner _runner;
         [Inject] private NetworkCallbacks _callbacks;
+        [Inject] private PickableSpawner _pickableSpawner;
 
         [Header("Session")]
         [SerializeField] private string _sessionName = "TestRoom";
 
-        private async void Start()
+        /// <summary>
+        /// Запускает Fusion в указанном режиме и сессии.
+        /// </summary>
+        public async Task BeginSession(GameMode mode)
         {
-            //await Task.Yield();
+            // 1) Включаем ввод
+            _runner.ProvideInput = true;
 
-            GameMode mode = GameMode.AutoHostOrClient;
-            if (PlayerPrefs.HasKey("GameMode"))
-            {
-                mode = (GameMode)System.Enum.Parse(typeof(GameMode), PlayerPrefs.GetString("GameMode"));
-            }
+            // 2) Регистрируем колбэки до старта
+            _runner.AddCallbacks(_callbacks);
 
-            var sceneRef = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
-            var info = new NetworkSceneInfo();
+            // 3) Готовим сцену (оставляем текущую)
+            var scene = SceneManager.GetActiveScene();
+            var sceneRef = SceneRef.FromIndex(scene.buildIndex);
+            var sceneInfo = new NetworkSceneInfo();
             if (sceneRef.IsValid)
-                info.AddSceneRef(sceneRef, LoadSceneMode.Additive);
+                sceneInfo.AddSceneRef(sceneRef, LoadSceneMode.Additive);
 
-            var args = new StartGameArgs
+            // 4) Запускаем Fusion
+            var result = await _runner.StartGame(new StartGameArgs
             {
                 GameMode = mode,
                 SessionName = _sessionName,
-                Scene = info,
-                SceneManager = GetComponent<NetworkSceneManagerDefault>(),
-            };
+                SceneManager = gameObject.AddComponent<NetworkSceneManagerDefault>(),
+                Scene = sceneInfo,
+            });
 
-            var result = await _runner.StartGame(args);
             if (!result.Ok)
             {
-                Debug.LogError($"Runner start failed: {result.ShutdownReason}");
+                Debug.LogError($"[Startup] Runner start failed: {result.ShutdownReason}");
                 return;
             }
 
-            Debug.Log($"{mode} started");
+            Debug.Log($"[Startup] Fusion started as {mode}");
 
-            _runner.AddCallbacks(_callbacks);
+            // 5) Спавним предметы на сервере
+            if (_runner.IsServer)
+                _pickableSpawner.SpawnAllPickables();
         }
     }
 }

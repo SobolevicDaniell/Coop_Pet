@@ -2,55 +2,82 @@ using Fusion;
 using Fusion.Sockets;
 using UnityEngine;
 using Zenject;
+using Game.Gameplay;
 
 namespace Game.Network
 {
     public class NetworkCallbacks : MonoBehaviour, INetworkRunnerCallbacks
     {
-        [Inject] private PlayerSpawner _spawner;
+        [Inject] private PlayerSpawner _playerSpawner;
         [Inject] private InputHandler _inputHandler;
-
-        public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
-        {
-            if (!runner.IsServer)
-                return;
-
-            // Убираем фильтрацию по LocalPlayer
-            // Просто прогоняем каждого через вашу фабрику:
-            _spawner.SpawnPlayer(runner, player);
-            Debug.Log($"[Server] Spawned Player: {player}");
-        }
-
+        [Inject] private DiContainer _container;
 
         public void OnConnectedToServer(NetworkRunner runner)
         {
+            foreach (var no in FindObjectsOfType<NetworkObject>())
+            {
+                _container.InjectGameObject(no.gameObject);
+            }
+        }
+        public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
+        {
+            // Только для локального игрока
+            if (runner.LocalPlayer != player) return;
+
+            // Инжектируем Zenject во все [Inject]-поля
+            _container.InjectGameObject(obj.gameObject);
+
+            // Если это наш InteractionController — инициализируем его
+            var ic = obj.GetComponent<InteractionController>();
+            if (ic != null && ic.Object.HasInputAuthority)
+            {
+                ic.InitializeLocal(); // ваш метод начальной настройки
+            }
+        }
+        public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
+        {
+            if (runner.IsServer)
+            {
+                _playerSpawner.SpawnPlayer(player);
+                Debug.Log($"[Server] Spawned Player: {player}");
+            }
+
+            if (!runner.IsServer && runner.LocalPlayer == player)
+            {
+                var netObj = runner.GetPlayerObject(player);
+                if (netObj != null)
+                {
+                    _container.InjectGameObject(netObj.gameObject);
+                }
+                else
+                {
+                    Debug.LogError("[Client] Failed to GetPlayerObject for local player");
+                }
+            }
         }
 
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
         {
             if (runner.IsServer)
-                _spawner.RemovePlayer(runner, player);
+                _playerSpawner.RemovePlayer(runner, player);
         }
 
         public void OnInput(NetworkRunner runner, NetworkInput input)
-        {
-            _inputHandler.ProvideNetworkInput(runner, input);
-        }
+            => _inputHandler.ProvideNetworkInput(runner, input);
 
-        public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
-        public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
+        public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest req, byte[] token) { }
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
-        public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
-        public void OnSessionListUpdated(NetworkRunner runner, System.Collections.Generic.List<SessionInfo> sessionList) { }
-        public void OnCustomAuthenticationResponse(NetworkRunner runner, System.Collections.Generic.Dictionary<string, object> data) { }
+        public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
         public void OnHostMigration(NetworkRunner runner, HostMigrationToken token) { }
-        public void OnShutdown(NetworkRunner runner, ShutdownReason reason) { }
+        public void OnSessionListUpdated(NetworkRunner runner, System.Collections.Generic.List<SessionInfo> sessionList) { }
         public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, System.ArraySegment<byte> data) { }
         public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
-        public void OnSceneLoadDone(NetworkRunner runner) { }
         public void OnSceneLoadStart(NetworkRunner runner) { }
-        public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
-        public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
+        public void OnSceneLoadDone(NetworkRunner runner) { }
+        public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
+        public void OnCustomAuthenticationResponse(NetworkRunner runner, System.Collections.Generic.Dictionary<string, object> data) { }
+        public void OnShutdown(NetworkRunner runner, ShutdownReason reason) { }
         public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
+        public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
     }
 }

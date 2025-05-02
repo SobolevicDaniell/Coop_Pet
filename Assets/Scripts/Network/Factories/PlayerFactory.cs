@@ -1,5 +1,6 @@
-using UnityEngine;
+// Assets/Scripts/Network/PlayerFactory.cs
 using Fusion;
+using UnityEngine;
 using Zenject;
 
 namespace Game.Network
@@ -7,41 +8,26 @@ namespace Game.Network
     public class PlayerFactory : IPlayerFactory
     {
         readonly DiContainer _container;
-        readonly GameObject _playerPrefab;
-        readonly InventoryService _inventory;
         readonly NetworkRunner _runner;
-        readonly InteractionPromptView _promptView;
+        readonly GameObject _playerPrefab;
 
         [Inject]
         public PlayerFactory(
             DiContainer container,
             [Inject(Id = "PlayerPrefab")] GameObject playerPrefab,
-            InventoryService inventory,
-            NetworkRunner runner,
-            InteractionPromptView promptView)
+            NetworkRunner runner)
         {
             _container = container;
             _playerPrefab = playerPrefab;
-            _inventory = inventory;
             _runner = runner;
-            _promptView = promptView;
         }
 
         public NetworkObject Spawn(PlayerRef playerRef)
         {
-            // Fusion сам создаст один единственный экземпляр:
-            var netObj = _runner.Spawn(
-                _playerPrefab.GetComponent<NetworkObject>(),       // <- здесь передаём asset-префаб
-                position: Vector3.zero,
-                rotation: Quaternion.identity,
-                inputAuthority: playerRef
-            );
-
-            // А Zenject прокинет зависимости на вновь созданный GO:
+            var prefabNo = _playerPrefab.GetComponent<NetworkObject>();
+            var netObj = _runner.Spawn(prefabNo, Vector3.zero, Quaternion.identity, playerRef);
             _container.InjectGameObject(netObj.gameObject);
-
             return netObj;
         }
-
     }
 }

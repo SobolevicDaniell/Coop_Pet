@@ -1,90 +1,93 @@
 ﻿using Fusion;
-using Game.Network;
+using Game.Gameplay;
 using UnityEngine;
 using Zenject;
 
-namespace Game
+namespace Game.Network
 {
     public class NetworkInstaller : MonoInstaller
     {
-        [Header("Player Prefab & Callbacks")]
-        [SerializeField] private GameObject _playerPrefab;
-
-        [Header("Inventory")]
-        [SerializeField] private ItemDatabaseSO _itemDatabase;
+        [Header("Player Prefab")][SerializeField] private GameObject _playerPrefab;
+        [Header("Inventory")][SerializeField] private ItemDatabaseSO _itemDatabase;
+        [Header("Interaction Signals")][SerializeField] private InteractionSignalsSO _interactionSignals;
 
         public override void InstallBindings()
         {
-            Debug.Log("StartInstalling");
-            // Runner из сцены
+            Debug.Log("NetworkInstaller: InstallBindings");
+
+            // 1) Биндим Startup
+            Container
+                .Bind<Startup>()
+                .FromComponentInHierarchy()
+                .AsSingle()
+                .NonLazy();
+
+            // 2) NetworkRunner
             Container
                 .Bind<NetworkRunner>()
                 .FromComponentInHierarchy()
-                .AsCached();
+                .AsSingle()
+                .NonLazy();
 
-            // Префаб игрока
+            // 3) Префаб игрока — ВАЖНО до фабрики
             Container
                 .Bind<GameObject>()
                 .WithId("PlayerPrefab")
                 .FromInstance(_playerPrefab)
                 .AsSingle();
 
-            // Factory & Spawner
+            // 4) Фабрика игроков (зависит от PlayerPrefab)
             Container
                 .Bind<IPlayerFactory>()
                 .To<PlayerFactory>()
-                .AsSingle();
+                .AsSingle()
+                .NonLazy();
+
+            // 5) Спавнер игроков
             Container
                 .Bind<PlayerSpawner>()
-                .AsSingle();
+                .AsSingle()
+                .NonLazy();
 
-            // InputHandler из сцены
+            // 6) PickableSpawner
             Container
-                .Bind<InputHandler>()
+                .Bind<PickableSpawner>()
                 .FromComponentInHierarchy()
-                .AsCached();
+                .AsSingle()
+                .NonLazy();
 
-            // Fusion callbacks
-            // Привязываем NetworkCallbacks как компонент из сцены, чтобы Zenject мог сделать полной инъекцию
+            // 7) NetworkCallbacks
             Container
                 .BindInterfacesAndSelfTo<NetworkCallbacks>()
                 .FromComponentInHierarchy()
-                .AsCached();
-            
-
-
-            // База предметов
-            Container
-                .Bind<ItemDatabaseSO>()
-                .FromInstance(_itemDatabase)
-                .AsSingle();
-
-            // Сервис инвентаря
-            Container
-                .Bind<InventoryService>()
                 .AsSingle()
-                .WithArguments(_itemDatabase)
                 .NonLazy();
 
-            // UI подсказок
-            Container
-                .Bind<InteractionPromptView>()
-                .FromComponentInHierarchy()
-                .AsCached();
+            // 8) Всё остальное...
+            Container.Bind<InputHandler>()
+                     .FromComponentInHierarchy()
+                     .AsSingle();
 
-            // Контроллер локальной камеры игрока
-            Container
-                .Bind<PlayerCameraController>()
-                .FromComponentInHierarchy()
-                .AsCached();
+            Container.Bind<ItemDatabaseSO>()
+                     .FromInstance(_itemDatabase)
+                     .AsSingle();
 
-            Container
-                .Bind<MonoBehaviour>()
-                .FromComponentInHierarchy()
-                .AsCached();
+            Container.Bind<InteractionSignalsSO>()
+                     .FromInstance(_interactionSignals)
+                     .AsSingle();
 
+            Container.Bind<InteractionPromptView>()
+                     .FromComponentInHierarchy()
+                     .AsSingle();
 
+            Container.Bind<InventoryService>()
+                     .AsSingle()
+                     .WithArguments(_itemDatabase)
+                     .NonLazy();
 
+            Container.Bind<PlayerCameraController>()
+                     .FromComponentInHierarchy()
+                     .AsSingle();
         }
 
     }

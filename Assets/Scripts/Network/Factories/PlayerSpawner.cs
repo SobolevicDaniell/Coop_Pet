@@ -1,5 +1,5 @@
+// Assets/Scripts/Network/PlayerSpawner.cs
 using System.Collections.Generic;
-using System.Diagnostics;
 using Fusion;
 using Zenject;
 
@@ -8,26 +8,16 @@ namespace Game.Network
     public class PlayerSpawner
     {
         readonly IPlayerFactory _factory;
-        readonly NetworkRunner _runner;
         readonly Dictionary<PlayerRef, NetworkObject> _spawned = new();
 
-
         [Inject]
-        public PlayerSpawner(IPlayerFactory factory, NetworkRunner runner)
+        public PlayerSpawner(IPlayerFactory factory) => _factory = factory;
+
+        public void SpawnPlayer(PlayerRef player)
         {
-            _factory = factory;
-            _runner = runner;
+            if (player == PlayerRef.None || _spawned.ContainsKey(player)) return;
+            _spawned[player] = _factory.Spawn(player);
         }
-
-        public void SpawnPlayer(NetworkRunner runner, PlayerRef player)
-        {
-            if (player == PlayerRef.None)
-                return;
-            
-            var netObj = _factory.Spawn(player);
-        }
-
-
 
         public void RemovePlayer(NetworkRunner runner, PlayerRef player)
         {

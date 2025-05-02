@@ -103,6 +103,8 @@ namespace Zenject
             set { _parentNewObjectsUnderSceneContext = value; }
         }
 
+        public static object Instance { get; set; }
+
         public void Awake()
         {
 #if ZEN_INTERNAL_PROFILING
