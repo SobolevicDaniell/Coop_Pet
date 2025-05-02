@@ -88,6 +88,10 @@ namespace Game.Network
             Container.Bind<PlayerCameraController>()
                      .FromComponentInHierarchy()
                      .AsSingle();
+
+
+           
+
         }
 
     }

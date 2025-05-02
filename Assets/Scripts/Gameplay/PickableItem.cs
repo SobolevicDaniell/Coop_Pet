@@ -1,25 +1,27 @@
-// Assets/Scripts/Gameplay/PickableItem.cs
 using Fusion;
 using UnityEngine;
+using Zenject;
 
-namespace Game
+namespace Game.Gameplay
 {
     [RequireComponent(typeof(NetworkObject))]
     public class PickableItem : NetworkBehaviour
     {
-        [SerializeField] private string itemId;
-        public string ItemId => itemId;
+        // сетевые поля, синхронизируемые всем клиентам
+        [Networked] public string ItemId { get; private set; }
+        [Networked] public int Count { get; private set; }
+
+        // этот метод вызывается в OnBeforeSpawned делегате
+        public void Initialize(string itemId, int count)
+        {
+            ItemId = itemId;
+            Count = count;
+        }
 
         public void Pick(NetworkRunner runner)
         {
             if (Object.HasStateAuthority)
-            {
                 runner.Despawn(Object);
-            }
-            else
-            {
-                gameObject.SetActive(false);
-            }
         }
     }
 }

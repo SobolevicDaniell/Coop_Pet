@@ -1,47 +1,52 @@
 // Assets/Scripts/Game/InputHandler.cs
 using Fusion;
 using UnityEngine;
+using System;
 
-namespace Game
+public class InputHandler : MonoBehaviour
 {
-    public class InputHandler : MonoBehaviour
+    [Header("UI References")]
+    [SerializeField] private GameObject _inventoryPanel;
+
+    private InputData _networkInput;
+    public bool InventoryOpen { get; private set; }
+
+    public event Action OnInteractPressed;
+
+    private void Awake()
     {
-        [Header("UI References")]
-        [SerializeField] private GameObject _inventoryPanel;
+        if (_inventoryPanel != null)
+            _inventoryPanel.SetActive(false);
+    }
 
-        private InputData _networkInput;
-        public bool InventoryOpen { get; private set; }
-
-        private void Awake()
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Tab))
         {
-            if (_inventoryPanel != null)
-                _inventoryPanel.SetActive(false);
+            InventoryOpen = !InventoryOpen;
+            _inventoryPanel?.SetActive(InventoryOpen);
         }
 
-        private void Update()
+        if (InventoryOpen)
         {
-            if (Input.GetKeyDown(KeyCode.Tab))
-            {
-                InventoryOpen = !InventoryOpen;
-                _inventoryPanel?.SetActive(InventoryOpen);
-            }
+            _networkInput = new InputData();
+        }
+        else
+        {
+            _networkInput.movement = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
+            _networkInput.mouseX = Input.GetAxis("Mouse X");
+            _networkInput.mouseY = Input.GetAxis("Mouse Y");
+            _networkInput.jump = Input.GetKey(KeyCode.Space);
 
-            if (InventoryOpen)
+            if (Input.GetKeyDown(KeyCode.E))
             {
-                _networkInput = new InputData(); // no move/look while UI open
-            }
-            else
-            {
-                _networkInput.movement = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
-                _networkInput.mouseX = Input.GetAxis("Mouse X");
-                _networkInput.mouseY = Input.GetAxis("Mouse Y");
-                _networkInput.jump = Input.GetKey(KeyCode.Space);
+                OnInteractPressed?.Invoke();
             }
         }
+    }
 
-        public void ProvideNetworkInput(NetworkRunner runner, NetworkInput input)
-        {
-            input.Set(_networkInput);
-        }
+    public void ProvideNetworkInput(NetworkRunner runner, NetworkInput input)
+    {
+        input.Set(_networkInput);
     }
 }

@@ -1,12 +1,8 @@
-﻿// Assets/Scripts/Network/PlayerCameraController.cs
-using Fusion;
+﻿using Fusion;
 using UnityEngine;
 
 namespace Game.Network
 {
-    /// <summary>
-    /// Управляет включением камеры и аудио для локального игрока.
-    /// </summary>
     [RequireComponent(typeof(NetworkObject))]
     public class PlayerCameraController : NetworkBehaviour
     {
@@ -14,21 +10,23 @@ namespace Game.Network
         [SerializeField] private Camera _playerCamera;
         [SerializeField] private AudioListener _audioListener;
 
-        /// <summary>
-        /// Вызывается из NetworkPlayer.Spawned() для настройки локальной копии.
-        /// </summary>
-        /// <param name="isLocal">true для игрока, которым управляют на этой машине</param>
+        private bool _isLocal;
+
         public void SetLocal(bool isLocal)
         {
-            // Блокируем или разблокируем курсор
-            Cursor.lockState = isLocal ? CursorLockMode.Locked : CursorLockMode.None;
+            _isLocal = isLocal;
+            ApplyCursorAndCameras();
+        }
 
-            // Включаем или отключаем камеру и аудио-листенер на этом объекте
-            if (_playerCamera != null) _playerCamera.enabled = isLocal;
-            if (_audioListener != null) _audioListener.enabled = isLocal;
+        private void ApplyCursorAndCameras()
+        {
+            Cursor.lockState = _isLocal ? CursorLockMode.Locked : CursorLockMode.None;
+            Cursor.visible = !_isLocal;
 
-            // Если это локальный игрок, отключаем все другие камеры и аудио-листенеры в сцене
-            if (isLocal)
+            if (_playerCamera != null) _playerCamera.enabled = _isLocal;
+            if (_audioListener != null) _audioListener.enabled = _isLocal;
+
+            if (_isLocal)
             {
                 foreach (var cam in FindObjectsOfType<Camera>())
                 {
@@ -40,6 +38,14 @@ namespace Game.Network
                             listener.enabled = false;
                     }
                 }
+            }
+        }
+
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (hasFocus && _isLocal)
+            {
+                ApplyCursorAndCameras();
             }
         }
     }

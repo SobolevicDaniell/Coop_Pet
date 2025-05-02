@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 955117897809451662}
   - component: {fileID: 9052767608803760478}
   m_Layer: 0
-  m_Name: PickableSpawner
+  m_Name: PickaxeSpawner
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -57,4 +57,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 374d7928df153b0429a93ddd1752e51d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _pickablePrefab: {fileID: 142612885723506314, guid: 05705a12099c493409877604f8e49170, type: 3}
+  _itemId: Pickaxe
+  _requestedCount: 1

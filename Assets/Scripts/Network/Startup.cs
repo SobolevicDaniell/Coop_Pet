@@ -5,6 +5,7 @@ using Zenject;
 using System.Threading.Tasks;
 using UnityEngine.SceneManagement;
 using Game.Gameplay;
+using System;
 
 namespace Game.Network
 {
@@ -16,6 +17,8 @@ namespace Game.Network
 
         [Header("Session")]
         [SerializeField] private string _sessionName = "TestRoom";
+
+        public static event Action OnSessionStarted;
 
         public async Task BeginSession(GameMode mode)
         {
@@ -50,8 +53,11 @@ namespace Game.Network
             Debug.Log($"[Startup] Fusion started as {mode}");
 
             // 5) Спавним предметы на сервере
+            //if (_runner.IsServer)
+            //    _pickableSpawner.SpawnAllPickables();
+
             if (_runner.IsServer)
-                _pickableSpawner.SpawnAllPickables();
+                OnSessionStarted?.Invoke();
         }
     }
 }

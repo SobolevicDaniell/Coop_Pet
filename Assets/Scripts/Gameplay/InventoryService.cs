@@ -26,18 +26,20 @@ namespace Game
         {
             if (item == null) return false;
 
-            // попытка дополнить стак
-            for (int i = 0; i < _quickSlots.Length; i++)
+            if (item.MaxStack > 1)
             {
-                var slot = _quickSlots[i];
-                if (slot.Item == item && item.MaxStack > 1)
+                for (int i = 0; i < _quickSlots.Length; i++)
                 {
-                    slot.Count++;
-                    OnQuickSlotsChanged?.Invoke();
-                    return true;
+                    var slot = _quickSlots[i];
+                    if (slot.Item == item && slot.Count < item.MaxStack)
+                    {
+                        slot.Count++;
+                        OnQuickSlotsChanged?.Invoke();
+                        return true;
+                    }
                 }
             }
-            // или положить в пустой
+
             for (int i = 0; i < _quickSlots.Length; i++)
             {
                 var slot = _quickSlots[i];
@@ -49,6 +51,7 @@ namespace Game
                     return true;
                 }
             }
+
             return false;
         }
 

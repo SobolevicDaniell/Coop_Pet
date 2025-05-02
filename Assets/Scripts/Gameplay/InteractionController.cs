@@ -10,6 +10,7 @@ namespace Game.Gameplay
     {
         [Inject] private InteractionPromptView _promptView;
         [Inject] private InventoryService _inventory;
+        [Inject] private InputHandler _inputHandler;
 
         [Header("Настройки взаимодействия")]
         [SerializeField] private float range = 2f;
@@ -34,7 +35,13 @@ namespace Game.Gameplay
             
 
             _promptView.Hide();
+            _inputHandler.OnInteractPressed += OnInteractPressed;
             _initialized = true;
+        }
+        private void OnDestroy()
+        {
+            if (_initialized)
+                _inputHandler.OnInteractPressed -= OnInteractPressed;
         }
 
         private void Update()
@@ -49,36 +56,59 @@ namespace Game.Gameplay
                 _promptView.Show();
             else
                 _promptView.Hide();
-
-            if (canPick && Input.GetKeyDown(KeyCode.E))
-                TryRequestPick(hit);
         }
 
-        private void TryRequestPick(RaycastHit hit)
+        private void OnInteractPressed()
         {
-            var pickable = hit.collider.GetComponent<PickableItem>();
-            var netObj = pickable.GetComponent<NetworkObject>();
-            //Debug.Log($"[InteractionController] Sending RPC_RequestPick for {pickable.ItemId}");
-            RPC_RequestPick(netObj);
+            if (!_initialized) return;
+
+            var ray = _camera.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out var hit, range)
+                && hit.collider.TryGetComponent<PickableItem>(out var pickable))
+            {
+                var netObj = pickable.GetComponent<NetworkObject>();
+                RPC_RequestPick(netObj);
+            }
         }
 
+        //private void TryRequestPick(RaycastHit hit)
+        //{
+        //    var pickable = hit.collider.GetComponent<PickableItem>();
+        //    var netObj = pickable.GetComponent<NetworkObject>();
+        //    //Debug.Log($"[InteractionController] Sending RPC_RequestPick for {pickable.ItemId}");
+        //    RPC_RequestPick(netObj);
+        //}
+
+        // --- SERVER SIDE ---
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         void RPC_RequestPick(NetworkObject pickable, RpcInfo info = default)
         {
             if (pickable == null) return;
-            Runner.Despawn(pickable);
             var pick = pickable.GetComponent<PickableItem>();
-            if (pick != null)
-                RPC_ConfirmPick(info.Source, pick.ItemId);
+            if (pick == null) return;
+
+            // сохраняем до despawn
+            var itemId = pick.ItemId;
+            var count = pick.Count;
+
+            Runner.Despawn(pickable);
+            RPC_ConfirmPick(info.Source, itemId, count);
         }
 
+        // --- CLIENT SIDE ---
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
-        void RPC_ConfirmPick(PlayerRef _, string itemId)
+        void RPC_ConfirmPick(PlayerRef _, string itemId, int count, RpcInfo info = default)
         {
-            bool added = _inventory.AddToQuickSlot(itemId);
-            //Debug.Log($"[RPC_ConfirmPick] Added '{itemId}' to inventory? {added}");
-            //if (!added)
-            //    Debug.LogWarning($"[InteractionController] Failed to add '{itemId}'");
+            for (int i = 0; i < count; i++)
+            {
+                if (!_inventory.AddToQuickSlot(itemId))
+                {
+                    Debug.LogWarning($"[Inventory] Could not add '{itemId}' to quick slot.");
+                    break;
+                }
+            }
         }
+
+
     }
 }
