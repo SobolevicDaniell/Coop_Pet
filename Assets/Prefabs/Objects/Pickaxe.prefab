@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 8579224220931865632}
   - component: {fileID: 4765253511011911}
   - component: {fileID: 142612885723506314}
+  - component: {fileID: -3734269188384203754}
   m_Layer: 0
   m_Name: Pickaxe
   m_TagString: Untagged
@@ -163,4 +164,22 @@ MonoBehaviour:
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 4765253511011911}
+  - {fileID: -3734269188384203754}
   ForceRemoteRenderTimeframe: 0
+--- !u!114 &-3734269188384203754
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2639007584469857855}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 158639473, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _stateAuthorityChangeErrorCorrectionDelta: 0
+  SyncScale: 0
+  SyncParent: 0
+  _autoAOIOverride: 1
+  DisableSharedModeInterpolation: 0

@@ -45,14 +45,14 @@ namespace Game.Network
             if (!runner.IsServer && runner.LocalPlayer == player)
             {
                 var netObj = runner.GetPlayerObject(player);
-                if (netObj != null)
-                {
-                    _container.InjectGameObject(netObj.gameObject);
-                }
-                else
-                {
-                    Debug.LogError("[Client] Failed to GetPlayerObject for local player");
-                }
+                //if (netObj != null)
+                //{
+                //    _container.InjectGameObject(netObj.gameObject);
+                //}
+                //else
+                //{
+                //    Debug.LogError("[Client] Failed to GetPlayerObject for local player");
+                //}
             }
         }
 

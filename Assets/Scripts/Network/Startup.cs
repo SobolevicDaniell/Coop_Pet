@@ -17,9 +17,6 @@ namespace Game.Network
         [Header("Session")]
         [SerializeField] private string _sessionName = "TestRoom";
 
-        /// <summary>
-        /// Запускает Fusion в указанном режиме и сессии.
-        /// </summary>
         public async Task BeginSession(GameMode mode)
         {
             // 1) Включаем ввод

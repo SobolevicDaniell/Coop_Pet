@@ -6105,6 +6105,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: PickableSpawner
       objectReference: {fileID: 0}
+    - target: {fileID: 3793806812385132716, guid: 19e68016b2628694f95df2872e6cb4b4, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 6514978066204742452, guid: 19e68016b2628694f95df2872e6cb4b4, type: 3}
       propertyPath: m_LocalPosition.x
       value: 4.3
@@ -6144,6 +6148,10 @@ PrefabInstance:
     - target: {fileID: 6514978066204742452, guid: 19e68016b2628694f95df2872e6cb4b4, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9052767608803760478, guid: 19e68016b2628694f95df2872e6cb4b4, type: 3}
+      propertyPath: m_Enabled
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 9052767608803760478, guid: 19e68016b2628694f95df2872e6cb4b4, type: 3}
       propertyPath: _spawnPoints.Array.size

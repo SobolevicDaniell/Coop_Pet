@@ -31,8 +31,7 @@ namespace Game.Gameplay
             if (_initialized) return;
 
             _camera = Camera.main;
-            if (_camera == null)
-                Debug.LogError("[InteractionController] Camera.main not found", this);
+            
 
             _promptView.Hide();
             _initialized = true;
@@ -59,7 +58,7 @@ namespace Game.Gameplay
         {
             var pickable = hit.collider.GetComponent<PickableItem>();
             var netObj = pickable.GetComponent<NetworkObject>();
-            Debug.Log($"[InteractionController] Sending RPC_RequestPick for {pickable.ItemId}");
+            //Debug.Log($"[InteractionController] Sending RPC_RequestPick for {pickable.ItemId}");
             RPC_RequestPick(netObj);
         }
 
@@ -77,9 +76,9 @@ namespace Game.Gameplay
         void RPC_ConfirmPick(PlayerRef _, string itemId)
         {
             bool added = _inventory.AddToQuickSlot(itemId);
-            Debug.Log($"[RPC_ConfirmPick] Added '{itemId}' to inventory? {added}");
-            if (!added)
-                Debug.LogWarning($"[InteractionController] Failed to add '{itemId}'");
+            //Debug.Log($"[RPC_ConfirmPick] Added '{itemId}' to inventory? {added}");
+            //if (!added)
+            //    Debug.LogWarning($"[InteractionController] Failed to add '{itemId}'");
         }
     }
 }
