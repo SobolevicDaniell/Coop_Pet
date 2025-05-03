@@ -17,7 +17,7 @@ GameObject:
   - component: {fileID: 142612885723506314}
   - component: {fileID: -2251876421072152089}
   - component: {fileID: 9053654613932499481}
-  m_Layer: 6
+  m_Layer: 3
   m_Name: Pickaxe
   m_TagString: Item
   m_Icon: {fileID: 0}
@@ -146,7 +146,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0bd022ecc93f029499a6e357931ae966, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  itemId: Pickaxe
+  _ItemId: 
+  _Count: 0
 --- !u!114 &142612885723506314
 MonoBehaviour:
   m_ObjectHideFlags: 0

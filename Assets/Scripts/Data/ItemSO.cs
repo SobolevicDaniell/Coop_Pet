@@ -11,5 +11,6 @@ namespace Game
         [Header("UI")]
         public Sprite Icon;
         public int MaxStack = 1;
+        public int priority = 1;
     }
 }

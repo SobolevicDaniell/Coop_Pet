@@ -16,3 +16,4 @@ MonoBehaviour:
   Prefab: {fileID: 2639007584469857855, guid: 05705a12099c493409877604f8e49170, type: 3}
   Icon: {fileID: 21300000, guid: 58361e79d11566648ab57438a80c5dd1, type: 3}
   MaxStack: 1
+  priority: 2

@@ -51,7 +51,7 @@ PrefabInstance:
     - target: {fileID: -7511558181221131132, guid: 059af077ce74ad34d8a5e1453529d6f8, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: 88cbb65131bea9f40aced25415dc4703, type: 2}
+      objectReference: {fileID: 2100000, guid: cd2cab2acdd15314dbae6e1821166029, type: 2}
     - target: {fileID: 919132149155446097, guid: 059af077ce74ad34d8a5e1453529d6f8, type: 3}
       propertyPath: m_Name
       value: battery small

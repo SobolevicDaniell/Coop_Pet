@@ -1,30 +1,34 @@
 using Game;
+using Game.UI;
 using UnityEngine;
 using Zenject;
 
-public class QuickSlotPanel : MonoBehaviour
+namespace Game.UI
 {
-    [SerializeField] private QuickSlotSlotUI[] slotUIs;
-    private InventoryService _inventory;
-
-    [Inject]
-    public void Construct(InventoryService inventory)
+    public class QuickSlotPanel : MonoBehaviour
     {
-        _inventory = inventory;
-        _inventory.OnQuickSlotsChanged += Refresh;
-        Refresh();
-    }
+        [SerializeField] private InventorySlotUI[] slotsUI;
+        private InventoryService _inventory;
 
-    private void Refresh()
-    {
-        var slots = _inventory.GetQuickSlots();
-        for (int i = 0; i < slotUIs.Length; i++)
-            slotUIs[i].Set(slots[i].Item, slots[i].Count);
-    }
+        [Inject]
+        public void Construct(InventoryService inventory)
+        {
+            _inventory = inventory;
+            _inventory.OnQuickSlotsChanged += Refresh;
+            Refresh();
+        }
 
-    private void OnDestroy()
-    {
-        if (_inventory != null)
-            _inventory.OnQuickSlotsChanged -= Refresh;
+        private void Refresh()
+        {
+            var slots = _inventory.GetQuickSlots();
+            for (int i = 0; i < slotsUI.Length; i++)
+                slotsUI[i].Set(slots[i].Item, slots[i].Count);
+        }
+
+        private void OnDestroy()
+        {
+            if (_inventory != null)
+                _inventory.OnQuickSlotsChanged -= Refresh;
+        }
     }
 }

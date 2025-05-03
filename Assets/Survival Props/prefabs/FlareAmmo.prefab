@@ -51,7 +51,7 @@ PrefabInstance:
     - target: {fileID: -7511558181221131132, guid: 6ea8187d379a774469bf39714d8fdd37, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: 22c444bf544cd544bb9510c67acde556, type: 2}
+      objectReference: {fileID: 2100000, guid: 7aa00ee0a5d54ab4e877959747d1b61c, type: 2}
     - target: {fileID: 919132149155446097, guid: 6ea8187d379a774469bf39714d8fdd37, type: 3}
       propertyPath: m_Name
       value: FlareAmmo

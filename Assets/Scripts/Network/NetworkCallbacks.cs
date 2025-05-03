@@ -21,17 +21,14 @@ namespace Game.Network
         }
         public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
         {
-            // Только для локального игрока
             if (runner.LocalPlayer != player) return;
 
-            // Инжектируем Zenject во все [Inject]-поля
             _container.InjectGameObject(obj.gameObject);
 
-            // Если это наш InteractionController — инициализируем его
             var ic = obj.GetComponent<InteractionController>();
             if (ic != null && ic.Object.HasInputAuthority)
             {
-                ic.InitializeLocal(); // ваш метод начальной настройки
+                ic.InitializeLocal();
             }
         }
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
