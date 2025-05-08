@@ -1,5 +1,4 @@
-﻿// Assets/Scripts/Inventory/InventoryService.cs
-using System;
+﻿using System;
 using UnityEngine;
 
 namespace Game
@@ -8,6 +7,9 @@ namespace Game
     {
         public event Action OnQuickSlotsChanged;
         public event Action OnInventoryChanged;
+        public event Action<int> OnQuickSlotSelectionChanged;
+
+        public int SelectedQuickSlot { get; private set; } = -1;
 
         private readonly InventorySlot[] _quickSlots;
         private readonly InventorySlot[] _inventorySlots;
@@ -16,12 +18,10 @@ namespace Game
         public InventoryService(ItemDatabaseSO db)
         {
             _db = db;
-
             _quickSlots = new InventorySlot[10];
+            _inventorySlots = new InventorySlot[30];
             for (int i = 0; i < _quickSlots.Length; i++)
                 _quickSlots[i] = new InventorySlot();
-
-            _inventorySlots = new InventorySlot[30]; // 6×5
             for (int i = 0; i < _inventorySlots.Length; i++)
                 _inventorySlots[i] = new InventorySlot();
         }
@@ -29,119 +29,96 @@ namespace Game
         public InventorySlot[] GetQuickSlots() => _quickSlots;
         public InventorySlot[] GetInventorySlots() => _inventorySlots;
 
-        /// <summary>
-        /// Пытаемся положить count штук itemId. Возвращаем остаток.
-        /// </summary>
-        public int HandlePick(string itemId, int count)
+        public void SelectQuickSlot(int idx)
         {
-            var item = _db.Get(itemId);
-            if (item == null) return count;
-
-            int remaining = count;
-
-            // Первый проход — по приоритету
-            bool placed;
-            if (item.priority == 1)
-                placed = TryAddToQuickSlot(item, remaining);
-            else
-                placed = TryAddToInventory(item, remaining);
-
-            if (placed)
-                remaining = 0;
-            else
-            {
-                // Второй проход — в другую "очередь"
-                if (item.priority == 1)
-                    placed = TryAddToInventory(item, remaining);
-                else
-                    placed = TryAddToQuickSlot(item, remaining);
-
-                if (placed)
-                    remaining = 0;
-            }
-
-            //if (remaining > 0)
-            //    Debug.LogWarning($"[Inventory] No space for {itemId}×{remaining}");
-
-            return remaining;
+            if (idx < 0 || idx >= _quickSlots.Length) return;
+            SelectedQuickSlot = (SelectedQuickSlot == idx) ? -1 : idx;
+            OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
         }
 
-        private bool TryAddToQuickSlot(ItemSO item, int count)
+        public int HandlePick(string id, int count)
         {
-            int remaining = count;
+            var item = _db.Get(id);
+            if (item == null) return count;
 
-            // добиваем в стеки
+            int rem = count;
+
+            if (item.priority == 1)
+                rem = TryQuick(item, rem);
+            else
+                rem = TryInventory(item, rem);
+
+            if (rem > 0)
+            {
+                if (item.priority == 1)
+                    rem = TryInventory(item, rem);
+                else
+                    rem = TryQuick(item, rem);
+            }
+
+            return rem;
+        }
+
+        private int TryQuick(ItemSO item, int rem)
+        {
             if (item.MaxStack > 1)
             {
                 foreach (var slot in _quickSlots)
                 {
-                    if (remaining == 0) break;
-                    if (slot.Item == item && slot.Count < item.MaxStack)
+                    if (rem == 0) break;
+                    if (slot.Id == item.Id && slot.Count < item.MaxStack)
                     {
-                        int can = Mathf.Min(remaining, item.MaxStack - slot.Count);
+                        int can = Mathf.Min(rem, item.MaxStack - slot.Count);
                         slot.Count += can;
-                        remaining -= can;
+                        rem -= can;
                         OnQuickSlotsChanged?.Invoke();
                     }
                 }
             }
-
-            // новые слоты
             foreach (var slot in _quickSlots)
             {
-                if (remaining == 0) break;
-                if (slot.Item == null)
+                if (rem == 0) break;
+                if (slot.Id == null)
                 {
-                    slot.Item = item;
-                    int toPut = Mathf.Min(remaining, item.MaxStack);
+                    slot.Id = item.Id;
+                    int toPut = Mathf.Min(rem, item.MaxStack);
                     slot.Count = toPut;
-                    remaining -= toPut;
+                    rem -= toPut;
                     OnQuickSlotsChanged?.Invoke();
                 }
             }
-
-            return remaining == 0;
+            return rem;
         }
 
-        private bool TryAddToInventory(ItemSO item, int count)
+        private int TryInventory(ItemSO item, int rem)
         {
-            int remaining = count;
-
             if (item.MaxStack > 1)
             {
                 foreach (var slot in _inventorySlots)
                 {
-                    if (remaining == 0) break;
-                    if (slot.Item == item && slot.Count < item.MaxStack)
+                    if (rem == 0) break;
+                    if (slot.Id == item.Id && slot.Count < item.MaxStack)
                     {
-                        int can = Mathf.Min(remaining, item.MaxStack - slot.Count);
+                        int can = Mathf.Min(rem, item.MaxStack - slot.Count);
                         slot.Count += can;
-                        remaining -= can;
+                        rem -= can;
                         OnInventoryChanged?.Invoke();
                     }
                 }
             }
-
             foreach (var slot in _inventorySlots)
             {
-                if (remaining == 0) break;
-                if (slot.Item == null)
+                if (rem == 0) break;
+                if (slot.Id == null)
                 {
-                    slot.Item = item;
-                    int toPut = Mathf.Min(remaining, item.MaxStack);
+                    slot.Id = item.Id;
+                    int toPut = Mathf.Min(rem, item.MaxStack);
                     slot.Count = toPut;
-                    remaining -= toPut;
+                    rem -= toPut;
                     OnInventoryChanged?.Invoke();
                 }
             }
-
-            return remaining == 0;
+            return rem;
         }
-    }
-
-    public class InventorySlot
-    {
-        public ItemSO Item;
-        public int Count;
     }
 }

@@ -1,11 +1,14 @@
-public class InventorySlot
+namespace Game
 {
-    public string Id;
-    public int Count;
-
-    public InventorySlot(string id, int count)
+    public class InventorySlot
     {
-        Id = id;
-        Count = count;
+        public string Id;
+        public int Count;
+
+        public InventorySlot(string id = null, int count = 0)
+        {
+            Id = id;
+            Count = count;
+        }
     }
 }

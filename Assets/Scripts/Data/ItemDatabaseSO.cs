@@ -1,4 +1,3 @@
-// Assets/Scripts/Inventory/ItemDatabaseSO.cs
 using System.Collections.Generic;
 using UnityEngine;
 

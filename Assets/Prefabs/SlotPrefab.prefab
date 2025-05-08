@@ -82,6 +82,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _icon: {fileID: 8462561360271368316}
+  _activeIcon: {fileID: 6822530600826991845}
   _countText: {fileID: 4251678993498708499}
 --- !u!1 &3416870533702868314
 GameObject:
@@ -236,7 +237,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &3524736131507230106
 RectTransform:
   m_ObjectHideFlags: 0

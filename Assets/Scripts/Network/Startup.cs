@@ -52,10 +52,6 @@ namespace Game.Network
 
             Debug.Log($"[Startup] Fusion started as {mode}");
 
-            // 5) Спавним предметы на сервере
-            //if (_runner.IsServer)
-            //    _pickableSpawner.SpawnAllPickables();
-
             if (_runner.IsServer)
                 OnSessionStarted?.Invoke();
         }

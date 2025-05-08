@@ -1,4 +1,4 @@
-// Assets/Scripts/Game/InputHandler.cs
+﻿// Assets/Scripts/Game/InputHandler.cs
 using Fusion;
 using UnityEngine;
 using System;
@@ -12,6 +12,8 @@ public class InputHandler : MonoBehaviour
     public bool InventoryOpen { get; private set; }
 
     public event Action OnInteractPressed;
+    public event Action<int> OnQuickSlotPressed;
+    public event Action<int> OnQuickSlotScrollDelta;
 
     private void Awake()
     {
@@ -39,8 +41,21 @@ public class InputHandler : MonoBehaviour
             _networkInput.jump = Input.GetKey(KeyCode.Space);
 
             if (Input.GetKeyDown(KeyCode.E))
-            {
                 OnInteractPressed?.Invoke();
+
+            for (int i = 1; i <= 9; i++)
+            {
+                if (Input.GetKeyDown(KeyCode.Alpha0 + i))
+                    OnQuickSlotPressed?.Invoke(i - 1);
+            }
+            if (Input.GetKeyDown(KeyCode.Alpha0))
+                OnQuickSlotPressed?.Invoke(9);
+
+            float scroll = Input.mouseScrollDelta.y;
+            if (Mathf.Abs(scroll) > 0.01f)
+            {
+                int delta = scroll > 0 ? +1 : -1;
+                OnQuickSlotScrollDelta?.Invoke(delta);
             }
         }
     }

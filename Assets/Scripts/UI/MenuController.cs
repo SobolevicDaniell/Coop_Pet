@@ -1,4 +1,3 @@
-// MenuController.cs
 using UnityEngine;
 using UnityEngine.UI;
 using Zenject;

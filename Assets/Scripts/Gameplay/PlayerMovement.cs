@@ -3,9 +3,6 @@ using UnityEngine;
 
 namespace Game
 {
-    /// <summary>
-    /// Простое движение и поворот камеры.
-    /// </summary>
     [RequireComponent(typeof(CharacterController))]
     public sealed class PlayerMovement : MonoBehaviour
     {
@@ -33,10 +30,10 @@ namespace Game
             _controller.Move(_velocity * deltaTime);
 
             // Поворот камеры и персонажа
-            _xRotation -= input.mouseY * _mouseSensitivity;
+            _xRotation -= input.mouseY * _mouseSensitivity * deltaTime;
             _xRotation = Mathf.Clamp(_xRotation, -90f, 90f);
             _cameraRoot.localRotation = Quaternion.Euler(_xRotation, 0f, 0f);
-            transform.Rotate(Vector3.up * input.mouseX * _mouseSensitivity);
+            transform.Rotate(Vector3.up * input.mouseX * _mouseSensitivity * deltaTime);
         }
     }
 }

@@ -1,4 +1,3 @@
-// Assets/Scripts/Network/PlayerFactory.cs
 using Fusion;
 using UnityEngine;
 using Zenject;
