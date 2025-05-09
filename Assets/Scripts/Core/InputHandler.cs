@@ -12,6 +12,7 @@ public class InputHandler : MonoBehaviour
     public bool InventoryOpen { get; private set; }
 
     public event Action OnInteractPressed;
+    public event Action SingleShot;
     public event Action<int> OnQuickSlotPressed;
     public event Action<int> OnQuickSlotScrollDelta;
 
@@ -56,6 +57,11 @@ public class InputHandler : MonoBehaviour
             {
                 int delta = scroll > 0 ? +1 : -1;
                 OnQuickSlotScrollDelta?.Invoke(delta);
+            }
+
+            if (Input.GetMouseButtonDown(0))
+            {
+                SingleShot?.Invoke();
             }
         }
     }

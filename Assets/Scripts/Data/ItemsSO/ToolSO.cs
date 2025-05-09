@@ -6,6 +6,7 @@ namespace Game
     public class ToolSO : ItemSO
     {
         [Header("Tool")]
+        public GameObject _handModel;
         public float durability;
         public float harvestSpeed;
     }

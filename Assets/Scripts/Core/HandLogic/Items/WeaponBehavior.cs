@@ -1,56 +1,64 @@
-﻿using UnityEngine;
+﻿// Assets/Scripts/Gameplay/WeaponBehavior.cs
+using UnityEngine;
+using Fusion;
 
 namespace Game
 {
     public class WeaponBehavior : MonoBehaviour, IHandItemBehavior
     {
         private WeaponSO _so;
-        private float _cooldown;
+        private Transform _handPoint;
+        private InteractionController _interactionController;
+        private GameObject _instance;
+        private int _ammo;
 
-        public WeaponBehavior Construct(WeaponSO so)
+        public WeaponBehavior Construct(WeaponSO so, Transform handParent, InteractionController ic)
         {
             _so = so;
+            _handPoint = handParent;
+            _interactionController = ic;
+            _ammo = so.maxAmmo;
             return this;
         }
 
+        public bool TryUseAmmo()
+        {
+            if (_ammo <= 0) return false;
+            _ammo--;
+            return true;
+        }
+
+        public NetworkObject GetBulletNetworkObject() =>
+            _so.bulletPrefab.GetComponent<NetworkObject>();
+
+        public float BulletSpeed => _so.bulletSpeed;
+        public Vector3 MuzzlePosition => _instance.transform.position;
+        public Quaternion MuzzleRotation => _instance.transform.rotation;
+        public Vector3 MuzzleForward => _instance.transform.forward;
+
         public void OnEquip()
         {
-            _cooldown = 0f;
-            // сюда можно запустить анимацию «поднять оружие»
+            _instance = Instantiate(_so._handModel, _handPoint);
+            _instance.transform.localPosition = Vector3.zero;
+            _instance.transform.localRotation = Quaternion.identity;
         }
 
         public void OnUnequip()
         {
-            // «опустить оружие»
-            Destroy(gameObject);
+            if (_instance != null) Destroy(_instance);
         }
 
         public void OnUsePressed()
         {
-            TryFire();
+            _interactionController.RPC_RequestShoot();
         }
 
-        public void OnUseHeld(float delta)
-        {
-            _cooldown -= delta;
-            if (_cooldown <= 0f)
-                TryFire();
-        }
+        public void OnUseHeld(float delta) { }
+        public void OnUseReleased() { }
 
-        public void OnUseReleased()
+        public void OnMuzzleFlash()
         {
-            // для полуавтомата ничего
-        }
-
-        private void TryFire()
-        {
-            if (_so.maxAmmo <= 0) return;
-            // 1) создаем пулю
-            Instantiate(_so.bulletPrefab, transform.position, transform.rotation);
-            // 2) обновляем обойму
-            _so.maxAmmo--;
-            _cooldown = 1f / _so.fireRate;
-            // 3) тут можно запустить звук и отдачу камеры и UI‑обновление патронов
+            // VFX/звук
         }
     }
 }

@@ -2,7 +2,7 @@ using Fusion;
 using UnityEngine;
 using Zenject;
 
-namespace Game.Gameplay
+namespace Game
 {
     [RequireComponent(typeof(NetworkObject))]
     public class PickableItem : NetworkBehaviour

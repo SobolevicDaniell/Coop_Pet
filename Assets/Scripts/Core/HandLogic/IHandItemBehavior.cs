@@ -7,5 +7,7 @@ namespace Game
         void OnUsePressed();
         void OnUseReleased();
         void OnUseHeld(float delta);
+        void OnMuzzleFlash();
+
     }
 }

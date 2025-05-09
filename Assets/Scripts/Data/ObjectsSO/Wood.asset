@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Wood
   m_EditorClassIdentifier: 
   Id: Wood
-  Prefab: {fileID: 9100272627268656389, guid: 30397a5cf5fd27145a2858f026b9e0e0, type: 3}
+  Prefab: {fileID: 9100272627268656389, guid: a7b418b21b60dd649bd7b80676379c04, type: 3}
   Icon: {fileID: 21300000, guid: af793e515993a7a4797093614f0eb7b3, type: 3}
   MaxStack: 1000
-  priority: 1
+  priority: 2

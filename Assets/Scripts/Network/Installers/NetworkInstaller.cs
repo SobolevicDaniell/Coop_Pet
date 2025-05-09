@@ -76,6 +76,10 @@ namespace Game.Network
                      .FromComponentInHierarchy()
                      .AsSingle();
 
+            Container.Bind<HandItemBehaviorFactory>()
+                     .AsSingle()
+                     .NonLazy();
+
         }
     }
 }

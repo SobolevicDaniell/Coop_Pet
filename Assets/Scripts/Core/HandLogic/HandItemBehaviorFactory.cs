@@ -4,20 +4,23 @@ namespace Game
 {
     public class HandItemBehaviorFactory
     {
-        public IHandItemBehavior Create(ItemSO so, Transform handParent)
+        public IHandItemBehavior Create(ItemSO so, Transform handParent, InteractionController ic)
         {
-            // 1) Спавним или активируем модель в руке
-            var go = Object.Instantiate(so.Prefab, handParent);
-            go.transform.localPosition = Vector3.zero;
-            go.transform.localRotation = Quaternion.identity;
-
-            // 2) В зависимости от типа SO навешиваем нужный Behavior
             if (so is WeaponSO wso)
-                return go.AddComponent<WeaponBehavior>().Construct(wso);
+            {
+                var go = new GameObject("WeaponBehavior");
+                var beh = go.AddComponent<WeaponBehavior>();
+                return beh.Construct(wso, handParent, ic);
+            }
             if (so is ToolSO tso)
-                return go.AddComponent<ToolBehavior>().Construct(tso);
-            // ресурс — пустое поведение
-            return go.AddComponent<DefaultHandBehavior>().Construct(so);
+            {
+                var go = new GameObject("ToolBehavior");
+                var beh = go.AddComponent<ToolBehavior>();
+                return beh.Construct(tso, handParent);
+            }
+            var defaultGo = new GameObject("DefaultHand");
+            var defaultBeh = defaultGo.AddComponent<DefaultHandBehavior>();
+            return defaultBeh.Construct(so, handParent);
         }
     }
 }

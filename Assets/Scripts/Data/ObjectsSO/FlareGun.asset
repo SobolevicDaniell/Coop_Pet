@@ -13,10 +13,11 @@ MonoBehaviour:
   m_Name: FlareGun
   m_EditorClassIdentifier: 
   Id: FlareGun
-  Prefab: {fileID: 5096155291055378869, guid: 7c2a5e8279a58654b9be6ec9bd00c257, type: 3}
+  Prefab: {fileID: 5096155291055378869, guid: 86ce9df296f666c42b0455f5be2c737c, type: 3}
   Icon: {fileID: 21300000, guid: cdba627949c1d04418bc0850321def12, type: 3}
   MaxStack: 1
   priority: 1
-  maxAmmo: 29
+  _handModel: {fileID: 564728994018834239, guid: 8ea4721823c40c14fb44c492cd8fefdc, type: 3}
+  maxAmmo: 14
   fireRate: 1
-  bulletPrefab: {fileID: 5096155291055378869, guid: 7c2a5e8279a58654b9be6ec9bd00c257, type: 3}
+  bulletPrefab: {fileID: 6867856357713228749, guid: 62d89cc04b19b7348bd19b274080c461, type: 3}

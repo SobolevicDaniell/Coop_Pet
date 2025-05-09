@@ -2,19 +2,24 @@
 using Fusion;
 using UnityEngine;
 using Zenject;
-using Game;
 
-namespace Game.Gameplay
+namespace Game
 {
     [RequireComponent(typeof(NetworkObject))]
     public class InteractionController : NetworkBehaviour
     {
+        [Inject] private HandItemBehaviorFactory _factory;
         [Inject] private InteractionPromptView _promptView;
         [Inject] private InventoryService _inventory;
-        [Inject] private InputHandler _inputHandler;
-        [Inject] private ItemDatabaseSO _itemDatabase;
+        [Inject] private InputHandler _input;
+        [Inject] private ItemDatabaseSO _db;
 
-        [Header("Настройки")]
+        [Networked] public int NetSelectedQuickSlot { get; set; } = -1;
+
+        [Header("Hand Point")]
+        [SerializeField] private Transform _handPoint;
+
+        [Header("Pick/Drop Settings")]
         [SerializeField] private float range = 4f;
         [SerializeField] private Transform _dropPoint;
         [SerializeField] private float _throwForce = 5f;
@@ -22,18 +27,20 @@ namespace Game.Gameplay
         private Camera _camera;
         private bool _initialized;
 
-        // отложенный дроп
         private bool _needDrop;
         private Vector3 _toDropPos;
         private Vector3 _toDropDir;
         private string _toDropItem;
         private int _toDropCount;
 
+        private IHandItemBehavior _currentBehavior;
+        private int _lastSyncedSlot = -1;
+
         public override void Spawned()
         {
-            // Инжект зависимостей на клиенте
             if (_promptView == null)
-                FindObjectOfType<SceneContext>().Container.InjectGameObject(gameObject);
+                FindObjectOfType<SceneContext>()
+                    .Container.InjectGameObject(gameObject);
 
             if (Object.HasInputAuthority)
                 InitializeLocal();
@@ -42,35 +49,46 @@ namespace Game.Gameplay
         public void InitializeLocal()
         {
             if (_initialized) return;
+            _initialized = true;
+
             _camera = Camera.main;
             _promptView.Hide();
 
-            _inputHandler.OnInteractPressed += OnInteractPressed;
-            _inputHandler.OnQuickSlotPressed += OnQuickSlotPressed;
-            _inputHandler.OnQuickSlotScrollDelta += OnQuickSlotScrolled;
-
-            _initialized = true;
+            _input.OnInteractPressed += OnInteractPressed;
+            _input.OnQuickSlotPressed += OnQuickSlotPressed;
+            _input.OnQuickSlotScrollDelta += OnQuickSlotScrolled;
+            _input.SingleShot += OnSingleShot;
         }
 
         private void OnDestroy()
         {
             if (!_initialized) return;
-            _inputHandler.OnInteractPressed -= OnInteractPressed;
-            _inputHandler.OnQuickSlotPressed -= OnQuickSlotPressed;
-            _inputHandler.OnQuickSlotScrollDelta -= OnQuickSlotScrolled;
+            _input.OnInteractPressed -= OnInteractPressed;
+            _input.OnQuickSlotPressed -= OnQuickSlotPressed;
+            _input.OnQuickSlotScrollDelta -= OnQuickSlotScrolled;
+            _input.SingleShot -= OnSingleShot;
         }
 
-        void Update()
+        public override void FixedUpdateNetwork()
+        {
+            // Отслеживаем смену слота вручную
+            if (_lastSyncedSlot != NetSelectedQuickSlot)
+            {
+                _lastSyncedSlot = NetSelectedQuickSlot;
+                HandleSlotChanged();
+            }
+        }
+
+        private void Update()
         {
             if (!_initialized) return;
 
-            // 1) покажи или скрой "E" подсказку
             var ray = _camera.ScreenPointToRay(Input.mousePosition);
-            bool can = Physics.Raycast(ray, out var hit, range)
-                       && hit.collider.TryGetComponent<PickableItem>(out _);
-            if (can) _promptView.Show(); else _promptView.Hide();
+            bool canPick = Physics.Raycast(ray, out var hit, range)
+                           && hit.collider.TryGetComponent<PickableItem>(out _);
+            if (canPick) _promptView.Show();
+            else _promptView.Hide();
 
-            // 2) отложенный дроп
             if (_needDrop)
             {
                 _needDrop = false;
@@ -84,27 +102,63 @@ namespace Game.Gameplay
             if (Physics.Raycast(ray, out var hit, range)
              && hit.collider.TryGetComponent<PickableItem>(out var pickable))
             {
-                RPC_RequestPick(pickable.GetComponent<NetworkObject>(), pickable.ItemId, pickable.Count);
+                RPC_RequestPick(
+                    pickable.GetComponent<NetworkObject>(),
+                    pickable.ItemId,
+                    pickable.Count
+                );
             }
         }
 
-        private void OnQuickSlotPressed(int index)
+        private void OnSingleShot()
         {
-            _inventory.SelectQuickSlot(index);
+            if (!HasInputAuthority) return;
+            _currentBehavior?.OnUsePressed();
+        }
+
+        private void OnQuickSlotPressed(int slotIndex)
+        {
+            if (!HasInputAuthority) return;
+            RPC_SelectQuickSlot(slotIndex);
         }
 
         private void OnQuickSlotScrolled(int delta)
         {
-            int curr = _inventory.SelectedQuickSlot < 0 ? 0 : _inventory.SelectedQuickSlot;
+            if (!HasInputAuthority) return;
+            int curr = NetSelectedQuickSlot < 0 ? 0 : NetSelectedQuickSlot;
             int next = (curr + delta + 10) % 10;
-            _inventory.SelectQuickSlot(next);
+            RPC_SelectQuickSlot(next);
         }
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        void RPC_RequestPick(NetworkObject no, string itemId, int count, RpcInfo info = default)
+        void RPC_SelectQuickSlot(int slot, RpcInfo info = default)
         {
-            if (no == null) return;
-            Runner.Despawn(no);
+            NetSelectedQuickSlot = (NetSelectedQuickSlot == slot) ? -1 : slot;
+        }
+
+        private void HandleSlotChanged()
+        {
+            _currentBehavior?.OnUnequip();
+            _currentBehavior = null;
+
+            int slotIdx = NetSelectedQuickSlot;
+            if (slotIdx >= 0)
+            {
+                var slot = _inventory.GetQuickSlots()[slotIdx];
+                if (slot.Id != null)
+                {
+                    var so = _db.Get(slot.Id);
+                    _currentBehavior = _factory.Create(so, _handPoint, this);
+                    _currentBehavior.OnEquip();
+                }
+            }
+        }
+
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        void RPC_RequestPick(NetworkObject pickable, string itemId, int count, RpcInfo info = default)
+        {
+            if (pickable == null) return;
+            Runner.Despawn(pickable);
             RPC_ConfirmPick(info.Source, itemId, count);
         }
 
@@ -126,9 +180,8 @@ namespace Game.Gameplay
         void RPC_RequestDrop(Vector3 pos, Vector3 dir, string itemId, int count, RpcInfo info = default)
         {
             if (!Object.HasStateAuthority) return;
-            var def = _itemDatabase.Get(itemId);
+            var def = _db.Get(itemId);
             var prefab = def.Prefab.GetComponent<NetworkObject>();
-
             Runner.Spawn(
                 prefab,
                 pos,
@@ -138,11 +191,39 @@ namespace Game.Gameplay
                 {
                     var pi = spawned.GetComponent<PickableItem>();
                     pi.Initialize(itemId, count);
-
                     if (spawned.TryGetComponent<Rigidbody>(out var rb))
                         rb.linearVelocity = dir * _throwForce;
                 }
             );
+        }
+
+        // Сделали public, чтобы из WeaponBehavior можно было вызывать
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void RPC_RequestShoot(RpcInfo info = default)
+        {
+            if (_currentBehavior is WeaponBehavior wb && wb.TryUseAmmo())
+            {
+                var netObj = wb.GetBulletNetworkObject();
+                Runner.Spawn(
+                    netObj,
+                    wb.MuzzlePosition,
+                    wb.MuzzleRotation,
+                    Object.InputAuthority,
+                    onBeforeSpawned: (runner, spawned) =>
+                    {
+                        if (spawned.TryGetComponent<Rigidbody>(out var rb))
+                            rb.linearVelocity = wb.MuzzleForward * wb.BulletSpeed;
+                    }
+                );
+
+                RPC_OnMuzzleFlash();
+            }
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        void RPC_OnMuzzleFlash(RpcInfo info = default)
+        {
+            _currentBehavior?.OnMuzzleFlash();
         }
     }
 }
