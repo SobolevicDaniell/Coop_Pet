@@ -12,11 +12,12 @@ namespace Game
                 var beh = go.AddComponent<WeaponBehavior>();
                 return beh.Construct(wso, handParent, ic);
             }
+
             if (so is ToolSO tso)
             {
                 var go = new GameObject("ToolBehavior");
                 var beh = go.AddComponent<ToolBehavior>();
-                return beh.Construct(tso, handParent);
+                return beh.Construct(tso, handParent, ic);
             }
             var defaultGo = new GameObject("DefaultHand");
             var defaultBeh = defaultGo.AddComponent<DefaultHandBehavior>();

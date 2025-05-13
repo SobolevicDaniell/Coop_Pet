@@ -17,7 +17,8 @@ MonoBehaviour:
   Icon: {fileID: 21300000, guid: cdba627949c1d04418bc0850321def12, type: 3}
   MaxStack: 1
   priority: 1
-  _handModel: {fileID: 564728994018834239, guid: 8ea4721823c40c14fb44c492cd8fefdc, type: 3}
+  _handModelNetwork: {fileID: -5191223913549370429, guid: 12dd052f9eb107f43bfbad5f5c32c3e9, type: 3}
   maxAmmo: 14
   fireRate: 1
   bulletPrefab: {fileID: 6867856357713228749, guid: 62d89cc04b19b7348bd19b274080c461, type: 3}
+  bulletSpeed: 4

@@ -1,22 +1,20 @@
-﻿// Assets/Scripts/Gameplay/WeaponBehavior.cs
-using UnityEngine;
+﻿using UnityEngine;
 using Fusion;
 
 namespace Game
 {
     public class WeaponBehavior : MonoBehaviour, IHandItemBehavior
     {
-        private WeaponSO _so;
-        private Transform _handPoint;
-        private InteractionController _interactionController;
-        private GameObject _instance;
-        private int _ammo;
+        WeaponSO _so;
+        Transform _handPoint;
+        InteractionController _ic;
+        int _ammo;
 
         public WeaponBehavior Construct(WeaponSO so, Transform handParent, InteractionController ic)
         {
             _so = so;
             _handPoint = handParent;
-            _interactionController = ic;
+            _ic = ic;
             _ammo = so.maxAmmo;
             return this;
         }
@@ -29,36 +27,27 @@ namespace Game
         }
 
         public NetworkObject GetBulletNetworkObject() =>
-            _so.bulletPrefab.GetComponent<NetworkObject>();
+          _so.bulletPrefab.GetComponent<NetworkObject>();
 
         public float BulletSpeed => _so.bulletSpeed;
-        public Vector3 MuzzlePosition => _instance.transform.position;
-        public Quaternion MuzzleRotation => _instance.transform.rotation;
-        public Vector3 MuzzleForward => _instance.transform.forward;
+        public Vector3 MuzzlePosition => _handPoint.position;
+        public Quaternion MuzzleRotation => _handPoint.rotation;
+        public Vector3 MuzzleForward => _handPoint.forward;
 
         public void OnEquip()
         {
-            _instance = Instantiate(_so._handModel, _handPoint);
-            _instance.transform.localPosition = Vector3.zero;
-            _instance.transform.localRotation = Quaternion.identity;
+            _ic.RpcHandler.RPC_RequestSpawnHandModel(_so.Id);
         }
-
         public void OnUnequip()
         {
-            if (_instance != null) Destroy(_instance);
+            _ic.RpcHandler.RPC_RequestDespawnHandModel();
         }
-
         public void OnUsePressed()
         {
-            _interactionController.RPC_RequestShoot();
+            _ic.RpcHandler.RPC_RequestShoot();
         }
-
-        public void OnUseHeld(float delta) { }
+        public void OnUseHeld(float d) { }
         public void OnUseReleased() { }
-
-        public void OnMuzzleFlash()
-        {
-            // VFX/звук
-        }
+        public void OnMuzzleFlash() { /* VFX/SFX */ }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System;
+﻿// Assets/Scripts/Gameplay/InventoryService.cs
+using System;
 using UnityEngine;
 
 namespace Game
@@ -29,11 +30,35 @@ namespace Game
         public InventorySlot[] GetQuickSlots() => _quickSlots;
         public InventorySlot[] GetInventorySlots() => _inventorySlots;
 
+        /// <summary>
+        /// Toggle‑логика для локального ввода (кнопки/скролл).
+        /// </summary>
         public void SelectQuickSlot(int idx)
         {
             if (idx < 0 || idx >= _quickSlots.Length) return;
             SelectedQuickSlot = (SelectedQuickSlot == idx) ? -1 : idx;
             OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
+        }
+
+        /// <summary>
+        /// Принудительно выставить этот слот (для синхронизации UI).
+        /// </summary>
+        public void SetQuickSlot(int idx)
+        {
+            if (idx < 0 || idx >= _quickSlots.Length) return;
+            if (SelectedQuickSlot == idx) return;
+            SelectedQuickSlot = idx;
+            OnQuickSlotSelectionChanged?.Invoke(idx);
+        }
+
+        /// <summary>
+        /// Принудительно сбросить выделение (для синхронизации UI).
+        /// </summary>
+        public void ClearQuickSlot()
+        {
+            if (SelectedQuickSlot < 0) return;
+            SelectedQuickSlot = -1;
+            OnQuickSlotSelectionChanged?.Invoke(-1);
         }
 
         public int HandlePick(string id, int count)
@@ -42,7 +67,6 @@ namespace Game
             if (item == null) return count;
 
             int rem = count;
-
             if (item.priority == 1)
                 rem = TryQuick(item, rem);
             else
@@ -75,6 +99,7 @@ namespace Game
                     }
                 }
             }
+
             foreach (var slot in _quickSlots)
             {
                 if (rem == 0) break;
@@ -87,6 +112,7 @@ namespace Game
                     OnQuickSlotsChanged?.Invoke();
                 }
             }
+
             return rem;
         }
 
@@ -106,6 +132,7 @@ namespace Game
                     }
                 }
             }
+
             foreach (var slot in _inventorySlots)
             {
                 if (rem == 0) break;
@@ -118,7 +145,18 @@ namespace Game
                     OnInventoryChanged?.Invoke();
                 }
             }
+
             return rem;
         }
+
+        public void RaiseQuickSlotsChanged()
+        {
+            OnQuickSlotsChanged?.Invoke();
+        }
+        public void RaiseQuickSlotSelectionChanged(int sel)
+        {
+            OnQuickSlotSelectionChanged?.Invoke(sel);
+        }
+
     }
 }

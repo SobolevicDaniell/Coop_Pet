@@ -1,8 +1,9 @@
-using Fusion;
+﻿using Fusion;
 using Fusion.Sockets;
 using UnityEngine;
 using Zenject;
 using Game.Gameplay;
+using System.Collections;
 
 namespace Game.Network
 {
@@ -21,16 +22,10 @@ namespace Game.Network
         }
         public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
         {
-            if (runner.LocalPlayer != player) return;
-
-            _container.InjectGameObject(obj.gameObject);
-
-            var ic = obj.GetComponent<InteractionController>();
-            if (ic != null && ic.Object.HasInputAuthority)
-            {
-                ic.InitializeLocal();
-            }
+            
         }
+
+
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
         {
             if (runner.IsServer)
@@ -38,20 +33,9 @@ namespace Game.Network
                 _playerSpawner.SpawnPlayer(player);
                 Debug.Log($"[Server] Spawned Player: {player}");
             }
-
-            if (!runner.IsServer && runner.LocalPlayer == player)
-            {
-                var netObj = runner.GetPlayerObject(player);
-                //if (netObj != null)
-                //{
-                //    _container.InjectGameObject(netObj.gameObject);
-                //}
-                //else
-                //{
-                //    Debug.LogError("[Client] Failed to GetPlayerObject for local player");
-                //}
-            }
         }
+
+
 
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
         {

@@ -1,3 +1,4 @@
+using Fusion;
 using UnityEngine;
 
 namespace Game
@@ -6,7 +7,7 @@ namespace Game
     public class WeaponSO : ItemSO
     {
         [Header("Weapon")]
-        public GameObject _handModel;
+        public NetworkObject _handModelNetwork;
         [Range(1, 100)]
         public int maxAmmo;
         [Range((float)0.1, 5)]

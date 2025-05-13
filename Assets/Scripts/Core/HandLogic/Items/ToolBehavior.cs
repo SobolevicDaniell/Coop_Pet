@@ -5,26 +5,28 @@ namespace Game
     public class ToolBehavior : MonoBehaviour, IHandItemBehavior
     {
         private ToolSO _so;
-        private GameObject _instance;
+        //private GameObject _instance;
         private Transform _handPoint;
+        private InteractionController _ic;
 
-        public ToolBehavior Construct(ToolSO so, Transform handParent)
+        public ToolBehavior Construct(ToolSO so, Transform handParent, InteractionController ic)
         {
             _so = so;
             _handPoint = handParent;
+            _ic = ic;
             return this;
         }
 
         public void OnEquip()
         {
-            _instance = Instantiate(_so._handModel, _handPoint);
-            _instance.transform.localPosition = Vector3.zero;
-            _instance.transform.localRotation = Quaternion.identity;
+            _ic.RpcHandler.RPC_RequestSpawnHandModel(_so.Id);
         }
+
 
         public void OnUnequip()
         {
-            Destroy(_instance);
+            //Destroy(_instance);
+            _ic.RpcHandler.RPC_RequestDespawnHandModel();
         }
 
         public void OnUsePressed()

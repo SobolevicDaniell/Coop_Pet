@@ -1,3 +1,4 @@
+using Fusion;
 using UnityEngine;
 
 namespace Game
@@ -6,7 +7,7 @@ namespace Game
     public class ToolSO : ItemSO
     {
         [Header("Tool")]
-        public GameObject _handModel;
+        public NetworkObject _handModelNetwork;
         public float durability;
         public float harvestSpeed;
     }

@@ -82,7 +82,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &610940182059024406
 Transform:
   m_ObjectHideFlags: 0
@@ -189,6 +189,7 @@ GameObject:
   - component: {fileID: 8058412645505935507}
   - component: {fileID: 8738837504596620008}
   - component: {fileID: 8080840332799535230}
+  - component: {fileID: 4185332665183457474}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -237,6 +238,7 @@ MonoBehaviour:
   - {fileID: 4402347777045086714}
   - {fileID: 5312262753086261753}
   - {fileID: -6464970983665185003}
+  - {fileID: 4185332665183457474}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &5369357985609350583
 MonoBehaviour:
@@ -297,8 +299,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: de0f99ad6073c7d4d869b47c3e43becf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _NetSelectedQuickSlot: -1
   _handPoint: {fileID: 135403576282410744}
-  range: 4
+  _range: 4
   _dropPoint: {fileID: 345444223730738563}
   _throwForce: 7
 --- !u!114 &8058412645505935507
@@ -367,6 +370,18 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &4185332665183457474
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3950158868047817375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e35f3d4bf31d8f44883bb55f24c940b5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &5556326248227318228
 GameObject:
   m_ObjectHideFlags: 0
@@ -439,7 +454,7 @@ Camera:
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 127
+    m_Bits: 4294967295
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0

@@ -16,6 +16,11 @@ public class InputHandler : MonoBehaviour
     public event Action<int> OnQuickSlotPressed;
     public event Action<int> OnQuickSlotScrollDelta;
 
+
+
+    public event Action OnTestSpawnRequested;
+    public event Action OnInfoDebug;
+
     private void Awake()
     {
         if (_inventoryPanel != null)
@@ -63,6 +68,12 @@ public class InputHandler : MonoBehaviour
             {
                 SingleShot?.Invoke();
             }
+        }
+
+
+        if (Input.GetKeyDown(KeyCode.Z))
+        {
+            OnInfoDebug?.Invoke();
         }
     }
 
