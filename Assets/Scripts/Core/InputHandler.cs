@@ -16,6 +16,8 @@ public class InputHandler : MonoBehaviour
     public event Action<int> OnQuickSlotPressed;
     public event Action<int> OnQuickSlotScrollDelta;
 
+    public event Action OnReloadPressed;
+
 
 
     public event Action OnTestSpawnRequested;
@@ -75,6 +77,8 @@ public class InputHandler : MonoBehaviour
         {
             OnInfoDebug?.Invoke();
         }
+        if (Input.GetKeyDown(KeyCode.R))
+            OnReloadPressed?.Invoke();
     }
 
     public void ProvideNetworkInput(NetworkRunner runner, NetworkInput input)

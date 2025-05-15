@@ -1,6 +1,5 @@
 using Fusion;
 using UnityEngine;
-using Zenject;
 
 namespace Game
 {
@@ -10,10 +9,13 @@ namespace Game
         [Networked] public string ItemId { get; private set; }
         [Networked] public int Count { get; private set; }
 
-        public void Initialize(string itemId, int count)
+        public ItemState State; // Обычное поле (не сетевое), синхронизация нужна только при спавне
+
+        public void Initialize(string itemId, int count, ItemState state = null)
         {
             ItemId = itemId;
             Count = count;
+            State = state ?? new ItemState();
         }
 
         public void Pick(NetworkRunner runner)

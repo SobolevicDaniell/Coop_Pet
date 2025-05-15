@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1521464986176827358}
   - component: {fileID: -5191223913549370429}
+  - component: {fileID: 2375540865032555809}
   m_Layer: 0
   m_Name: FlareGun
   m_TagString: Untagged
@@ -50,8 +51,21 @@ MonoBehaviour:
   Flags: 131073
   NestedObjects:
   - {fileID: 4403035647161153549}
-  NetworkedBehaviours: []
+  NetworkedBehaviours:
+  - {fileID: 2375540865032555809}
   ForceRemoteRenderTimeframe: 0
+--- !u!114 &2375540865032555809
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 564728994018834239}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ca19effd66f54f2449b6e8bf433230ed, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &585404159259813942
 GameObject:
   m_ObjectHideFlags: 0

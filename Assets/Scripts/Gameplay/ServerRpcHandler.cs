@@ -1,4 +1,5 @@
 // Assets/Scripts/Gameplay/ServerRpcHandler.cs
+using System.Linq;
 using Fusion;
 using TMPro;
 using UnityEngine;
@@ -8,12 +9,6 @@ namespace Game
     [RequireComponent(typeof(NetworkObject))]
     public class ServerRpcHandler : NetworkBehaviour
     {
-
-
-        [Header("Test spawn prefab (must be in Runner.Spawnable Prefabs)")]
-        [SerializeField] private NetworkObject _testSpawnPrefab;
-
-
         private InteractionController _ic;
 
         public override void Spawned()
@@ -111,45 +106,55 @@ namespace Game
 
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        public void RPC_RequestSpawnHandModel(string itemId, RpcInfo _ = default)
+        public void RPC_RequestSpawnHandModel(string itemId, RpcInfo info = default)
         {
             if (!Object.HasStateAuthority) return;
 
-            // а) деспавн старой
             var old = _ic.GetHandModelNetworkInstance();
             if (old != null)
             {
                 Runner.Despawn(old);
                 _ic.SetHandModelNetworkInstance(null);
-                // и сразу всем разослать, что старую надо забыть
                 RPC_OnHandModelDespawned(Object.InputAuthority);
+                _ic.ClearBehavior();
             }
 
-            // б) взять prefab
             var so = _ic.Db.Get(itemId);
             var prefab = so is WeaponSO w ? w._handModelNetwork
                        : so is ToolSO t ? t._handModelNetwork
                        : null;
             if (prefab == null) return;
 
-            // в) заспавнить под authority игрока и сохранить локально
-            var spawned = Runner.Spawn(
-              prefab,
-              _ic.HandPoint.position,
-              _ic.HandPoint.rotation,
-              Object.InputAuthority,
-              onBeforeSpawned: (runner, obj) => {
-                  // сразу приклеиваем — это отразится на всех
-                  obj.transform.SetParent(_ic.HandPoint, worldPositionStays: false);
-                  obj.transform.localPosition = Vector3.zero;
-                  obj.transform.localRotation = Quaternion.identity;
-              }
-            );
-            _ic.SetHandModelNetworkInstance(spawned);
+            // ВАЖНО: используем StateAuthority и спавним объект сразу с правильной привязкой.
+            var spawned = Runner.Spawn(prefab,
+                                       inputAuthority: Object.InputAuthority,
+                                       onBeforeSpawned: (runner, obj) =>
+                                       {
+                                           var ic = FindObjectsOfType<InteractionController>()
+                                                        .FirstOrDefault(x => x.Object.InputAuthority == Object.InputAuthority);
+                                           if (ic != null)
+                                           {
+                                               obj.transform.SetParent(ic.HandPoint, false);
+                                               obj.transform.localPosition = Vector3.zero;
+                                               obj.transform.localRotation = Quaternion.identity;
+                                           }
+                                       });
 
-            // г) разослать всем: приклейте у себя этот новый объект
+            _ic.SetHandModelNetworkInstance(spawned);
             RPC_OnHandModelSpawned(spawned, Object.InputAuthority);
+
+            int selectedSlot = _ic.NetSelectedQuickSlot;
+            ItemState state = selectedSlot >= 0
+                ? _ic.Inventory.GetQuickSlots()[selectedSlot].State
+                : new ItemState();
+
+            var behavior = _ic.Factory.Create(so, _ic.HandPoint, _ic, state);
+            _ic.SetCurrentBehavior(behavior);
         }
+
+
+
+
 
         // 2) Сервер → Все: приклеить модель к руке нужного игрока
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
@@ -198,8 +203,28 @@ namespace Game
                 }
             }
         }
+
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void RPC_RequestReload(RpcInfo info = default)
+        {
+            if (_ic.CurrentBehavior is WeaponBehavior wb)
+            {
+                wb.Reload();
+                RPC_OnReload(info.Source);
+            }
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        void RPC_OnReload(PlayerRef owner)
+        {
+            foreach (var ic in FindObjectsOfType<InteractionController>())
+            {
+                if (ic.Object.InputAuthority == owner && ic.CurrentBehavior is WeaponBehavior wb)
+                {
+                    wb.Reload(); // синхронизируем перезарядку на клиентах
+                }
+            }
+        }
     }
-
-
 }
 

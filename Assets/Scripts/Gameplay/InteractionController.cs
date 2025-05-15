@@ -80,6 +80,14 @@ namespace Game
             Input.OnQuickSlotScrollDelta += Quick.ChangeSlotRelative;
             Input.OnInteractPressed += PickDrop.TryPick;
             Input.SingleShot += () => RpcHandler.RPC_RequestShoot();
+
+            Input.OnReloadPressed += () =>
+            {
+                if (_currentBehavior is WeaponBehavior wb)
+                {
+                    RpcHandler.RPC_RequestReload();
+                }
+            };
         }
 
         void Update()
@@ -93,13 +101,48 @@ namespace Game
             if (!Object.HasInputAuthority || !_init) return;
 
             if (_lastSlot == NetSelectedQuickSlot) return;
+
             _lastSlot = NetSelectedQuickSlot;
 
             Quick.OnNetworkSlotChanged(_lastSlot);
 
             _currentBehavior?.OnUnequip();
-            Hand.Equip(_lastSlot, Inventory.GetQuickSlots());
-            _currentBehavior = Hand.CurrentBehavior;
+
+            var slots = Inventory.GetQuickSlots();
+
+            if (_lastSlot >= 0 && slots[_lastSlot]?.Id != null)
+            {
+                var slot = slots[_lastSlot];
+                Hand.Equip(_lastSlot, slots);
+
+                var so = Db.Get(slot.Id);
+                var behavior = Factory.Create(so, HandPoint, this, slot.State);
+                SetCurrentBehavior(behavior);
+
+                RpcHandler.RPC_RequestSpawnHandModel(slot.Id);
+            }
+            else
+            {
+                _currentBehavior = null;
+                RpcHandler.RPC_RequestDespawnHandModel();
+                Hand.Equip(-1, slots);
+            }
         }
+
+
+        public void SetCurrentBehavior(IHandItemBehavior behavior)
+        {
+            _currentBehavior = behavior;
+        }
+
+        public void ClearBehavior()
+        {
+            _currentBehavior?.OnUnequip();
+            _currentBehavior = null;
+        }
+
+
     }
+
 }
+

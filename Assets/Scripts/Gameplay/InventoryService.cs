@@ -22,9 +22,9 @@ namespace Game
             _quickSlots = new InventorySlot[10];
             _inventorySlots = new InventorySlot[30];
             for (int i = 0; i < _quickSlots.Length; i++)
-                _quickSlots[i] = new InventorySlot();
+                _quickSlots[i] = new InventorySlot(null, 0);
             for (int i = 0; i < _inventorySlots.Length; i++)
-                _inventorySlots[i] = new InventorySlot();
+                _inventorySlots[i] = new InventorySlot(null, 0);
         }
 
         public InventorySlot[] GetQuickSlots() => _quickSlots;

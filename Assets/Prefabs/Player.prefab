@@ -238,6 +238,7 @@ MonoBehaviour:
   - {fileID: 4402347777045086714}
   - {fileID: 5312262753086261753}
   - {fileID: -6464970983665185003}
+  - {fileID: 8058412645505935507}
   - {fileID: 4185332665183457474}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &5369357985609350583
@@ -300,6 +301,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _NetSelectedQuickSlot: -1
+  _HandModelId: 
   _handPoint: {fileID: 135403576282410744}
   _range: 4
   _dropPoint: {fileID: 345444223730738563}

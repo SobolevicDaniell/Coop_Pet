@@ -28,6 +28,10 @@ namespace Game
         public void Equip(int slotIdx, InventorySlot[] quickSlots)
         {
             _current?.OnUnequip();
+
+            if (_current is MonoBehaviour oldBehavior)
+                GameObject.Destroy(oldBehavior.gameObject);
+
             _current = null;
             if (slotIdx < 0) return;
 
@@ -35,9 +39,10 @@ namespace Game
             if (slot.Id == null) return;
 
             var so = _db.Get(slot.Id);
-            _current = _factory.Create(so, _handPoint, _ic);
+            _current = _factory.Create(so, _handPoint, _ic, slot.State);
             _current.OnEquip();
         }
+
 
         public void MuzzleFlash()
         {

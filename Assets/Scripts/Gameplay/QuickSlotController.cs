@@ -23,25 +23,42 @@ namespace Game
         {
             if (!_ic.Object.HasInputAuthority) return;
 
-            // 1) обновляем property на сервере
-            _rpc.RPC_SelectQuickSlot(slot);
+            var currentSelectedSlot = _ic.NetSelectedQuickSlot;
 
-            // 2) сразу просим спавн/деспавн
-            var id = _inv.GetQuickSlots()[slot].Id;
-            if (!string.IsNullOrEmpty(id))
-                _rpc.RPC_RequestSpawnHandModel(id);
-            else
+            if (currentSelectedSlot == slot)
+            {
+                // Повторное нажатие на активный слот — отключаем его
+                _rpc.RPC_SelectQuickSlot(-1);
                 _rpc.RPC_RequestDespawnHandModel();
+            }
+            else
+            {
+                // Переключение на новый слот
+                var id = _inv.GetQuickSlots()[slot].Id;
 
+                if (!string.IsNullOrEmpty(id))
+                {
+                    _rpc.RPC_SelectQuickSlot(slot);
+                    _rpc.RPC_RequestSpawnHandModel(id);
+                }
+                else
+                {
+                    // Если слот пустой — сбрасываем выбор и деспавним модель
+                    _rpc.RPC_SelectQuickSlot(-1);
+                    _rpc.RPC_RequestDespawnHandModel();
+                }
+            }
         }
 
         public void ChangeSlotRelative(int d)
         {
             if (!_ic.Object.HasInputAuthority) return;
+
             var slots = _inv.GetQuickSlots();
             int cnt = slots.Length;
             int cur = _ic.NetSelectedQuickSlot < 0 ? 0 : _ic.NetSelectedQuickSlot;
             int next = (cur + d + cnt) % cnt;
+
             ChangeSlotAbsolute(next);
         }
 

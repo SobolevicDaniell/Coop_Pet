@@ -1,27 +1,27 @@
+using Game;
 using UnityEngine;
 
-namespace Game
+public class HandItemBehaviorFactory
 {
-    public class HandItemBehaviorFactory
+    public IHandItemBehavior Create(ItemSO so, Transform handParent, InteractionController ic, ItemState state)
     {
-        public IHandItemBehavior Create(ItemSO so, Transform handParent, InteractionController ic)
-        {
-            if (so is WeaponSO wso)
-            {
-                var go = new GameObject("WeaponBehavior");
-                var beh = go.AddComponent<WeaponBehavior>();
-                return beh.Construct(wso, handParent, ic);
-            }
+        GameObject go = new GameObject($"[Behavior] {so.Id}");
+        go.transform.SetParent(handParent, false);
+        go.transform.localPosition = Vector3.zero;
 
-            if (so is ToolSO tso)
-            {
-                var go = new GameObject("ToolBehavior");
-                var beh = go.AddComponent<ToolBehavior>();
-                return beh.Construct(tso, handParent, ic);
-            }
-            var defaultGo = new GameObject("DefaultHand");
-            var defaultBeh = defaultGo.AddComponent<DefaultHandBehavior>();
-            return defaultBeh.Construct(so, handParent);
+        if (so is WeaponSO wso)
+        {
+            var wb = go.AddComponent<WeaponBehavior>().Construct(wso, handParent, ic, state);
+            return wb;
         }
+
+        if (so is ToolSO tso)
+        {
+            var beh = go.AddComponent<ToolBehavior>().Construct(tso, handParent, ic);
+            return beh;
+        }
+
+        var defaultBeh = go.AddComponent<DefaultHandBehavior>().Construct(so, handParent);
+        return defaultBeh;
     }
 }
