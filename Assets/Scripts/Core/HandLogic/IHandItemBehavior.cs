@@ -4,10 +4,9 @@ namespace Game
     {
         void OnEquip();
         void OnUnequip();
-        void OnUsePressed();
-        void OnUseReleased();
-        void OnUseHeld(float delta);
+        void OnUsePressed();          // нажатие кнопки (Down)
+        void OnUseReleased();         // отпускание (Up)
+        void OnUseHeld(float delta);  // удержание (каждый кадр)
         void OnMuzzleFlash();
-
     }
 }

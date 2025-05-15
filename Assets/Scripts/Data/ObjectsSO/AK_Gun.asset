@@ -10,17 +10,17 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a6b7ba337a34bef4b937da235356aad2, type: 3}
-  m_Name: FlareGun
+  m_Name: AK_Gun
   m_EditorClassIdentifier: 
-  Id: FlareGun
-  Prefab: {fileID: 5096155291055378869, guid: 86ce9df296f666c42b0455f5be2c737c, type: 3}
-  Icon: {fileID: 21300000, guid: cdba627949c1d04418bc0850321def12, type: 3}
+  Id: AK_Gun
+  Prefab: {fileID: 1197729190661013473, guid: 5fd334c23cfc63646830557fb8b7fd3c, type: 3}
+  Icon: {fileID: 21300000, guid: 88c9fdae4e5d5a548a9c412e6e5f9de0, type: 3}
   MaxStack: 1
   priority: 1
-  _handModelNetwork: {fileID: -5191223913549370429, guid: 12dd052f9eb107f43bfbad5f5c32c3e9, type: 3}
-  maxAmmo: 1
-  isAutomatic: 0
-  fireRate: 1
+  _handModelNetwork: {fileID: 8456801128687615435, guid: ce611743d0654fd4580ed8c14fb78b8a, type: 3}
+  maxAmmo: 30
+  isAutomatic: 1
+  fireRate: 10
   bulletPrefab: {fileID: 6867856357713228749, guid: 62d89cc04b19b7348bd19b274080c461, type: 3}
-  bulletSpeed: 15
-  bulletDamage: 20
+  bulletSpeed: 500
+  bulletDamage: 5

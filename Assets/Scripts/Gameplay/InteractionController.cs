@@ -23,8 +23,6 @@ namespace Game
 
 
         [Networked] public string HandModelId { get; set; }
-        private string _lastHandModelId;
-        private NetworkObject _handModelInstance;
 
 
 
@@ -38,6 +36,7 @@ namespace Game
         bool _init;
         IHandItemBehavior _currentBehavior;
         int _lastSlot = -1;
+        bool _isFiring;
 
         // Ссылка на текущий сетевой объект модели
         NetworkObject _handModelNetObj;
@@ -79,8 +78,6 @@ namespace Game
             Input.OnQuickSlotPressed += Quick.ChangeSlotAbsolute;
             Input.OnQuickSlotScrollDelta += Quick.ChangeSlotRelative;
             Input.OnInteractPressed += PickDrop.TryPick;
-            Input.SingleShot += () => RpcHandler.RPC_RequestShoot();
-
             Input.OnReloadPressed += () =>
             {
                 if (_currentBehavior is WeaponBehavior wb)
@@ -88,12 +85,28 @@ namespace Game
                     RpcHandler.RPC_RequestReload();
                 }
             };
+
+            Input.OnUseDown += () =>
+            {
+                _isFiring = true;
+                if (_currentBehavior != null)
+                    _currentBehavior.OnUsePressed();
+            };
+            Input.OnUseUp += () =>
+            {
+                _isFiring = false;
+                if (_currentBehavior != null)
+                    _currentBehavior.OnUseReleased();
+            };
         }
 
         void Update()
         {
             if (!_init) return;
             PickDrop.UpdatePrompt();
+
+            if (_isFiring && _currentBehavior != null)
+                _currentBehavior.OnUseHeld(Time.deltaTime);
         }
 
         public override void FixedUpdateNetwork()
@@ -127,6 +140,8 @@ namespace Game
                 RpcHandler.RPC_RequestDespawnHandModel();
                 Hand.Equip(-1, slots);
             }
+
+
         }
 
 

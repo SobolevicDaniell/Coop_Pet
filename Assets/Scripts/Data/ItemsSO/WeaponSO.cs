@@ -8,12 +8,16 @@ namespace Game
     {
         [Header("Weapon")]
         public NetworkObject _handModelNetwork;
-        [Range(1, 100)]
+        [Range(1, 200)]
         public int maxAmmo;
-        [Range((float)0.1, 5)]
+        public bool isAutomatic;
+        [Range((float)1, 15)]
         public float fireRate;
         public GameObject bulletPrefab;
         public float bulletSpeed;
         public float bulletDamage;
+
+        [Header("Ammo")]
+        public ResourceSO ammoResource;
     }
 }

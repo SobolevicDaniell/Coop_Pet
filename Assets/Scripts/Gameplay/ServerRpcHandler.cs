@@ -79,35 +79,25 @@ namespace Game
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestShoot(RpcInfo _ = default)
         {
-            if (_ic.CurrentBehavior is WeaponBehavior wb && wb.TryUseAmmo())
+            if (_ic.CurrentBehavior is WeaponBehavior wb)
             {
-                //Runner.Spawn(
-                //  wb.GetBulletNetworkObject(),
-                //  wb.MuzzlePosition,
-                //  wb.MuzzleRotation,
-                //  Object.InputAuthority,
-                //  onBeforeSpawned: (runner, spawned) => {
-                //      if (spawned.TryGetComponent<Bullet>(out var b))
-                //          b.InitializeVelocity(wb.MuzzleForward * wb.BulletSpeed);
-                //  }
-                //);
                 Runner.Spawn(
-                    wb.GetBulletNetworkObject(),
-                    wb.MuzzlePosition,
-                    wb.MuzzleRotation,
-                    Object.InputAuthority,
-                    onBeforeSpawned: (runner, spawned) => {
-                        if (spawned.TryGetComponent<Bullet>(out var b))
-                        {
-                            b.Initialize(Mathf.FloorToInt(wb.BulletDamage));
-                            b.InitializeVelocity(wb.MuzzleForward * wb.BulletSpeed);
-                        }
-                    }
+                  wb.GetBulletNetworkObject(),
+                  wb.MuzzlePosition,
+                  wb.MuzzleRotation,
+                  Object.InputAuthority,
+                  onBeforeSpawned: (runner, spawned) => {
+                      if (spawned.TryGetComponent<Bullet>(out var b))
+                      {
+                          b.Initialize(Mathf.FloorToInt(wb.BulletDamage));
+                          b.InitializeVelocity(wb.MuzzleForward * wb.BulletSpeed);
+                      }
+                  }
                 );
-
                 RPC_OnMuzzleFlash();
             }
         }
+
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
         void RPC_OnMuzzleFlash(RpcInfo _ = default)
@@ -235,7 +225,7 @@ namespace Game
             {
                 if (ic.Object.InputAuthority == owner && ic.CurrentBehavior is WeaponBehavior wb)
                 {
-                    wb.Reload(); // синхронизируем перезарядку на клиентах
+                    wb.Reload();
                 }
             }
         }

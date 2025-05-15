@@ -41,5 +41,10 @@ namespace Game
         public void OnMuzzleFlash()
         {
         }
+
+        public void OnUseHeld()
+        {
+            throw new System.NotImplementedException();
+        }
     }
 }

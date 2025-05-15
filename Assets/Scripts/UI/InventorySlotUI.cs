@@ -16,7 +16,11 @@ namespace Game.UI
             {
                 _icon.sprite = item.Icon;
                 _icon.enabled = true;
-                _countText.text = count > 1 ? count.ToString() : "";
+                // ѕоказываем ammo всегда, даже если = 0, если это WeaponSO!
+                if (item is WeaponSO)
+                    _countText.text = count.ToString();
+                else
+                    _countText.text = count > 1 ? count.ToString() : "";
             }
             else
             {
@@ -24,6 +28,7 @@ namespace Game.UI
                 _countText.text = "";
             }
         }
+
 
         public void SetActive(bool active)
         {
