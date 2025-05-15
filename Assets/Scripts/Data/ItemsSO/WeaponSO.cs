@@ -14,5 +14,6 @@ namespace Game
         public float fireRate;
         public GameObject bulletPrefab;
         public float bulletSpeed;
+        public float bulletDamage;
     }
 }

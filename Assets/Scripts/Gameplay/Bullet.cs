@@ -4,11 +4,13 @@ using UnityEngine;
 
 namespace Game
 {
-    [RequireComponent(typeof(Rigidbody), typeof(NetworkObject))]
+    [RequireComponent(typeof(Rigidbody), typeof(NetworkObject), typeof(Collider))]
     public class Bullet : NetworkBehaviour
     {
         [SerializeField] private float lifetime = 5f;
         [SerializeField] private float drag = 0f;
+
+        [Networked] public int Damage { get; private set; }
 
         private Rigidbody _rigidbody;
         private TickTimer _timer;
@@ -16,34 +18,41 @@ namespace Game
         public override void Spawned()
         {
             _rigidbody = GetComponent<Rigidbody>();
-            _rigidbody.linearDamping = drag;
 
+
+            _rigidbody.linearDamping = drag;
             _timer = TickTimer.CreateFromSeconds(Runner, lifetime);
         }
 
         public override void FixedUpdateNetwork()
         {
             if (Object.HasStateAuthority && _timer.Expired(Runner))
-            {
                 Runner.Despawn(Object);
-            }
         }
 
-        private void OnCollisionEnter(Collision collision)
+        public void Initialize(int damage)
         {
-            if (!Runner.IsServer)
-                return;
-
-            //Runner.Despawn(Object);
+            if (Object.HasStateAuthority)
+                Damage = damage;
         }
 
-        
         public void InitializeVelocity(Vector3 velocity)
         {
             if (_rigidbody == null)
                 _rigidbody = GetComponent<Rigidbody>();
-
             _rigidbody.linearVelocity = velocity;
+        }
+
+        private void OnTriggerEnter(Collider other)
+        {
+            if (!Object.HasStateAuthority)
+                return;
+
+            var health = other.GetComponentInParent<HealthComponent>();
+            if (health != null)
+                health.TakeDamage(Damage);
+
+            Runner.Despawn(Object);
         }
     }
 }

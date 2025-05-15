@@ -81,16 +81,30 @@ namespace Game
         {
             if (_ic.CurrentBehavior is WeaponBehavior wb && wb.TryUseAmmo())
             {
+                //Runner.Spawn(
+                //  wb.GetBulletNetworkObject(),
+                //  wb.MuzzlePosition,
+                //  wb.MuzzleRotation,
+                //  Object.InputAuthority,
+                //  onBeforeSpawned: (runner, spawned) => {
+                //      if (spawned.TryGetComponent<Bullet>(out var b))
+                //          b.InitializeVelocity(wb.MuzzleForward * wb.BulletSpeed);
+                //  }
+                //);
                 Runner.Spawn(
-                  wb.GetBulletNetworkObject(),
-                  wb.MuzzlePosition,
-                  wb.MuzzleRotation,
-                  Object.InputAuthority,
-                  onBeforeSpawned: (runner, spawned) => {
-                      if (spawned.TryGetComponent<Bullet>(out var b))
-                          b.InitializeVelocity(wb.MuzzleForward * wb.BulletSpeed);
-                  }
+                    wb.GetBulletNetworkObject(),
+                    wb.MuzzlePosition,
+                    wb.MuzzleRotation,
+                    Object.InputAuthority,
+                    onBeforeSpawned: (runner, spawned) => {
+                        if (spawned.TryGetComponent<Bullet>(out var b))
+                        {
+                            b.Initialize(Mathf.FloorToInt(wb.BulletDamage));
+                            b.InitializeVelocity(wb.MuzzleForward * wb.BulletSpeed);
+                        }
+                    }
                 );
+
                 RPC_OnMuzzleFlash();
             }
         }

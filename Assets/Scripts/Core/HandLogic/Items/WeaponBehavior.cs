@@ -5,10 +5,10 @@ namespace Game
 {
     public class WeaponBehavior : MonoBehaviour, IHandItemBehavior
     {
-        WeaponSO _so;
-        Transform _handPoint;
-        InteractionController _ic;
-        ItemState _state;
+        private WeaponSO _so;
+        private Transform _handPoint;
+        private InteractionController _ic;
+        private ItemState _state;
 
         public WeaponBehavior Construct(WeaponSO so, Transform handParent, InteractionController ic, ItemState state)
         {
@@ -30,23 +30,32 @@ namespace Game
             return true;
         }
 
-        public void Reload() => _state.Ammo = _so.maxAmmo;
+        public void Reload()
+        {
+            _state.Ammo = _so.maxAmmo;
+        }
 
-        public NetworkObject GetBulletNetworkObject() => _so.bulletPrefab.GetComponent<NetworkObject>();
+        // сетевая модель пули
+        public NetworkObject GetBulletNetworkObject()
+        {
+            return _so.bulletPrefab.GetComponent<NetworkObject>();
+        }
 
+        // Урон и скорость берём из SO
+        public float BulletDamage => _so.bulletDamage;
         public float BulletSpeed => _so.bulletSpeed;
+
+        // Точка выпускания пули
         public Vector3 MuzzlePosition => _handPoint.position;
         public Quaternion MuzzleRotation => _handPoint.rotation;
         public Vector3 MuzzleForward => _handPoint.forward;
 
+        // IHandItemBehavior:
         public void OnEquip() => _ic.RpcHandler.RPC_RequestSpawnHandModel(_so.Id);
-
         public void OnUnequip() => _ic.RpcHandler.RPC_RequestDespawnHandModel();
-
         public void OnUsePressed() => _ic.RpcHandler.RPC_RequestShoot();
-
-        public void OnUseHeld(float d) { }
-        public void OnUseReleased() { }
-        public void OnMuzzleFlash() { }
+        public void OnUseHeld(float d) { /* не используется */ }
+        public void OnUseReleased() { /* не используется */ }
+        public void OnMuzzleFlash() { /* VFX/SFX по усмотрению */ }
     }
 }

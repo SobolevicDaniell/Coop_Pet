@@ -9,6 +9,8 @@ namespace Game.Network
     {
         [Header("Player Prefab")][SerializeField] private GameObject _playerPrefab;
         [Header("Inventory")][SerializeField] private ItemDatabaseSO _itemDatabase;
+        [Header("Health")]
+        [SerializeField] private PlayerHealthSO _playerHealthSO;
 
         public override void InstallBindings()
         {
@@ -79,6 +81,16 @@ namespace Game.Network
             Container.Bind<HandItemBehaviorFactory>()
                      .AsSingle()
                      .NonLazy();
+
+            Container
+            .Bind<PlayerHealthSO>()
+            .FromInstance(_playerHealthSO)
+            .AsSingle();
+
+            Container
+                .Bind<UIHealthView>()
+                .FromComponentInHierarchy()
+                .AsSingle();
 
         }
     }
