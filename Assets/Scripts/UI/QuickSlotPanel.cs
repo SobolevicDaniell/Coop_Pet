@@ -30,9 +30,15 @@ namespace Game.UI
             {
                 var s = slots[i];
                 var item = s.Id != null ? _db.Get(s.Id) : null;
-                _slots[i].Set(item, s.Count);
+
+                // Для WeaponSO выводить количество патронов (s.State.Ammo)
+                if (item is WeaponSO)
+                    _slots[i].Set(item, s.State.Ammo);
+                else
+                    _slots[i].Set(item, s.Count);
             }
         }
+
 
         private void Highlight(int sel)
         {

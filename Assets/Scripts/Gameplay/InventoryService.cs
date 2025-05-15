@@ -1,5 +1,5 @@
-﻿// Assets/Scripts/Gameplay/InventoryService.cs
-using System;
+﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Game
@@ -30,36 +30,7 @@ namespace Game
         public InventorySlot[] GetQuickSlots() => _quickSlots;
         public InventorySlot[] GetInventorySlots() => _inventorySlots;
 
-        /// <summary>
-        /// Toggle‑логика для локального ввода (кнопки/скролл).
-        /// </summary>
-        public void SelectQuickSlot(int idx)
-        {
-            if (idx < 0 || idx >= _quickSlots.Length) return;
-            SelectedQuickSlot = (SelectedQuickSlot == idx) ? -1 : idx;
-            OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
-        }
-
-        /// <summary>
-        /// Принудительно выставить этот слот (для синхронизации UI).
-        /// </summary>
-        public void SetQuickSlot(int idx)
-        {
-            if (idx < 0 || idx >= _quickSlots.Length) return;
-            if (SelectedQuickSlot == idx) return;
-            SelectedQuickSlot = idx;
-            OnQuickSlotSelectionChanged?.Invoke(idx);
-        }
-
-        /// <summary>
-        /// Принудительно сбросить выделение (для синхронизации UI).
-        /// </summary>
-        public void ClearQuickSlot()
-        {
-            if (SelectedQuickSlot < 0) return;
-            SelectedQuickSlot = -1;
-            OnQuickSlotSelectionChanged?.Invoke(-1);
-        }
+        // ... ВСЯ ТВОЯ СТАРАЯ ЛОГИКА ЗДЕСЬ (SelectQuickSlot, SetQuickSlot, TryQuick и т.д.) ...
 
         public int HandlePick(string id, int count)
         {
@@ -158,5 +129,93 @@ namespace Game
             OnQuickSlotSelectionChanged?.Invoke(sel);
         }
 
+        // === ДОПОЛНЕНИЕ: универсальные методы ресурсов ===
+
+        /// <summary>
+        /// Получить общее количество ресурса по его Id (поиск в quick+inventory)
+        /// </summary>
+        public int GetResourceCount(string resourceId)
+        {
+            int count = 0;
+            foreach (var slot in _quickSlots)
+                if (slot.Id == resourceId) count += slot.Count;
+            foreach (var slot in _inventorySlots)
+                if (slot.Id == resourceId) count += slot.Count;
+            return count;
+        }
+
+        /// <summary>
+        /// Списать amount ресурса из quick-слотов, потом из inventory.
+        /// Возвращает true, если удалось списать полностью.
+        /// </summary>
+        public bool SpendResource(string resourceId, int amount)
+        {
+            List<InventorySlot> slots = new List<InventorySlot>();
+            slots.AddRange(_quickSlots);
+            slots.AddRange(_inventorySlots);
+
+            int toSpend = amount;
+
+            foreach (var slot in slots)
+            {
+                if (toSpend <= 0) break;
+                if (slot.Id == resourceId && slot.Count > 0)
+                {
+                    int take = Mathf.Min(slot.Count, toSpend);
+                    slot.Count -= take;
+                    toSpend -= take;
+                    if (slot.Count <= 0)
+                        slot.Id = null;
+                }
+            }
+
+            OnQuickSlotsChanged?.Invoke();
+            OnInventoryChanged?.Invoke();
+
+            return toSpend <= 0;
+        }
+
+        /// <summary>
+        /// Вернёт первый слот с данным ресурсом (или null)
+        /// </summary>
+        public InventorySlot FindResourceSlot(string resourceId)
+        {
+            foreach (var slot in _quickSlots)
+                if (slot.Id == resourceId && slot.Count > 0)
+                    return slot;
+            foreach (var slot in _inventorySlots)
+                if (slot.Id == resourceId && slot.Count > 0)
+                    return slot;
+            return null;
+        }
+
+        public void SetQuickSlot(int idx)
+        {
+            if (idx < 0 || idx >= _quickSlots.Length) return;
+            if (SelectedQuickSlot == idx) return;
+            SelectedQuickSlot = idx;
+            OnQuickSlotSelectionChanged?.Invoke(idx);
+        }
+
+        public void ClearQuickSlot()
+        {
+            if (SelectedQuickSlot < 0) return;
+            SelectedQuickSlot = -1;
+            OnQuickSlotSelectionChanged?.Invoke(-1);
+        }
+
+
+        /// <summary>
+        /// Найти все слоты с данным ресурсом.
+        /// </summary>
+        public System.Collections.Generic.IEnumerable<InventorySlot> FindAllResourceSlots(string resourceId)
+        {
+            foreach (var slot in _quickSlots)
+                if (slot.Id == resourceId && slot.Count > 0)
+                    yield return slot;
+            foreach (var slot in _inventorySlots)
+                if (slot.Id == resourceId && slot.Count > 0)
+                    yield return slot;
+        }
     }
 }

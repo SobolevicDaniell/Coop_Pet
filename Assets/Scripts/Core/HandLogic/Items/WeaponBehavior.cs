@@ -35,9 +35,11 @@ namespace Game
         {
             if (_state.Ammo <= 0) return false;
             _state.Ammo--;
-            // (!) Тут можно отправлять обновление UI, если нужно.
+            // !!! Обновляем UI !!!
+            _ic.Inventory.RaiseQuickSlotsChanged();
             return true;
         }
+
 
         // Главное: перезарядка тратит ресурс-патроны из инвентаря/квикслота
         public void Reload()
@@ -60,6 +62,7 @@ namespace Game
                 }
                 // else: если не хватило — может часть перезарядить, см above
             }
+            _ic.Inventory.RaiseQuickSlotsChanged();
         }
 
         public NetworkObject GetBulletNetworkObject() => _so.bulletPrefab.GetComponent<NetworkObject>();

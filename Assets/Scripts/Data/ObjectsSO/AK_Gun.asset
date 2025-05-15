@@ -24,3 +24,4 @@ MonoBehaviour:
   bulletPrefab: {fileID: 6867856357713228749, guid: 62d89cc04b19b7348bd19b274080c461, type: 3}
   bulletSpeed: 500
   bulletDamage: 5
+  ammoResource: {fileID: 11400000, guid: bd61a6886bd777d419850d0be4f1ad39, type: 2}
