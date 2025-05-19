@@ -39,10 +39,11 @@ namespace Game
             if (slot.Id == null) return;
 
             var so = _db.Get(slot.Id);
-            _current = _factory.Create(so, _handPoint, _ic, slot.State);
+
+            // === Главное исправление: Передаем slot, а не slot.State! ===
+            _current = _factory.Create(so, _handPoint, _ic, slot);
             _current.OnEquip();
         }
-
 
         public void MuzzleFlash()
         {

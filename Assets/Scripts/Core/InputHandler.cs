@@ -14,6 +14,8 @@ public class InputHandler : MonoBehaviour
     public event Action<int> OnQuickSlotPressed;
     public event Action<int> OnQuickSlotScrollDelta;
     public event Action OnReloadPressed;
+    public event Action OnQuickDropPressed;
+    public event Action OnPlacePressed;
 
     // Стрелять:
     public event Action OnUseDown;
@@ -30,6 +32,7 @@ public class InputHandler : MonoBehaviour
         {
             InventoryOpen = !InventoryOpen;
             _inventoryPanel?.SetActive(InventoryOpen);
+            OnUseUp?.Invoke();
         }
 
         if (InventoryOpen)
@@ -58,7 +61,11 @@ public class InputHandler : MonoBehaviour
 
             if (Input.GetMouseButtonDown(0)) OnUseDown?.Invoke();
             if (Input.GetMouseButtonUp(0)) OnUseUp?.Invoke();
+
+            if (Input.GetKeyDown(KeyCode.Q)) OnQuickDropPressed?.Invoke();
+            if (Input.GetKeyDown(KeyCode.F)) OnPlacePressed?.Invoke();
         }
+        //if (Input.GetMouseButtonUp(0)) OnUseUp?.Invoke();
     }
 
     public void ProvideNetworkInput(NetworkRunner runner, NetworkInput input)

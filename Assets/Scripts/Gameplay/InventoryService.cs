@@ -30,163 +30,11 @@ namespace Game
         public InventorySlot[] GetQuickSlots() => _quickSlots;
         public InventorySlot[] GetInventorySlots() => _inventorySlots;
 
-        // ... ВСЯ ТВОЯ СТАРАЯ ЛОГИКА ЗДЕСЬ (SelectQuickSlot, SetQuickSlot, TryQuick и т.д.) ...
-
-        public int HandlePick(string id, int count)
+        public void SelectQuickSlot(int idx)
         {
-            var item = _db.Get(id);
-            if (item == null) return count;
-
-            int rem = count;
-            if (item.priority == 1)
-                rem = TryQuick(item, rem);
-            else
-                rem = TryInventory(item, rem);
-
-            if (rem > 0)
-            {
-                if (item.priority == 1)
-                    rem = TryInventory(item, rem);
-                else
-                    rem = TryQuick(item, rem);
-            }
-
-            return rem;
-        }
-
-        private int TryQuick(ItemSO item, int rem)
-        {
-            if (item.MaxStack > 1)
-            {
-                foreach (var slot in _quickSlots)
-                {
-                    if (rem == 0) break;
-                    if (slot.Id == item.Id && slot.Count < item.MaxStack)
-                    {
-                        int can = Mathf.Min(rem, item.MaxStack - slot.Count);
-                        slot.Count += can;
-                        rem -= can;
-                        OnQuickSlotsChanged?.Invoke();
-                    }
-                }
-            }
-
-            foreach (var slot in _quickSlots)
-            {
-                if (rem == 0) break;
-                if (slot.Id == null)
-                {
-                    slot.Id = item.Id;
-                    int toPut = Mathf.Min(rem, item.MaxStack);
-                    slot.Count = toPut;
-                    rem -= toPut;
-                    OnQuickSlotsChanged?.Invoke();
-                }
-            }
-
-            return rem;
-        }
-
-        private int TryInventory(ItemSO item, int rem)
-        {
-            if (item.MaxStack > 1)
-            {
-                foreach (var slot in _inventorySlots)
-                {
-                    if (rem == 0) break;
-                    if (slot.Id == item.Id && slot.Count < item.MaxStack)
-                    {
-                        int can = Mathf.Min(rem, item.MaxStack - slot.Count);
-                        slot.Count += can;
-                        rem -= can;
-                        OnInventoryChanged?.Invoke();
-                    }
-                }
-            }
-
-            foreach (var slot in _inventorySlots)
-            {
-                if (rem == 0) break;
-                if (slot.Id == null)
-                {
-                    slot.Id = item.Id;
-                    int toPut = Mathf.Min(rem, item.MaxStack);
-                    slot.Count = toPut;
-                    rem -= toPut;
-                    OnInventoryChanged?.Invoke();
-                }
-            }
-
-            return rem;
-        }
-
-        public void RaiseQuickSlotsChanged()
-        {
-            OnQuickSlotsChanged?.Invoke();
-        }
-        public void RaiseQuickSlotSelectionChanged(int sel)
-        {
-            OnQuickSlotSelectionChanged?.Invoke(sel);
-        }
-
-        // === ДОПОЛНЕНИЕ: универсальные методы ресурсов ===
-
-        /// <summary>
-        /// Получить общее количество ресурса по его Id (поиск в quick+inventory)
-        /// </summary>
-        public int GetResourceCount(string resourceId)
-        {
-            int count = 0;
-            foreach (var slot in _quickSlots)
-                if (slot.Id == resourceId) count += slot.Count;
-            foreach (var slot in _inventorySlots)
-                if (slot.Id == resourceId) count += slot.Count;
-            return count;
-        }
-
-        /// <summary>
-        /// Списать amount ресурса из quick-слотов, потом из inventory.
-        /// Возвращает true, если удалось списать полностью.
-        /// </summary>
-        public bool SpendResource(string resourceId, int amount)
-        {
-            List<InventorySlot> slots = new List<InventorySlot>();
-            slots.AddRange(_quickSlots);
-            slots.AddRange(_inventorySlots);
-
-            int toSpend = amount;
-
-            foreach (var slot in slots)
-            {
-                if (toSpend <= 0) break;
-                if (slot.Id == resourceId && slot.Count > 0)
-                {
-                    int take = Mathf.Min(slot.Count, toSpend);
-                    slot.Count -= take;
-                    toSpend -= take;
-                    if (slot.Count <= 0)
-                        slot.Id = null;
-                }
-            }
-
-            OnQuickSlotsChanged?.Invoke();
-            OnInventoryChanged?.Invoke();
-
-            return toSpend <= 0;
-        }
-
-        /// <summary>
-        /// Вернёт первый слот с данным ресурсом (или null)
-        /// </summary>
-        public InventorySlot FindResourceSlot(string resourceId)
-        {
-            foreach (var slot in _quickSlots)
-                if (slot.Id == resourceId && slot.Count > 0)
-                    return slot;
-            foreach (var slot in _inventorySlots)
-                if (slot.Id == resourceId && slot.Count > 0)
-                    return slot;
-            return null;
+            if (idx < 0 || idx >= _quickSlots.Length) return;
+            SelectedQuickSlot = (SelectedQuickSlot == idx) ? -1 : idx;
+            OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
         }
 
         public void SetQuickSlot(int idx)
@@ -204,11 +52,144 @@ namespace Game
             OnQuickSlotSelectionChanged?.Invoke(-1);
         }
 
+        public int HandlePick(string itemId, int count, int ammo)
+        {
+            var item = _db.Get(itemId);
+            if (item == null) return count;
 
-        /// <summary>
-        /// Найти все слоты с данным ресурсом.
-        /// </summary>
-        public System.Collections.Generic.IEnumerable<InventorySlot> FindAllResourceSlots(string resourceId)
+            int rem = count;
+            if (item.priority == 1)
+                rem = TryQuick(item, rem, ammo);
+            else
+                rem = TryInventory(item, rem, ammo);
+
+            if (rem > 0)
+            {
+                if (item.priority == 1)
+                    rem = TryInventory(item, rem, ammo);
+                else
+                    rem = TryQuick(item, rem, ammo);
+            }
+
+            return rem;
+        }
+
+
+        private int TryQuick(ItemSO item, int rem, int ammo = 0)
+        {
+            if (item.MaxStack > 1)
+            {
+                foreach (var slot in _quickSlots)
+                {
+                    if (rem == 0) break;
+                    if (slot.Id == item.Id && slot.Count < item.MaxStack)
+                    {
+                        int can = Mathf.Min(rem, item.MaxStack - slot.Count);
+                        slot.Count += can;
+                        rem -= can;
+                        OnQuickSlotsChanged?.Invoke();
+                    }
+                }
+            }
+            foreach (var slot in _quickSlots)
+            {
+                if (rem == 0) break;
+                if (slot.Id == null)
+                {
+                    slot.Id = item.Id;
+                    int toPut = Mathf.Min(rem, item.MaxStack);
+                    slot.Count = toPut;
+                    slot.State = new ItemState(ammo); // <-- вот тут!
+                    rem -= toPut;
+                    OnQuickSlotsChanged?.Invoke();
+                }
+            }
+            return rem;
+        }
+
+
+        private int TryInventory(ItemSO item, int rem, int ammo = 0)
+        {
+            if (item.MaxStack > 1)
+            {
+                foreach (var slot in _inventorySlots)
+                {
+                    if (rem == 0) break;
+                    if (slot.Id == item.Id && slot.Count < item.MaxStack)
+                    {
+                        int can = Mathf.Min(rem, item.MaxStack - slot.Count);
+                        slot.Count += can;
+                        rem -= can;
+                        OnInventoryChanged?.Invoke();
+                    }
+                }
+            }
+            foreach (var slot in _inventorySlots)
+            {
+                if (rem == 0) break;
+                if (slot.Id == null)
+                {
+                    slot.Id = item.Id;
+                    int toPut = Mathf.Min(rem, item.MaxStack);
+                    slot.Count = toPut;
+                    slot.State = new ItemState(ammo);
+                    rem -= toPut;
+                    OnInventoryChanged?.Invoke();
+                }
+            }
+            return rem;
+        }
+
+        public void RaiseQuickSlotsChanged() => OnQuickSlotsChanged?.Invoke();
+        public void RaiseQuickSlotSelectionChanged(int sel) => OnQuickSlotSelectionChanged?.Invoke(sel);
+
+        // ==== Методы для ресурсов (патроны) ====
+
+        public int GetResourceCount(string resourceId)
+        {
+            int count = 0;
+            foreach (var slot in _quickSlots)
+                if (slot.Id == resourceId) count += slot.Count;
+            foreach (var slot in _inventorySlots)
+                if (slot.Id == resourceId) count += slot.Count;
+            return count;
+        }
+
+        public bool SpendResource(string resourceId, int amount)
+        {
+            List<InventorySlot> slots = new List<InventorySlot>();
+            slots.AddRange(_quickSlots);
+            slots.AddRange(_inventorySlots);
+
+            int toSpend = amount;
+            foreach (var slot in slots)
+            {
+                if (toSpend <= 0) break;
+                if (slot.Id == resourceId && slot.Count > 0)
+                {
+                    int take = Mathf.Min(slot.Count, toSpend);
+                    slot.Count -= take;
+                    toSpend -= take;
+                    if (slot.Count <= 0)
+                        slot.Id = null;
+                }
+            }
+            OnQuickSlotsChanged?.Invoke();
+            OnInventoryChanged?.Invoke();
+            return toSpend <= 0;
+        }
+
+        public InventorySlot FindResourceSlot(string resourceId)
+        {
+            foreach (var slot in _quickSlots)
+                if (slot.Id == resourceId && slot.Count > 0)
+                    return slot;
+            foreach (var slot in _inventorySlots)
+                if (slot.Id == resourceId && slot.Count > 0)
+                    return slot;
+            return null;
+        }
+        public IEnumerable<InventorySlot> FindAllResourceSlots(string resourceId)
         {
             foreach (var slot in _quickSlots)
                 if (slot.Id == resourceId && slot.Count > 0)

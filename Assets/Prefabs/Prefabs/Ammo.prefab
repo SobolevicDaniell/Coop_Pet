@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 4435342870178193759}
   - component: {fileID: 1903183840715249045}
   m_Layer: 0
-  m_Name: SM_Cartridges_9_ONE
+  m_Name: Ammo
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

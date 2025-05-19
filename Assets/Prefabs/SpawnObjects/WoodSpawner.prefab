@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 955117897809451662}
   - component: {fileID: 9052767608803760478}
   m_Layer: 0
-  m_Name: Wood
+  m_Name: WoodSpawner
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

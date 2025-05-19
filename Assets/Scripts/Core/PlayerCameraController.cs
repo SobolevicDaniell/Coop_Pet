@@ -9,6 +9,7 @@ namespace Game.Network
         [Header("Local Player Camera & Audio")]
         [SerializeField] private Camera _playerCamera;
         [SerializeField] private AudioListener _audioListener;
+        [SerializeField] private GameObject faceObject;
 
         private bool _isLocal;
 
@@ -16,6 +17,15 @@ namespace Game.Network
         {
             _isLocal = isLocal;
             ApplyCursorAndCameras();
+        }
+        public override void Spawned()
+        {
+            // Только для локального игрока скрываем лицо
+            if (Object.HasInputAuthority)
+            {
+                if (faceObject != null)
+                    faceObject.SetActive(false);
+            }
         }
 
         private void ApplyCursorAndCameras()

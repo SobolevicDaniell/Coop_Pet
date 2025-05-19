@@ -20,16 +20,13 @@ namespace Game
         PickDropController PickDrop;
 
         [Networked] public int NetSelectedQuickSlot { get; set; } = -1;
-
-
         [Networked] public string HandModelId { get; set; }
-
-
 
         [Header("Hand Point")]
         [SerializeField] Transform _handPoint;
         [Header("Pick/Drop")]
-        [SerializeField] float _range = 4f;
+        [SerializeField] float _rangePick = 4f;
+        [SerializeField] float _rangePlace = 8f;
         [SerializeField] Transform _dropPoint;
         [SerializeField] float _throwForce = 5f;
 
@@ -46,7 +43,7 @@ namespace Game
         public Transform HandPoint => _handPoint;
         public Transform DropPoint => _dropPoint;
         public Camera Camera => Camera.main;
-        public float Range => _range;
+        public float Range => _rangePick;
         public float ThrowForce => _throwForce;
         public IHandItemBehavior CurrentBehavior => _currentBehavior;
 
@@ -78,6 +75,8 @@ namespace Game
             Input.OnQuickSlotPressed += Quick.ChangeSlotAbsolute;
             Input.OnQuickSlotScrollDelta += Quick.ChangeSlotRelative;
             Input.OnInteractPressed += PickDrop.TryPick;
+            Input.OnQuickDropPressed += DropQuickSlotItem;
+            Input.OnPlacePressed += TryPlaceItem;
             Input.OnReloadPressed += () =>
             {
                 if (_currentBehavior is WeaponBehavior wb)
@@ -129,7 +128,8 @@ namespace Game
                 Hand.Equip(_lastSlot, slots);
 
                 var so = Db.Get(slot.Id);
-                var behavior = Factory.Create(so, HandPoint, this, slot.State);
+                // !!! Передаём не копию состояния, а ссылку на весь слот!
+                var behavior = Factory.Create(so, HandPoint, this, slot);
                 SetCurrentBehavior(behavior);
 
                 RpcHandler.RPC_RequestSpawnHandModel(slot.Id);
@@ -140,10 +140,105 @@ namespace Game
                 RpcHandler.RPC_RequestDespawnHandModel();
                 Hand.Equip(-1, slots);
             }
-
-
         }
 
+        private void TryPlaceItem()
+        {
+            // 1. Проверить выбран ли слот
+            var selected = NetSelectedQuickSlot;
+            if (selected < 0) return;
+
+            var slots = Inventory.GetQuickSlots();
+            if (selected >= slots.Length) return;
+            var slot = slots[selected];
+
+            if (string.IsNullOrEmpty(slot.Id) || slot.Count <= 0) return;
+
+            // 2. Проверить, что предмет — PlaceableItemSO
+            var so = Db.Get(slot.Id);
+            if (!(so is PlaceableItemSO placeable)) return;
+
+            // 3. Найти позицию для размещения (луч в экран из центра камеры)
+            var camera = Camera;
+            Vector3 placePos = Vector3.zero;
+            Vector3 placeNormal = Vector3.up;
+            bool canPlace = false;
+            Ray ray = camera.ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2));
+            if (Physics.Raycast(ray, out var hit, _rangePlace))
+            {
+                placePos = hit.point;
+                placeNormal = hit.normal;
+                canPlace = true;
+            }
+            else
+            {
+                // Если не попали — размещаем в воздухе на _rangePlace по направлению взгляда
+                placePos = ray.origin + ray.direction * _rangePlace;
+                canPlace = true;
+            }
+
+            // Можно добавить свою логику валидности точки (например, не ставить в игрока и т.д.)
+
+            if (canPlace)
+            {
+                var rotation = Quaternion.LookRotation(placeNormal) * Quaternion.Euler(90, 0, 0);
+                RpcHandler.RPC_RequestPlaceObject(placeable.Id, placePos, rotation);
+
+                // Минусуем предмет из слота
+                slot.Count -= 1;
+                if (slot.Count <= 0)
+                {
+                    slot.Id = null;
+                    slot.State = new ItemState();
+                }
+                Inventory.RaiseQuickSlotsChanged();
+            }
+        }
+
+
+        private void DropQuickSlotItem()
+        {
+            // Только если выбран быстрый слот и он не пустой!
+            var selected = NetSelectedQuickSlot;
+            if (selected < 0) return;
+
+            var slots = Inventory.GetQuickSlots();
+            if (selected >= slots.Length) return;
+
+            var slot = slots[selected];
+            if (slot.Id == null || slot.Count <= 0) return;
+
+            int ammo = slot.State != null ? slot.State.Ammo : 0;
+
+            // Запрос дропа (выброса) — выкидываем весь стак
+            RpcHandler.RPC_RequestDrop(
+                DropPoint.position,
+                Camera.transform.forward,
+                slot.Id,
+                slot.Count,
+                ammo
+            );
+
+            // Очищаем слот
+            slot.Id = null;
+            slot.Count = 0;
+
+            // Без .Reset() — сбрасываем руками
+            if (slot.State != null)
+            {
+                slot.State.Ammo = 0; // Если у оружия были патроны — сбросить
+                // Если у тебя есть другие поля, сбрасывай их тут
+                // slot.State.ДругоеПоле = default;
+            }
+            Inventory.RaiseQuickSlotsChanged();
+
+            // Если этот слот был выбран — сбросить выбор и убрать оружие из рук
+            if (NetSelectedQuickSlot == selected)
+            {
+                RpcHandler.RPC_SelectQuickSlot(-1);
+                RpcHandler.RPC_RequestDespawnHandModel();
+            }
+        }
 
         public void SetCurrentBehavior(IHandItemBehavior behavior)
         {
@@ -155,9 +250,5 @@ namespace Game
             _currentBehavior?.OnUnequip();
             _currentBehavior = null;
         }
-
-
     }
-
 }
-

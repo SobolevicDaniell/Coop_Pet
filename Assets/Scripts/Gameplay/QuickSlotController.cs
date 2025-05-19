@@ -59,8 +59,18 @@ namespace Game
             int cur = _ic.NetSelectedQuickSlot < 0 ? 0 : _ic.NetSelectedQuickSlot;
             int next = (cur + d + cnt) % cnt;
 
+            int checkedSlots = 0;
+            while (string.IsNullOrEmpty(slots[next].Id) && checkedSlots < cnt)
+            {
+                next = (next + d + cnt) % cnt;
+                checkedSlots++;
+            }
+            if (string.IsNullOrEmpty(slots[next].Id))
+                return;
+
             ChangeSlotAbsolute(next);
         }
+
 
         public void OnNetworkSlotChanged(int newSlot)
         {

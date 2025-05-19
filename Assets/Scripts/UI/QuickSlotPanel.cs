@@ -1,4 +1,3 @@
-// Assets/Scripts/UI/QuickSlotPanel.cs
 using Game;
 using UnityEngine;
 using Zenject;
@@ -20,7 +19,6 @@ namespace Game.UI
             _inv.OnQuickSlotSelectionChanged += Highlight;
             Refresh();
             Highlight(_inv.SelectedQuickSlot);
-
         }
 
         private void Refresh()
@@ -30,8 +28,6 @@ namespace Game.UI
             {
                 var s = slots[i];
                 var item = s.Id != null ? _db.Get(s.Id) : null;
-
-                // Для WeaponSO выводить количество патронов (s.State.Ammo)
                 if (item is WeaponSO)
                     _slots[i].Set(item, s.State.Ammo);
                 else
@@ -39,15 +35,11 @@ namespace Game.UI
             }
         }
 
-
         private void Highlight(int sel)
         {
-            //Debug.Log($"[QuickSlotPanel] Highlight({sel})");
             for (int i = 0; i < _slots.Length; i++)
             {
-                bool active = (i == sel);
-                _slots[i].SetActive(active);
-                //Debug.Log($"  slot[{i}] SetActive({active})");
+                _slots[i].SetActive(i == sel);
             }
         }
 

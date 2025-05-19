@@ -14,6 +14,7 @@ namespace Game.Network
 
         void Awake()
         {
+
             _hostButton.onClick.AddListener(async () => await Launch(GameMode.Host));
             _clientButton.onClick.AddListener(async () => await Launch(GameMode.Client));
         }

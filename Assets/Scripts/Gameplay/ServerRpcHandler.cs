@@ -23,7 +23,6 @@ namespace Game
             _ic.NetSelectedQuickSlot = (_ic.NetSelectedQuickSlot == slot) ? -1 : slot;
         }
 
-        // PICK
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestPick(NetworkObject pickable, RpcInfo info = default)
         {
@@ -33,15 +32,18 @@ namespace Game
 
             var itemId = pi.ItemId;
             var count = pi.Count;
+            var state = pi.State;
 
             Runner.Despawn(pickable);
-            RPC_ConfirmPick(info.Source, itemId, count);
+
+            RPC_ConfirmPick(info.Source, itemId, count, state?.Ammo ?? 0);
         }
 
+
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
-        void RPC_ConfirmPick(PlayerRef _, string itemId, int count)
+        void RPC_ConfirmPick(PlayerRef _, string itemId, int count, int ammo)
         {
-            int leftover = _ic.Inventory.HandlePick(itemId, count);
+            int leftover = _ic.Inventory.HandlePick(itemId, count, ammo);
             if (leftover > 0)
             {
                 RPC_RequestDrop(
@@ -55,7 +57,7 @@ namespace Game
         // DROP
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestDrop(
-            Vector3 pos, Vector3 dir, string itemId, int count, RpcInfo _ = default)
+            Vector3 pos, Vector3 dir, string itemId, int count, int ammo = 0, RpcInfo _ = default)
         {
             if (!Object.HasStateAuthority) return;
             var def = _ic.Db.Get(itemId);
@@ -69,7 +71,7 @@ namespace Game
                 onBeforeSpawned: (runner, spawned) =>
                 {
                     spawned.GetComponent<PickableItem>()
-                           .Initialize(itemId, count);
+                           .Initialize(itemId, count, new ItemState(ammo));
                     if (spawned.TryGetComponent<Rigidbody>(out var rb))
                         rb.linearVelocity = dir * _ic.ThrowForce;
                 });
@@ -148,11 +150,12 @@ namespace Game
             RPC_OnHandModelSpawned(spawned, Object.InputAuthority);
 
             int selectedSlot = _ic.NetSelectedQuickSlot;
-            ItemState state = selectedSlot >= 0
-                ? _ic.Inventory.GetQuickSlots()[selectedSlot].State
-                : new ItemState();
+            InventorySlot slot = (selectedSlot >= 0)
+                ? _ic.Inventory.GetQuickSlots()[selectedSlot]
+                : null;
 
-            var behavior = _ic.Factory.Create(so, _ic.HandPoint, _ic, state);
+            // Главное: Передаем весь слот!
+            var behavior = _ic.Factory.Create(so, _ic.HandPoint, _ic, slot);
             _ic.SetCurrentBehavior(behavior);
         }
 
@@ -229,6 +232,28 @@ namespace Game
                 }
             }
         }
+
+        // RPC на размещение объекта в мире
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void RPC_RequestPlaceObject(string itemId, Vector3 pos, Quaternion rot, RpcInfo _ = default)
+        {
+            if (!Object.HasStateAuthority) return;
+            var so = _ic.Db.Get(itemId) as PlaceableItemSO;
+            if (so == null) return;
+
+            var prefab = so.PlaceablePrefab.GetComponent<NetworkObject>();
+            if (prefab == null) return;
+
+            Runner.Spawn(
+                prefab,
+                pos,
+                rot,
+                PlayerRef.None,
+                onBeforeSpawned: (runner, spawned) => {
+                }
+            );
+        }
+
     }
 }
 
