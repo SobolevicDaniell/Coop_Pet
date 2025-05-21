@@ -1,4 +1,3 @@
-// Assets/Scripts/Network/IPlayerFactory.cs
 using Fusion;
 
 namespace Game.Network

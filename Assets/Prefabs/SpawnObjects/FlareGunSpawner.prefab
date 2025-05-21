@@ -9,8 +9,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6590520682832606770}
-  - component: {fileID: 7601391551238337459}
-  - component: {fileID: 6987003090001314752}
+  - component: {fileID: 288035025127258178}
+  - component: {fileID: 1685266221196269898}
   m_Layer: 0
   m_Name: FlareGunSpawner
   m_TagString: Untagged
@@ -27,13 +27,13 @@ Transform:
   m_GameObject: {fileID: 1210354928457690765}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 9.4, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &7601391551238337459
+--- !u!114 &288035025127258178
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -42,10 +42,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 1210354928457690765}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6ce6643359dbf7b4d848e2e1d77d31a6, type: 3}
+  m_Script: {fileID: 11500000, guid: 5235d8ed52c1df44b86ef0a1fe414716, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: 
---- !u!114 &6987003090001314752
+  m_EditorClassIdentifier: Assembly-CSharp::NetworkRunnerProvider
+--- !u!114 &1685266221196269898
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -54,8 +54,8 @@ MonoBehaviour:
   m_GameObject: {fileID: 1210354928457690765}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 374d7928df153b0429a93ddd1752e51d, type: 3}
+  m_Script: {fileID: 11500000, guid: 78cf7a469b31bfa459583281269e85de, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.Gameplay.PickableSpawner
   _itemId: FlareGun
   _requestedCount: 1

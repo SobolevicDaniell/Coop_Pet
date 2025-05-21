@@ -1,34 +1,29 @@
-// Assets/Scripts/Gameplay/PlayerHealth.cs
 using Fusion;
 using UnityEngine;
-using Zenject;
 
 namespace Game
 {
     [RequireComponent(typeof(NetworkObject))]
     public class HealthComponent : NetworkBehaviour
     {
-        [Inject] private PlayerHealthSO _healthSO;
-        [Inject] private UIHealthView _ui;
+        private UIHealthView _ui;
+        [SerializeField] private PlayerStatsSO _playerStatsSO;
 
-        // Сетевое текущее здоровье
         [Networked] public int CurrentHealth { get; set; }
-
-        // Для локального клиента — хранить предыдущее значение
         private int _lastHealth;
+        private bool _initialized;
 
-        public override void Spawned()
+        public void Initialize(UIHealthView ui, bool hasStateAuthority, bool hasInputAuthority)
         {
-            // На сервере инициализируем здоровье
-            if (Object.HasStateAuthority)
-            {
-                CurrentHealth = _healthSO.health;
-            }
+            _ui = ui;
+            _initialized = true;
 
-            // У клиента на локальном игроке настраиваем UI
-            if (Object.HasInputAuthority)
+            if (hasStateAuthority)
+                CurrentHealth = _playerStatsSO.health;
+
+            if (hasInputAuthority && _ui != null)
             {
-                _ui.SetMaxHealth(_healthSO.health);
+                _ui.SetMaxHealth(_playerStatsSO.health);
                 _ui.UpdateHealth(CurrentHealth);
                 _lastHealth = CurrentHealth;
             }
@@ -36,7 +31,8 @@ namespace Game
 
         public override void FixedUpdateNetwork()
         {
-            // Только для локального игрока обновляем UI, когда здоровье меняется
+            if (!_initialized || _ui == null) return;
+
             if (Object.HasInputAuthority)
             {
                 if (_lastHealth != CurrentHealth)
@@ -50,15 +46,10 @@ namespace Game
             }
         }
 
-        // Вызываем на сервере, чтобы нанести урон
         public void TakeDamage(int damage)
         {
             if (!Object.HasStateAuthority) return;
-
             CurrentHealth = Mathf.Max(0, CurrentHealth - damage);
-
-            // Можно здесь сразу отправить RPC_OnDeath, 
-            // но мы обрабатываем смерть в FixedUpdateNetwork на клиенте
         }
     }
 }
