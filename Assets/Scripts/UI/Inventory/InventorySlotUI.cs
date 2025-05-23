@@ -27,9 +27,6 @@ namespace Game.UI
                 _countText.text = "";
             }
         }
-
-
-
         public void SetActive(bool active)
         {
             _activeIcon.enabled = active;

@@ -68,33 +68,34 @@ namespace Game
 
         public void UpdateRaycast()
         {
-            if (_ic == null) return;
-            var camera = _ic.Camera;
+            var ray = _ic.Camera.ScreenPointToRay(new Vector3(Screen.width / 2f, Screen.height / 2f, 0));
             var range = _ic.Range;
-            var ray = camera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+
+            Debug.DrawRay(ray.origin, ray.direction * range, Color.green); // Для визуальной отладки
+
             if (Physics.Raycast(ray, out var hit, range))
             {
-                Debug.Log($"RAY HIT: {hit.collider.gameObject.name}");
                 var pickable = hit.collider.GetComponentInParent<PickableItem>();
                 if (pickable != null)
                 {
-                    Debug.Log("Pickable FOUND: " + pickable.name);
                     _focusedItem = pickable;
                     _ic.Prompt.Show();
+                    //Debug.Log("Pickable FOUND: " + pickable.name);
                     return;
                 }
                 else
                 {
-                    Debug.Log("Raycast hit, but NOT pickable: " + hit.collider.gameObject.name);
+                    //Debug.Log("Raycast hit non-pickable: " + hit.collider.name);
                 }
             }
             else
             {
-                Debug.Log("Raycast: NOTHING");
+                //Debug.Log("Raycast: No hits");
             }
 
             _focusedItem = null;
             _ic.Prompt.Hide();
         }
+
     }
 }

@@ -7,12 +7,9 @@ namespace Game
     [RequireComponent(typeof(ServerRpcHandler), typeof(NetworkObject))]
     public class InteractionController : NetworkBehaviour
     {
-        // --- Внедряем только синглтоны и глобальные сервисы ---
-        //[Inject] public InventoryService Inventory { get; private set; }
+        
         [Inject] public HandItemBehaviorFactory Factory { get; private set; }
         [Inject] public ItemDatabaseSO Db { get; private set; }
-        //[Inject] public InputHandler Input { get; private set; }
-        //[Inject] public InteractionPromptView Prompt { get; private set; }
         [Inject] public UIHealthView UI { get; private set; }
 
         public InputHandler Input;
@@ -50,7 +47,6 @@ namespace Game
         public void SetHandModelNetworkInstance(NetworkObject netObj) => _handModelNetObj = netObj;
         public NetworkObject GetHandModelNetworkInstance() => _handModelNetObj;
 
-        // InteractionController.cs
         public void ManualInit(InputHandler input, InteractionPromptView prompt, InventoryService inventory)
         {
             Input = input;
@@ -66,12 +62,20 @@ namespace Game
             RpcHandler = GetComponent<ServerRpcHandler>();
             HealthComponent = GetComponent<HealthComponent>();
 
-            // Теперь всё проинициализируй
             if (InputHandler != null)
                 InputHandler.Initialize(this, Input, Inventory, Prompt);
 
             if (ItemEquip != null)
                 ItemEquip.Initialize(Factory, Db, this);
+
+            if (PickDrop != null)
+                PickDrop.Initialize(this);
+
+            if (PlaceItem != null)
+                PlaceItem.Initialize(this);
+
+            if (QuickSlot != null)
+                QuickSlot.Initialize(this);
 
             if (HealthComponent != null)
                 HealthComponent.Initialize(UI, Object.HasStateAuthority, Object.HasInputAuthority);
@@ -80,6 +84,7 @@ namespace Game
         public void Update()
         {
             PickDrop.UpdateRaycast();
+            
         }
 
         public override void Spawned()
@@ -105,22 +110,6 @@ namespace Game
                 Debug.LogError("InputHandler = null");
             }
 
-            //if (Object.HasInputAuthority && HealthComponent != null) 
-            //{ 
-            //    HealthComponent.Initialize(UI, Object.HasStateAuthority , Object.HasInputAuthority );
-            //}
-
-
-            //if (Object.HasInputAuthority && InputHandler != null) 
-            //{ 
-            //    InputHandler.Initialize(this, Input, Inventory, Prompt);
-            //    Debug.Log("InputHandler.Initialize");
-            //}
-
-            //if (Object.HasInputAuthority && ItemEquip != null)
-            //{
-            //    ItemEquip.Initialize(Factory, Db, this);
-            //}
         }
 
         public void SetCurrentBehavior(IHandItemBehavior behavior)

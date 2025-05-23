@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: -3301543703974256972}
   - component: {fileID: 8876029696999795297}
   - component: {fileID: 3361081545189104650}
-  - component: {fileID: 4104667531693181543}
+  - component: {fileID: 687583089937787280}
   - component: {fileID: 5504065872355972293}
   m_Layer: 8
   m_Name: Bullet
@@ -30,7 +30,7 @@ Transform:
   m_GameObject: {fileID: 6867856357713228749}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: -3.7355375, y: -0.7399998, z: -4.699053}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
   m_Children:
@@ -54,7 +54,7 @@ MonoBehaviour:
   Flags: 262145
   NestedObjects: []
   NetworkedBehaviours:
-  - {fileID: 4104667531693181543}
+  - {fileID: 687583089937787280}
   - {fileID: 5504065872355972293}
   ForceRemoteRenderTimeframe: 0
 --- !u!136 &8876029696999795297
@@ -87,10 +87,10 @@ Rigidbody:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6867856357713228749}
-  serializedVersion: 4
+  serializedVersion: 5
   m_Mass: 0.01
-  m_Drag: 0
-  m_AngularDrag: 0.05
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
   m_CenterOfMass: {x: 0, y: 0, z: 0}
   m_InertiaTensor: {x: 1, y: 1, z: 1}
   m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
@@ -107,7 +107,7 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 2
---- !u!114 &4104667531693181543
+--- !u!114 &687583089937787280
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -116,10 +116,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 6867856357713228749}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 43e19d27c2f63ee4d9a8b67f5b8c3d8d, type: 3}
+  m_Script: {fileID: 11500000, guid: 57576d7f8597afa4dbd4ffdd0744fdc2, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: 
-  lifetime: 1
+  m_EditorClassIdentifier: Assembly-CSharp::Game.Bullet
+  lifetime: 5
   drag: 0
   _Damage: 0
 --- !u!114 &5504065872355972293
@@ -207,6 +207,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -228,6 +230,7 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
