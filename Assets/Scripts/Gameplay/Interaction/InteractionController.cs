@@ -86,6 +86,21 @@ namespace Game
             PickDrop.UpdateRaycast();
             
         }
+        private int _lastQuickSlot = -2;
+
+        public override void FixedUpdateNetwork()
+        {
+            // ... другая логика
+
+            if (_lastQuickSlot != NetSelectedQuickSlot)
+            {
+                if (QuickSlot != null)
+                    QuickSlot.OnNetworkSlotChanged(NetSelectedQuickSlot);
+
+                _lastQuickSlot = NetSelectedQuickSlot;
+            }
+        }
+
 
         public override void Spawned()
         {

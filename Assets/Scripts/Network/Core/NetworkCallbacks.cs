@@ -3,7 +3,8 @@ using Fusion.Sockets;
 using UnityEngine;
 using Zenject;
 using Game.Gameplay;
-using System.Collections;
+using System;
+using System.Collections.Generic;
 
 namespace Game.Network
 {
@@ -13,6 +14,9 @@ namespace Game.Network
         [Inject] private InputHandler _inputHandler;
         [Inject] private DiContainer _container;
 
+        // Делегат для передачи списка сессий
+        public Action<List<SessionInfo>> OnSessionListReceived;
+
         public void OnConnectedToServer(NetworkRunner runner)
         {
             foreach (var no in FindObjectsOfType<NetworkObject>())
@@ -20,12 +24,15 @@ namespace Game.Network
                 _container.InjectGameObject(no.gameObject);
             }
         }
-        public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
+
+        public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
         {
-            
+            Debug.Log("[NetworkCallbacks] OnSessionListUpdated called!");
+            OnSessionListReceived?.Invoke(sessionList);
         }
 
-
+        // Остальной код как был:
+        public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
         {
             if (runner.IsServer)
@@ -34,23 +41,17 @@ namespace Game.Network
                 Debug.Log($"[Server] Spawned Player: {player}");
             }
         }
-
-
-
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
         {
             if (runner.IsServer)
                 _playerSpawner.RemovePlayer(runner, player);
         }
-
         public void OnInput(NetworkRunner runner, NetworkInput input)
             => _inputHandler.ProvideNetworkInput(runner, input);
-
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest req, byte[] token) { }
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
         public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
         public void OnHostMigration(NetworkRunner runner, HostMigrationToken token) { }
-        public void OnSessionListUpdated(NetworkRunner runner, System.Collections.Generic.List<SessionInfo> sessionList) { }
         public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, System.ArraySegment<byte> data) { }
         public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
         public void OnSceneLoadStart(NetworkRunner runner) { }

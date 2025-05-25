@@ -198,5 +198,12 @@ namespace Game
                 if (slot.Id == resourceId && slot.Count > 0)
                     yield return slot;
         }
+
+        public void ForceSetQuickSlot(int idx)
+        {
+            if (idx < -1 || idx >= _quickSlots.Length) return;
+            SelectedQuickSlot = idx;
+            OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
+        }
     }
 }

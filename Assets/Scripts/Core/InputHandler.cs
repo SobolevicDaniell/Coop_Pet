@@ -17,14 +17,10 @@ public class InputHandler : MonoBehaviour
     public event Action OnQuickDropPressed;
     public event Action OnPlacePressed;
 
-    // Стрелять:
     public event Action OnUseDown;
     public event Action OnUseUp;
 
-    private void Awake()
-    {
-        if (_inventoryPanel != null) _inventoryPanel.SetActive(false);
-    }
+    
 
     private void Update()
     {
@@ -65,7 +61,6 @@ public class InputHandler : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.Q)) OnQuickDropPressed?.Invoke();
             if (Input.GetKeyDown(KeyCode.F)) OnPlacePressed?.Invoke();
         }
-        //if (Input.GetMouseButtonUp(0)) OnUseUp?.Invoke();
     }
 
     public void ProvideNetworkInput(NetworkRunner runner, NetworkInput input)
