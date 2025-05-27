@@ -43,7 +43,7 @@ namespace Game
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
         void RPC_ConfirmPick(PlayerRef _, string itemId, int count, int ammo)
         {
-            int leftover = _ic.Inventory.HandlePick(itemId, count, ammo);
+            int leftover = _ic.inventory.HandlePick(itemId, count, ammo);
             if (leftover > 0)
             {
                 RPC_RequestDrop(
@@ -151,7 +151,7 @@ namespace Game
 
             int selectedSlot = _ic.NetSelectedQuickSlot;
             InventorySlot slot = (selectedSlot >= 0)
-                ? _ic.Inventory.GetQuickSlots()[selectedSlot]
+                ? _ic.inventory.GetQuickSlots()[selectedSlot]
                 : null;
 
             // Главное: Передаем весь слот!

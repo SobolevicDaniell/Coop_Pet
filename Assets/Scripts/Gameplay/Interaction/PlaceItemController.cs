@@ -7,7 +7,7 @@ namespace Game
     {
         private InteractionController _controller;
 
-        // Вызывается из InteractionController.Spawned()
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ InteractionController.Spawned()
         public void Initialize(InteractionController controller)
         {
             _controller = controller;
@@ -15,21 +15,21 @@ namespace Game
 
         public void TryPlace()
         {
-            // 1. Проверить выбран ли слот
+            // 1. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ
             var selected = _controller.NetSelectedQuickSlot;
             if (selected < 0) return;
 
-            var slots = _controller.Inventory.GetQuickSlots();
+            var slots = _controller.inventory.GetQuickSlots();
             if (selected >= slots.Length) return;
             var slot = slots[selected];
 
             if (string.IsNullOrEmpty(slot.Id) || slot.Count <= 0) return;
 
-            // 2. Проверить, что предмет — PlaceableItemSO
+            // 2. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ PlaceableItemSO
             var so = _controller.Db.Get(slot.Id);
             if (!(so is PlaceableItemSO placeable)) return;
 
-            // 3. Найти позицию для размещения (луч в экран из центра камеры)
+            // 3. пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ)
             var camera = _controller.Camera;
             Vector3 placePos = Vector3.zero;
             Vector3 placeNormal = Vector3.up;
@@ -43,26 +43,26 @@ namespace Game
             }
             else
             {
-                // Если не попали — размещаем в воздухе на _rangePlace по направлению взгляда
+                // пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ _rangePlace пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
                 placePos = ray.origin + ray.direction * _controller._rangePlace;
                 canPlace = true;
             }
 
-            // Можно добавить свою логику валидности точки (например, не ставить в игрока и т.д.)
+            // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅ.пїЅ.)
 
             if (canPlace)
             {
                 var rotation = Quaternion.LookRotation(placeNormal) * Quaternion.Euler(90, 0, 0);
                 _controller.RpcHandler.RPC_RequestPlaceObject(placeable.Id, placePos, rotation);
 
-                // Минусуем предмет из слота
+                // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
                 slot.Count -= 1;
                 if (slot.Count <= 0)
                 {
                     slot.Id = null;
                     slot.State = new ItemState();
                 }
-                _controller.Inventory.RaiseQuickSlotsChanged();
+                _controller.inventory.RaiseQuickSlotsChanged();
             }
         }
     }

@@ -1,6 +1,7 @@
 ﻿using Fusion;
 using UnityEngine;
 using Zenject;
+using Game.UI;
 
 namespace Game
 {
@@ -14,7 +15,7 @@ namespace Game
 
         public InputHandler Input;
         public InteractionPromptView Prompt;
-        public InventoryService Inventory;
+        public InventoryService inventory;
 
         // --- Локальные контроллеры — находим через GetComponent ---
         public InteractionInputHandler InputHandler { get; private set; }
@@ -39,6 +40,10 @@ namespace Game
         [SerializeField] private Transform _dropPoint;
         [SerializeField] private float _throwForce = 5f;
 
+        
+
+        private IInventory _openedOtherInventory;
+
         [Networked] public int NetSelectedQuickSlot { get; set; } = -1;
         [Networked] public string HandModelId { get; set; }
 
@@ -47,11 +52,12 @@ namespace Game
         public void SetHandModelNetworkInstance(NetworkObject netObj) => _handModelNetObj = netObj;
         public NetworkObject GetHandModelNetworkInstance() => _handModelNetObj;
 
-        public void ManualInit(InputHandler input, InteractionPromptView prompt, InventoryService inventory)
+        public void ManualInit(InputHandler input, InteractionPromptView prompt, InventoryService inventory, 
+            InventoryPanel playerPanel, InventoryPanel otherPanel, ItemDatabaseSO itemDatabase)
         {
             Input = input;
             Prompt = prompt;
-            Inventory = inventory;
+            this.inventory = inventory;
 
             // Найди все локальные контроллеры здесь!
             InputHandler = GetComponent<InteractionInputHandler>();
@@ -62,14 +68,16 @@ namespace Game
             RpcHandler = GetComponent<ServerRpcHandler>();
             HealthComponent = GetComponent<HealthComponent>();
 
+
             if (InputHandler != null)
-                InputHandler.Initialize(this, Input, Inventory, Prompt);
+                InputHandler.Initialize(this, Input, this.inventory, Prompt);
 
             if (ItemEquip != null)
                 ItemEquip.Initialize(Factory, Db, this);
 
             if (PickDrop != null)
-                PickDrop.Initialize(this);
+        PickDrop.Initialize(this, this.inventory, playerPanel, otherPanel, itemDatabase, Input);
+
 
             if (PlaceItem != null)
                 PlaceItem.Initialize(this);
@@ -126,6 +134,8 @@ namespace Game
             }
 
         }
+
+        
 
         public void SetCurrentBehavior(IHandItemBehavior behavior)
         {

@@ -2,6 +2,7 @@
 using Game.Gameplay;
 using UnityEngine;
 using Zenject;
+using Game.UI;
 
 namespace Game.Network
 {
@@ -12,6 +13,11 @@ namespace Game.Network
 
         [Header("Inventory")]
         [SerializeField] private ItemDatabaseSO _itemDatabase;
+        
+        [Header("UI Panels")]
+        [SerializeField] private InventoryPanel _playerInventoryPanel;
+        [SerializeField] private InventoryPanel _otherInventoryPanel;
+
 
 
         public override void InstallBindings()
@@ -69,22 +75,25 @@ namespace Game.Network
                 .AsSingle()
                 .NonLazy();
 
-            // --- DATA / ScriptableObjects ---
             Container.Bind<ItemDatabaseSO>()
                 .FromInstance(_itemDatabase)
                 .AsSingle();
-
-            //Container.Bind<PlayerStatsSO>()
-            //    .FromInstance(_playerStatsSO)
-            //    .AsSingle();
-
-            // --- UI ---
+                
             Container.Bind<UIHealthView>()
                 .FromComponentInHierarchy()
                 .AsSingle();
 
-            // --- Не биндить контроллеры, которые живут на игроке! ---
-            // Не используем FromComponentInHierarchy() для ItemEquipController и других подобных!
+            Container.Bind<InventoryPanel>()
+                .WithId("PlayerInventoryPanel")
+                .FromInstance(_playerInventoryPanel)
+                .AsCached();
+
+            Container.Bind<InventoryPanel>()
+                .WithId("OtherInventoryPanel")
+                .FromInstance(_otherInventoryPanel)
+                .AsCached();
+
+
         }
     }
 }

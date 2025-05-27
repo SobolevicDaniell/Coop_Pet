@@ -1,6 +1,7 @@
 using Fusion;
 using UnityEngine;
 using Zenject;
+using Game.UI;
 
 namespace Game.Network
 {
@@ -12,6 +13,9 @@ namespace Game.Network
         private readonly InteractionPromptView _prompt;
         private readonly InputHandler _input;
         private readonly InventoryService _inventory;
+        private readonly InventoryPanel _playerInventoryPanel;
+        private readonly InventoryPanel _otherInventoryPanel;
+        private readonly ItemDatabaseSO _itemDatabase;
 
         [Inject]
         public PlayerFactory(
@@ -20,7 +24,10 @@ namespace Game.Network
             NetworkRunner runner,
             InteractionPromptView prompt,
             InputHandler input,
-            InventoryService inventory)
+            InventoryService inventory,
+            [Inject(Id = "PlayerInventoryPanel")] InventoryPanel playerInventoryPanel,
+            [Inject(Id = "OtherInventoryPanel")] InventoryPanel otherInventoryPanel,
+            ItemDatabaseSO itemDatabase)
         {
             _container = container;
             _playerPrefab = playerPrefab;
@@ -28,6 +35,9 @@ namespace Game.Network
             _prompt = prompt;
             _input = input;
             _inventory = inventory;
+            _playerInventoryPanel = playerInventoryPanel;
+            _otherInventoryPanel = otherInventoryPanel;
+            _itemDatabase = itemDatabase;
         }
 
         public NetworkObject Spawn(PlayerRef playerRef)
@@ -35,20 +45,23 @@ namespace Game.Network
             var prefabNetObj = _playerPrefab.GetComponent<NetworkObject>();
             var netObj = _runner.Spawn(prefabNetObj, Vector3.zero, Quaternion.identity, playerRef);
 
-            // Инъекция через Zenject (если что-то ещё нужно)
             _container.InjectGameObject(netObj.gameObject);
 
-            // Далее ищем контроллеры и инициализируем вручную!
             var interactionController = netObj.GetComponent<InteractionController>();
             if (interactionController != null)
             {
-                interactionController.ManualInit(_input, _prompt, _inventory);
+                // РџРµСЂРµРґР°Р№ РІСЃРµ РЅСѓР¶РЅС‹Рµ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё!
+                interactionController.ManualInit(
+                    _input,
+                    _prompt,
+                    _inventory,
+                    _playerInventoryPanel,
+                    _otherInventoryPanel,
+                    _itemDatabase
+                );
             }
-
-            // ... если ещё нужны ручные зависимости для других компонентов, делай аналогично
 
             return netObj;
         }
     }
-
 }

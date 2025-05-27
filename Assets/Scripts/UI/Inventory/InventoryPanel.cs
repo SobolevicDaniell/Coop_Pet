@@ -1,7 +1,5 @@
-// Assets/Scripts/UI/InventoryPanel.cs
 using Game;
 using UnityEngine;
-using UnityEngine.UIElements;
 using Zenject;
 
 namespace Game.UI
@@ -10,29 +8,51 @@ namespace Game.UI
     {
         [SerializeField] private InventorySlotUI[] _slotsUI;
 
-        private InventoryService _inventory;
+        private IInventory _inventory;        // Теперь поддерживает любой IInventory!
         private ItemDatabaseSO _database;
 
+        // Для DI — можно оставить, если нужно инъецировать по умолчанию
         [Inject]
         public void Construct(InventoryService inventory, ItemDatabaseSO database)
         {
-            _inventory = inventory;
-            _database = database;
-
-            _inventory.OnInventoryChanged += Refresh;
-            Refresh();
+            SetInventory(inventory, database);
         }
 
         public void Start()
         {
             for (int i = 0; i < _slotsUI.Length; i++)
-            {
                 _slotsUI[i].SetActive(false);
-            }
+        }
+
+        /// <summary>
+        /// Назначить новый инвентарь и базу предметов, подписаться на обновления
+        /// </summary>
+        public void SetInventory(IInventory inventory, ItemDatabaseSO database)
+        {
+            // Отписываемся от предыдущего инвентаря (если был)
+            if (_inventory != null)
+                _inventory.OnInventoryChanged -= Refresh;
+
+            _inventory = inventory;
+            _database = database;
+
+            // Подписываемся на новый
+            if (_inventory != null)
+                _inventory.OnInventoryChanged += Refresh;
+
+            Refresh();
         }
 
         private void Refresh()
         {
+            if (_inventory == null || _database == null)
+            {
+                // Очистить UI, если нет данных
+                foreach (var slot in _slotsUI)
+                    slot.Set(null, 0);
+                return;
+            }
+
             var slots = _inventory.GetInventorySlots();
             int length = Mathf.Min(slots.Length, _slotsUI.Length);
 

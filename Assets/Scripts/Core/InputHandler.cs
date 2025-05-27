@@ -4,8 +4,6 @@ using System;
 
 public class InputHandler : MonoBehaviour
 {
-    [Header("UI References")]
-    [SerializeField] private GameObject _inventoryPanel;
 
     private InputData _networkInput;
     public bool InventoryOpen { get; private set; }
@@ -19,16 +17,21 @@ public class InputHandler : MonoBehaviour
 
     public event Action OnUseDown;
     public event Action OnUseUp;
+    public event Action OnInventoryToggle;
+    public event Action OnGlobalUiCloseRequested;
 
-    
+
 
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Tab))
         {
-            InventoryOpen = !InventoryOpen;
-            _inventoryPanel?.SetActive(InventoryOpen);
+            OnInventoryToggle?.Invoke();
             OnUseUp?.Invoke();
+        }
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            OnGlobalUiCloseRequested?.Invoke();
         }
 
         if (InventoryOpen)

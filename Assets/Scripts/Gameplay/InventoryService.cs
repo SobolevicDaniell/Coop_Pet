@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Game
 {
-    public class InventoryService
+    public class InventoryService: IInventory
     {
         public event Action OnQuickSlotsChanged;
         public event Action OnInventoryChanged;

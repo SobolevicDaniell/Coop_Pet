@@ -36,14 +36,14 @@ namespace Game
         {
             if (State == null || State.Ammo <= 0) return false;
             State.Ammo--;
-            _ic.Inventory.RaiseQuickSlotsChanged();
+            _ic.inventory.RaiseQuickSlotsChanged();
             return true;
         }
 
         public void Reload()
         {
             if (_so.ammoResource == null || State == null) return;
-            var inventory = _ic.Inventory;
+            var inventory = _ic.inventory;
             int need = _so.maxAmmo - State.Ammo;
             if (need <= 0) return;
             int available = inventory.GetResourceCount(_so.ammoResource.Id);
@@ -55,7 +55,7 @@ namespace Game
                     State.Ammo += toLoad;
                 }
             }
-            _ic.Inventory.RaiseQuickSlotsChanged();
+            _ic.inventory.RaiseQuickSlotsChanged();
         }
 
         public NetworkObject GetBulletNetworkObject() => _so.bulletPrefab.GetComponent<NetworkObject>();
