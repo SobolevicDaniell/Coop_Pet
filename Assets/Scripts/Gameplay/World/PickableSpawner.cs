@@ -43,7 +43,6 @@ namespace Game.Gameplay
 
         private void SpawnPickable()
         {
-            // Только на сервере
             if (!_runner.IsServer) return;
 
             var itemDef = _database.Get(_itemId);

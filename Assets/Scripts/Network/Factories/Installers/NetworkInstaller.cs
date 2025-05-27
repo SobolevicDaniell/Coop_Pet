@@ -17,6 +17,7 @@ namespace Game.Network
         [Header("UI Panels")]
         [SerializeField] private InventoryPanel _playerInventoryPanel;
         [SerializeField] private InventoryPanel _otherInventoryPanel;
+        // [SerializeField] private UIController _uiController;
 
 
 
@@ -24,7 +25,6 @@ namespace Game.Network
         {
             Debug.Log("NetworkInstaller: InstallBindings");
 
-            // --- СЕТЬ, CORE ---
             Container.Bind<Startup>()
                 .FromComponentInHierarchy()
                 .AsSingle().NonLazy();
@@ -53,7 +53,6 @@ namespace Game.Network
                 .FromInstance(_playerPrefab)
                 .AsSingle();
 
-            // --- GAMEPLAY / CONTROLLERS (Singleton, глобальные) ---
             Container.Bind<InputHandler>()
                 .FromComponentInHierarchy()
                 .AsSingle();
@@ -78,7 +77,7 @@ namespace Game.Network
             Container.Bind<ItemDatabaseSO>()
                 .FromInstance(_itemDatabase)
                 .AsSingle();
-                
+
             Container.Bind<UIHealthView>()
                 .FromComponentInHierarchy()
                 .AsSingle();
@@ -92,6 +91,11 @@ namespace Game.Network
                 .WithId("OtherInventoryPanel")
                 .FromInstance(_otherInventoryPanel)
                 .AsCached();
+
+           Container.Bind<UIController>()
+                .FromComponentInHierarchy()
+                .AsSingle();
+
 
 
         }

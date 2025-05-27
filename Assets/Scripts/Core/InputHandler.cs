@@ -70,4 +70,12 @@ public class InputHandler : MonoBehaviour
     {
         input.Set(_networkInput);
     }
+
+    public void SetInventoryOpen(bool open)
+    {
+        InventoryOpen = open;
+        // Cursor.lockState = open ? CursorLockMode.None : CursorLockMode.Locked;
+        // Cursor.visible = open;
+    }
+
 }

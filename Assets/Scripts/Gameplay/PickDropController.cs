@@ -12,6 +12,7 @@ namespace Game
         private InventoryPanel _otherInventoryPanel;
         private ItemDatabaseSO _itemDatabase;
         private InputHandler _inputHandler;
+        private UIController _uiController;
 
         private InteractionController _ic;
         private ServerRpcHandler _rpc;
@@ -26,7 +27,8 @@ namespace Game
             InventoryPanel playerPanel,
             InventoryPanel otherPanel,
             ItemDatabaseSO itemDatabase,
-            InputHandler input)
+            InputHandler input,
+            UIController uiController)
         {
             _ic = controller;
             _rpc = controller.RpcHandler;
@@ -35,6 +37,7 @@ namespace Game
             _otherInventoryPanel = otherPanel;
             _itemDatabase = itemDatabase;
             _inputHandler = input;
+            _uiController = uiController;
 
             _inputHandler.OnGlobalUiCloseRequested += CloseOpenedInventories;
             _inputHandler.OnInventoryToggle += TogglePlayerInventory;
@@ -57,7 +60,6 @@ namespace Game
                 _rpc.RPC_RequestPick(_focusedItem.Object);
                 return;
             }
-            // Новое: если есть инвентарь, открываем его
             if (_focusedInventory != null)
             {
                 OpenOtherInventory(_focusedInventory);
@@ -113,7 +115,6 @@ namespace Game
 
             if (Physics.Raycast(ray, out var hit, range))
             {
-                // Сначала Pickable
                 var pickable = hit.collider.GetComponentInParent<PickableItem>();
                 if (pickable != null)
                 {
@@ -122,7 +123,6 @@ namespace Game
                     return;
                 }
 
-                // Потом сундук или другой инвентарь
                 var inventory = hit.collider.GetComponentInParent<IInventory>();
                 if (inventory != null && inventory != Inventory)
                 {
@@ -134,33 +134,19 @@ namespace Game
 
         private void OpenOtherInventory(IInventory otherInventory)
         {
-            // Если уже открыт этот инвентарь, не открываем заново
             if (_openedInventory == otherInventory) return;
             _openedInventory = otherInventory;
 
-            // Открываем панели: одна — только инвентарь игрока, вторая — только инвентарь объекта!
-            if (_playerInventoryPanel != null)
-            {
-                _playerInventoryPanel.SetInventory(Inventory, _itemDatabase);
-                _playerInventoryPanel.gameObject.SetActive(true);
-            }
-            if (_otherInventoryPanel != null)
-            {
-                _otherInventoryPanel.SetInventory(otherInventory, _itemDatabase);
-                _otherInventoryPanel.gameObject.SetActive(true);
-            }else
-            {
-                Debug.LogWarning("Other inventory panel is not set!");
-            }
+            _playerInventoryPanel.SetInventory(Inventory, _itemDatabase);
+            _otherInventoryPanel.SetInventory(otherInventory, _itemDatabase);
+
+            _uiController.ShowInventory(true); // Через UIController!
         }
 
         public void CloseOpenedInventories()
         {
             _openedInventory = null;
-            if (_playerInventoryPanel != null)
-                _playerInventoryPanel.gameObject.SetActive(false);
-            if (_otherInventoryPanel != null)
-                _otherInventoryPanel.gameObject.SetActive(false);
+            _uiController.ShowGameUI();
         }
 
         public void TogglePlayerInventory()
@@ -172,14 +158,15 @@ namespace Game
                 return;
             }
 
-            // Тоглим только своё окно
-            if (_playerInventoryPanel != null)
+            bool isActive = _playerInventoryPanel.gameObject.activeSelf;
+            if (!isActive)
             {
-                bool isActive = _playerInventoryPanel.gameObject.activeSelf;
-                if (!isActive)
-                    _playerInventoryPanel.SetInventory(Inventory, _itemDatabase);
-
-                _playerInventoryPanel.gameObject.SetActive(!isActive);
+                _playerInventoryPanel.SetInventory(Inventory, _itemDatabase);
+                _uiController.ShowInventory(false);
+            }
+            else
+            {
+                _uiController.ShowGameUI();
             }
         }
     }

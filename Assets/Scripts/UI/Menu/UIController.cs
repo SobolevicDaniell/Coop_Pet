@@ -1,42 +1,47 @@
 using UnityEngine;
 
-namespace Game
+namespace Game.UI
 {
     public class UIController : MonoBehaviour
     {
-
-        [Header("UI References")]
+        [SerializeField] private GameObject _gameUI;
         [SerializeField] private GameObject _inventoryPanel;
         [SerializeField] private GameObject _otherInventoryPanel;
         [SerializeField] private GameObject _interactionPrompt;
         [SerializeField] private GameObject _dot;
-        [SerializeField] private GameObject _gameUI;
         [SerializeField] private GameObject _uiCamera;
 
-        private void OnEnable()
+        private void Awake()
         {
-            Network.Startup.OnSessionStarted += GameUI;
+            HideGameUI(); // Гарантируем скрытие всего UI на старте
         }
 
-        private void OnDisable()
+        public void Initialize()
         {
-            Network.Startup.OnSessionStarted -= GameUI;
+            HideGameUI();
         }
 
-        private void Start()
-        {
-            MenuUI();
-        }
-
-        private void GameUI()
+        public void ShowGameUI()
         {
             _gameUI.SetActive(true);
             _inventoryPanel.SetActive(false);
             _otherInventoryPanel.SetActive(false);
             _uiCamera.SetActive(false);
             _dot.SetActive(true);
+            SetCursor(false);
         }
-        private void MenuUI()
+
+        public void ShowInventory(bool showOther = false)
+        {
+            _gameUI.SetActive(true);
+            _inventoryPanel.SetActive(true);
+            _otherInventoryPanel.SetActive(showOther);
+            _uiCamera.SetActive(false);
+            _dot.SetActive(false);
+            SetCursor(true);
+        }
+
+        public void HideGameUI()
         {
             _gameUI.SetActive(false);
             _inventoryPanel.SetActive(false);
@@ -44,6 +49,13 @@ namespace Game
             _interactionPrompt.SetActive(false);
             _dot.SetActive(false);
             _uiCamera.SetActive(true);
+            SetCursor(true);
+        }
+
+        public void SetCursor(bool visible)
+        {
+            Cursor.lockState = visible ? CursorLockMode.None : CursorLockMode.Locked;
+            Cursor.visible = visible;
         }
     }
 }

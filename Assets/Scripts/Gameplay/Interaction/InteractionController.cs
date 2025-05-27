@@ -8,7 +8,6 @@ namespace Game
     [RequireComponent(typeof(ServerRpcHandler), typeof(NetworkObject))]
     public class InteractionController : NetworkBehaviour
     {
-        
         [Inject] public HandItemBehaviorFactory Factory { get; private set; }
         [Inject] public ItemDatabaseSO Db { get; private set; }
         [Inject] public UIHealthView UI { get; private set; }
@@ -17,13 +16,13 @@ namespace Game
         public InteractionPromptView Prompt;
         public InventoryService inventory;
 
-        // --- Локальные контроллеры — находим через GetComponent ---
         public InteractionInputHandler InputHandler { get; private set; }
         public ItemEquipController ItemEquip { get; private set; }
         public PickDropController PickDrop { get; private set; }
         public PlaceItemController PlaceItem { get; private set; }
         public QuickSlotController QuickSlot { get; private set; }
         public HealthComponent HealthComponent { get; private set; }
+        public UIController UIController { get; private set; }
 
         public ServerRpcHandler RpcHandler { get; private set; }
         public IHandItemBehavior CurrentBehavior { get; private set; }
@@ -40,8 +39,6 @@ namespace Game
         [SerializeField] private Transform _dropPoint;
         [SerializeField] private float _throwForce = 5f;
 
-        
-
         private IInventory _openedOtherInventory;
 
         [Networked] public int NetSelectedQuickSlot { get; set; } = -1;
@@ -52,14 +49,15 @@ namespace Game
         public void SetHandModelNetworkInstance(NetworkObject netObj) => _handModelNetObj = netObj;
         public NetworkObject GetHandModelNetworkInstance() => _handModelNetObj;
 
-        public void ManualInit(InputHandler input, InteractionPromptView prompt, InventoryService inventory, 
-            InventoryPanel playerPanel, InventoryPanel otherPanel, ItemDatabaseSO itemDatabase)
+        public void ManualInit(InputHandler input, InteractionPromptView prompt, InventoryService inventory,
+            InventoryPanel playerPanel, InventoryPanel otherPanel, ItemDatabaseSO itemDatabase, UIController uiController)
         {
             Input = input;
             Prompt = prompt;
             this.inventory = inventory;
+            UIController = uiController;
 
-            // Найди все локальные контроллеры здесь!
+            // Find all local controllers here!
             InputHandler = GetComponent<InteractionInputHandler>();
             ItemEquip = GetComponent<ItemEquipController>();
             PickDrop = GetComponent<PickDropController>();
@@ -68,7 +66,6 @@ namespace Game
             RpcHandler = GetComponent<ServerRpcHandler>();
             HealthComponent = GetComponent<HealthComponent>();
 
-
             if (InputHandler != null)
                 InputHandler.Initialize(this, Input, this.inventory, Prompt);
 
@@ -76,8 +73,7 @@ namespace Game
                 ItemEquip.Initialize(Factory, Db, this);
 
             if (PickDrop != null)
-        PickDrop.Initialize(this, this.inventory, playerPanel, otherPanel, itemDatabase, Input);
-
+                PickDrop.Initialize(this, this.inventory, playerPanel, otherPanel, itemDatabase, Input, UIController);
 
             if (PlaceItem != null)
                 PlaceItem.Initialize(this);
@@ -87,35 +83,30 @@ namespace Game
 
             if (HealthComponent != null)
                 HealthComponent.Initialize(UI, Object.HasStateAuthority, Object.HasInputAuthority);
+
+            UIController?.Initialize(); // Инициализация UI на старте!
         }
 
         public void Update()
         {
             PickDrop.UpdateRaycast();
-            
         }
+
         private int _lastQuickSlot = -2;
 
         public override void FixedUpdateNetwork()
         {
-            // ... другая логика
-
             if (_lastQuickSlot != NetSelectedQuickSlot)
             {
-                if (QuickSlot != null)
-                    QuickSlot.OnNetworkSlotChanged(NetSelectedQuickSlot);
-
+                QuickSlot?.OnNetworkSlotChanged(NetSelectedQuickSlot);
                 _lastQuickSlot = NetSelectedQuickSlot;
             }
         }
-
 
         public override void Spawned()
         {
             Debug.Log("Spawned");
 
-
-            // Сначала локально ищем все контроллеры (MonoBehaviours)
             InputHandler = GetComponent<InteractionInputHandler>();
             ItemEquip = GetComponent<ItemEquipController>();
             PickDrop = GetComponent<PickDropController>();
@@ -125,17 +116,8 @@ namespace Game
             HealthComponent = GetComponent<HealthComponent>();
 
             if (!InputHandler || !ItemEquip || !PickDrop || !PlaceItem || !QuickSlot)
-            {
                 Debug.LogError("[InteractionController] Не все контроллеры найдены на объекте игрока! Проверь prefab.");
-            }
-            if (InputHandler == null) 
-            {
-                Debug.LogError("InputHandler = null");
-            }
-
         }
-
-        
 
         public void SetCurrentBehavior(IHandItemBehavior behavior)
         {

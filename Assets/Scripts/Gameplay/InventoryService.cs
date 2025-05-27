@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Game
 {
-    public class InventoryService: IInventory
+    public class InventoryService : IInventory
     {
         public event Action OnQuickSlotsChanged;
         public event Action OnInventoryChanged;
@@ -205,5 +205,76 @@ namespace Game
             SelectedQuickSlot = idx;
             OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
         }
+
+        public bool TryAddItem(string itemId, int count)
+        {
+            var itemSo = _db.Get(itemId);
+            if (itemSo == null) return false;
+            int left = count;
+
+            // Quick slots (если игроку разрешено класть туда такие предметы)
+            foreach (var slot in _quickSlots)
+            {
+                if (slot.Id == itemId && slot.Count < itemSo.MaxStack)
+                {
+                    int canPut = Mathf.Min(left, itemSo.MaxStack - slot.Count);
+                    slot.Count += canPut;
+                    left -= canPut;
+                    if (left <= 0) { OnQuickSlotsChanged?.Invoke(); return true; }
+                }
+            }
+            // Inventory slots
+            foreach (var slot in _inventorySlots)
+            {
+                if (slot.Id == itemId && slot.Count < itemSo.MaxStack)
+                {
+                    int canPut = Mathf.Min(left, itemSo.MaxStack - slot.Count);
+                    slot.Count += canPut;
+                    left -= canPut;
+                    if (left <= 0) { OnInventoryChanged?.Invoke(); return true; }
+                }
+            }
+            foreach (var slot in _quickSlots)
+            {
+                if (slot.Id == null)
+                {
+                    int canPut = Mathf.Min(left, itemSo.MaxStack);
+                    slot.Id = itemId;
+                    slot.Count = canPut;
+                    left -= canPut;
+                    if (left <= 0) { OnQuickSlotsChanged?.Invoke(); return true; }
+                }
+            }
+            foreach (var slot in _inventorySlots)
+            {
+                if (slot.Id == null)
+                {
+                    int canPut = Mathf.Min(left, itemSo.MaxStack);
+                    slot.Id = itemId;
+                    slot.Count = canPut;
+                    left -= canPut;
+                    if (left <= 0) { OnInventoryChanged?.Invoke(); return true; }
+                }
+            }
+            OnQuickSlotsChanged?.Invoke();
+            OnInventoryChanged?.Invoke();
+            return left == 0;
+        }
+
+        public bool TryRemoveItem(int slotIndex, int amount)
+        {
+            if (slotIndex < 0 || slotIndex >= _inventorySlots.Length) return false;
+            var slot = _inventorySlots[slotIndex];
+            if (slot.Id == null || slot.Count < amount) return false;
+            slot.Count -= amount;
+            if (slot.Count <= 0)
+            {
+                slot.Id = null;
+                slot.Count = 0;
+            }
+            OnInventoryChanged?.Invoke();
+            return true;
+        }
+
     }
 }

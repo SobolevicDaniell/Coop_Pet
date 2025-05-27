@@ -4,6 +4,7 @@ using Fusion;
 using UnityEngine;
 using Zenject;
 using System;
+using Game.UI; // Не забудь!
 
 namespace Game.Network
 {
@@ -11,6 +12,7 @@ namespace Game.Network
     {
         [Inject] private NetworkRunner _runner;
         [Inject] private NetworkCallbacks _callbacks;
+        [Inject] private UIController _uiController; // <-- Инъекция UIController
 
         public static event Action OnSessionStarted;
 
@@ -20,7 +22,11 @@ namespace Game.Network
         {
             // Назначаем делегат ДО любого JoinSessionLobby!
             _callbacks.OnSessionListReceived = OnSessionListUpdatedHandler;
-            _runner.AddCallbacks(_callbacks); // обязательно!
+            _runner.AddCallbacks(_callbacks);
+
+            // Скрываем UI на старте (если не в Init)
+            if (_uiController != null)
+                _uiController.HideGameUI();
         }
 
         public async Task<List<SessionInfo>> GetSessionList()
@@ -39,8 +45,6 @@ namespace Game.Network
             }
             return await _sessionListAwaiter.Task;
         }
-
-
 
         public async Task<bool> CheckSessionExists(string sessionName)
         {
@@ -86,8 +90,11 @@ namespace Game.Network
 
             Debug.Log($"[Startup] Fusion started as {mode}");
 
-            if (_runner.IsServer)
-                OnSessionStarted?.Invoke();
+            // UI должен появиться у всех после старта сессии
+            if (_uiController != null)
+                _uiController.ShowGameUI();
+
+            OnSessionStarted?.Invoke();
         }
 
         // Вызовется из NetworkCallbacks

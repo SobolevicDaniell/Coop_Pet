@@ -16,6 +16,7 @@ namespace Game.Network
         private readonly InventoryPanel _playerInventoryPanel;
         private readonly InventoryPanel _otherInventoryPanel;
         private readonly ItemDatabaseSO _itemDatabase;
+        private readonly UIController _uiController;
 
         [Inject]
         public PlayerFactory(
@@ -27,7 +28,8 @@ namespace Game.Network
             InventoryService inventory,
             [Inject(Id = "PlayerInventoryPanel")] InventoryPanel playerInventoryPanel,
             [Inject(Id = "OtherInventoryPanel")] InventoryPanel otherInventoryPanel,
-            ItemDatabaseSO itemDatabase)
+            ItemDatabaseSO itemDatabase,
+            UIController uiController)
         {
             _container = container;
             _playerPrefab = playerPrefab;
@@ -38,6 +40,7 @@ namespace Game.Network
             _playerInventoryPanel = playerInventoryPanel;
             _otherInventoryPanel = otherInventoryPanel;
             _itemDatabase = itemDatabase;
+            _uiController = uiController;
         }
 
         public NetworkObject Spawn(PlayerRef playerRef)
@@ -57,7 +60,8 @@ namespace Game.Network
                     _inventory,
                     _playerInventoryPanel,
                     _otherInventoryPanel,
-                    _itemDatabase
+                    _itemDatabase,
+                    _uiController
                 );
             }
 
