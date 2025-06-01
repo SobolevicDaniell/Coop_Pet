@@ -11,6 +11,8 @@ namespace Game.UI
         [SerializeField] private GameObject _dot;
         [SerializeField] private GameObject _uiCamera;
 
+        [SerializeField] private InputHandler _inputHandler;
+
         // private void Awake()
         // {
         //     HideGameUI();
@@ -25,7 +27,7 @@ namespace Game.UI
         {
             Network.Startup.OnSessionStarted -= ShowGameUI;
         }
-        
+
         public void ShowGameUI()
         {
             Debug.Log("[UIController] ShowGameUI called");
@@ -36,6 +38,7 @@ namespace Game.UI
             _dot.SetActive(true);
             _interactionPrompt.SetActive(true);
             SetCursor(false);
+            _inputHandler.SetInventoryOpen(false);
         }
 
         public void ShowInventory(bool showOther = false)
@@ -47,6 +50,7 @@ namespace Game.UI
             _uiCamera.SetActive(false);
             _dot.SetActive(false);
             SetCursor(true);
+            _inputHandler.SetInventoryOpen(true);
         }
 
         public void HideGameUI()

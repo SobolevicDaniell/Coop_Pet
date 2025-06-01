@@ -4,7 +4,7 @@ using System;
 
 public class InputHandler : MonoBehaviour
 {
-    [SerializeField] private float keyboardLookSensitivity = 400f;
+    [SerializeField] private float keyboardLookSensitivity = 700f;
     private InputData _networkInput;
     public bool InventoryOpen { get; private set; }
 

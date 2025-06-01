@@ -6050,6 +6050,7 @@ MonoBehaviour:
   _interactionPrompt: {fileID: 397995486}
   _dot: {fileID: 414895014}
   _uiCamera: {fileID: 1288252268}
+  _inputHandler: {fileID: 1328266136}
 --- !u!114 &8083775961875619161
 MonoBehaviour:
   m_ObjectHideFlags: 0
