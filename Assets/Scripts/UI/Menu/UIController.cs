@@ -11,23 +11,30 @@ namespace Game.UI
         [SerializeField] private GameObject _dot;
         [SerializeField] private GameObject _uiCamera;
 
-        private void Awake()
+        // private void Awake()
+        // {
+        //     HideGameUI();
+        // }
+
+        private void OnEnable()
         {
-            HideGameUI(); // Гарантируем скрытие всего UI на старте
+            Network.Startup.OnSessionStarted += ShowGameUI;
         }
 
-        public void Initialize()
+        private void OnDisable()
         {
-            HideGameUI();
+            Network.Startup.OnSessionStarted -= ShowGameUI;
         }
-
+        
         public void ShowGameUI()
         {
+            Debug.Log("[UIController] ShowGameUI called");
             _gameUI.SetActive(true);
             _inventoryPanel.SetActive(false);
             _otherInventoryPanel.SetActive(false);
             _uiCamera.SetActive(false);
             _dot.SetActive(true);
+            _interactionPrompt.SetActive(true);
             SetCursor(false);
         }
 
@@ -36,6 +43,7 @@ namespace Game.UI
             _gameUI.SetActive(true);
             _inventoryPanel.SetActive(true);
             _otherInventoryPanel.SetActive(showOther);
+            _interactionPrompt.SetActive(false);
             _uiCamera.SetActive(false);
             _dot.SetActive(false);
             SetCursor(true);

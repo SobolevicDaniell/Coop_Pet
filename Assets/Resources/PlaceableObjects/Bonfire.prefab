@@ -177,3 +177,4 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.ChestInventory
   slotsCount: 30
+  _database: {fileID: 11400000, guid: 6935807ece44cc744b67a234f4bb31b4, type: 2}

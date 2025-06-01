@@ -13,4 +13,4 @@ MonoBehaviour:
   m_Name: PlayerStatsSO
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerStatsSO
   health: 100
-  speed: 5
+  speed: 3

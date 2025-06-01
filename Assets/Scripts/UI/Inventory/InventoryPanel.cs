@@ -1,30 +1,68 @@
-using Game;
 using UnityEngine;
 using Zenject;
+using System;
 
 namespace Game.UI
 {
-    public class InventoryPanel : MonoBehaviour
+    public class InventoryPanel : MonoBehaviour, IInventoryPanelUI
     {
-        [SerializeField] private InventorySlotUI[] _slotsUI;
+        [SerializeField] private Transform _slotsParent;
 
         private IInventory _inventory;
         private ItemDatabaseSO _database;
+        private InventorySlotUI _slotPrefab;
+        private InventorySlotUI[] _slotsUI;
 
-        public event System.Action<InventorySlotUI> OnSlotBeginDrag;
-        public event System.Action<InventorySlotUI> OnSlotEndDrag;
-        public event System.Action<InventorySlotUI> OnSlotPointerEnter;
+        public event Action<InventorySlotUI> OnSlotBeginDrag;
+        public event Action<InventorySlotUI> OnSlotEndDrag;
+        public event Action<InventorySlotUI> OnSlotEnter;
+        public event Action<InventorySlotUI> OnSlotExit;
 
         [Inject]
-        public void Construct(InventoryService inventory, ItemDatabaseSO database)
+        public void Construct(InventoryService inventory, ItemDatabaseSO database, [Inject(Id = "InventorySlotPrefab")] InventorySlotUI slotPrefab, PlayerStatsSO playerStats)
         {
-            SetInventory(inventory, database);
+            _slotPrefab = slotPrefab;
+            _inventory = inventory;
+            _database = database;
+
+            CreateSlots(playerStats.inventorySlotsCount);
+            _inventory.OnInventoryChanged += Refresh;
+            Refresh();
         }
 
-        public void Start()
+        private void CreateSlots(int count)
         {
+            _slotsUI = new InventorySlotUI[count];
+            for (int i = 0; i < count; i++)
+            {
+                var slot = Instantiate(_slotPrefab, _slotsParent);
+                slot.Init(i, _inventory, this);
+                slot.SetActive(false);
+                SubscribeSlot(slot);
+                _slotsUI[i] = slot;
+            }
+        }
+
+        private void SubscribeSlot(InventorySlotUI slot)
+        {
+            slot.OnBeginDrag += slotUI => OnSlotBeginDrag?.Invoke(slotUI);
+            slot.OnEndDrag += slotUI => OnSlotEndDrag?.Invoke(slotUI);
+            slot.OnEnter += slotUI => OnSlotEnter?.Invoke(slotUI);
+            slot.OnExit += slotUI => OnSlotExit?.Invoke(slotUI);
+        }
+
+        public void RefreshPanel() => Refresh();
+
+        private void Refresh()
+        {
+            var slots = _inventory.GetInventorySlots();
             for (int i = 0; i < _slotsUI.Length; i++)
-                _slotsUI[i].SetActive(false);
+            {
+                var slotUI = _slotsUI[i];
+                var slotData = slots[i];
+                var item = slotData.Id != null ? _database.Get(slotData.Id) : null;
+                slotUI.Set(item, item is WeaponSO ? slotData.State?.Ammo ?? 0 : slotData.Count);
+            }
         }
 
         public void SetInventory(IInventory inventory, ItemDatabaseSO database)
@@ -34,57 +72,20 @@ namespace Game.UI
 
             _inventory = inventory;
             _database = database;
-
-            if (_inventory != null)
-                _inventory.OnInventoryChanged += Refresh;
+            _inventory.OnInventoryChanged += Refresh;
 
             Refresh();
         }
 
-        private void Refresh()
-        {
-            if (_inventory == null || _database == null)
-            {
-                foreach (var slot in _slotsUI)
-                    slot.Set(null, 0);
-                return;
-            }
-
-            var slots = _inventory.GetInventorySlots();
-            int length = Mathf.Min(slots.Length, _slotsUI.Length);
-
-
-            for (int i = 0; i < length; i++)
-            {
-                var slot = _slotsUI[i];
-                var slotData = slots[i];
-                var item = slotData.Id != null ? _database.Get(slotData.Id) : null;
-                slot.Set(item, slotData.Count);
-                slot.Init(i, _inventory);
-
-                slot.OnBeginDrag -= HandleSlotBeginDrag;
-                slot.OnBeginDrag += HandleSlotBeginDrag;
-
-                slot.OnEndDrag -= HandleSlotEndDrag;
-                slot.OnEndDrag += HandleSlotEndDrag;
-            }
-
-            for (int i = length; i < _slotsUI.Length; i++)
-                _slotsUI[i].Set(null, 0);
-        }
-
-        private void HandleSlotBeginDrag(InventorySlotUI slot) => OnSlotBeginDrag?.Invoke(slot);
-        private void HandleSlotEndDrag(InventorySlotUI slot) => OnSlotEndDrag?.Invoke(slot);
-
-        public IInventory GetInventory()
-        {
-            return _inventory;
-        }
-
-        private void OnDestroy()
+        public void ClearInventory()
         {
             if (_inventory != null)
                 _inventory.OnInventoryChanged -= Refresh;
+
+            _inventory = null;
+
+            foreach (var slotUI in _slotsUI)
+                slotUI.Set(null, 0);
         }
     }
 }

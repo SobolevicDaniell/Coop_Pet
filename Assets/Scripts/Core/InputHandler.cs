@@ -4,7 +4,7 @@ using System;
 
 public class InputHandler : MonoBehaviour
 {
-
+    [SerializeField] private float keyboardLookSensitivity = 400f;
     private InputData _networkInput;
     public bool InventoryOpen { get; private set; }
 
@@ -19,8 +19,6 @@ public class InputHandler : MonoBehaviour
     public event Action OnUseUp;
     public event Action OnInventoryToggle;
     public event Action OnGlobalUiCloseRequested;
-
-
 
     private void Update()
     {
@@ -40,9 +38,25 @@ public class InputHandler : MonoBehaviour
         }
         else
         {
+            // Движение
             _networkInput.movement = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
-            _networkInput.mouseX = Input.GetAxis("Mouse X");
-            _networkInput.mouseY = Input.GetAxis("Mouse Y");
+
+            // --- МЫШЬ И СТРЕЛКИ ВМЕСТЕ ---
+            float mouseX = Input.GetAxis("Mouse X");
+            float mouseY = Input.GetAxis("Mouse Y");
+
+            // Стрелки — при удержании добавляют фиксированную дельту каждый кадр
+            float keyboardX = 0f;
+            float keyboardY = 0f;
+
+            if (Input.GetKey(KeyCode.RightArrow)) keyboardX += keyboardLookSensitivity * Time.deltaTime;
+            if (Input.GetKey(KeyCode.LeftArrow))  keyboardX -= keyboardLookSensitivity * Time.deltaTime;
+            if (Input.GetKey(KeyCode.UpArrow))    keyboardY += keyboardLookSensitivity * Time.deltaTime;
+            if (Input.GetKey(KeyCode.DownArrow))  keyboardY -= keyboardLookSensitivity * Time.deltaTime;
+
+            _networkInput.mouseX = mouseX + keyboardX;
+            _networkInput.mouseY = mouseY + keyboardY;
+
             _networkInput.jump = Input.GetKey(KeyCode.Space);
 
             if (Input.GetKeyDown(KeyCode.E)) OnInteractPressed?.Invoke();
@@ -64,6 +78,7 @@ public class InputHandler : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.Q)) OnQuickDropPressed?.Invoke();
             if (Input.GetKeyDown(KeyCode.F)) OnPlacePressed?.Invoke();
         }
+        // Нет прямой работы с InventoryPanel/Transfer здесь!
     }
 
     public void ProvideNetworkInput(NetworkRunner runner, NetworkInput input)
@@ -74,8 +89,6 @@ public class InputHandler : MonoBehaviour
     public void SetInventoryOpen(bool open)
     {
         InventoryOpen = open;
-        // Cursor.lockState = open ? CursorLockMode.None : CursorLockMode.Locked;
-        // Cursor.visible = open;
+        // Cursor-lock — только в UIController!
     }
-
 }

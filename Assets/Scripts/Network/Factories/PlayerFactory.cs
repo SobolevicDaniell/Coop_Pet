@@ -14,7 +14,7 @@ namespace Game.Network
         private readonly InputHandler _input;
         private readonly InventoryService _inventory;
         private readonly InventoryPanel _playerInventoryPanel;
-        private readonly InventoryPanel _otherInventoryPanel;
+        private readonly OtherInventoryPanel _otherInventoryPanel;
         private readonly ItemDatabaseSO _itemDatabase;
         private readonly UIController _uiController;
 
@@ -27,7 +27,7 @@ namespace Game.Network
             InputHandler input,
             InventoryService inventory,
             [Inject(Id = "PlayerInventoryPanel")] InventoryPanel playerInventoryPanel,
-            [Inject(Id = "OtherInventoryPanel")] InventoryPanel otherInventoryPanel,
+            [Inject(Id = "OtherInventoryPanel")] OtherInventoryPanel otherInventoryPanel,
             ItemDatabaseSO itemDatabase,
             UIController uiController)
         {

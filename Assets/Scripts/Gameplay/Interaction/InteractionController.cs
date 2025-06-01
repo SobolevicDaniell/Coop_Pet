@@ -50,7 +50,7 @@ namespace Game
         public NetworkObject GetHandModelNetworkInstance() => _handModelNetObj;
 
         public void ManualInit(InputHandler input, InteractionPromptView prompt, InventoryService inventory,
-            InventoryPanel playerPanel, InventoryPanel otherPanel, ItemDatabaseSO itemDatabase, UIController uiController)
+            InventoryPanel playerPanel, OtherInventoryPanel otherPanel, ItemDatabaseSO itemDatabase, UIController uiController)
         {
             Input = input;
             Prompt = prompt;
@@ -84,7 +84,8 @@ namespace Game
             if (HealthComponent != null)
                 HealthComponent.Initialize(UI, Object.HasStateAuthority, Object.HasInputAuthority);
 
-            UIController?.Initialize(); // Инициализация UI на старте!
+            if (this.inventory != null && ItemEquip != null)
+                this.inventory.OnQuickSlotsChanged += OnQuickSlotsChanged;
         }
 
         public void Update()
@@ -128,6 +129,16 @@ namespace Game
         {
             CurrentBehavior?.OnUnequip();
             CurrentBehavior = null;
+        }
+        private void OnQuickSlotsChanged()
+        {
+            if (ItemEquip != null && inventory != null)
+                ItemEquip.Equip(inventory.SelectedQuickSlot, inventory.GetQuickSlots());
+        }
+        private void OnDestroy()
+        {
+            if (inventory != null && ItemEquip != null)
+                inventory.OnQuickSlotsChanged -= OnQuickSlotsChanged;
         }
     }
 }

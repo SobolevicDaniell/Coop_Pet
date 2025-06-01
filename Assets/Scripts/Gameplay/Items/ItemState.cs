@@ -2,12 +2,20 @@ using System;
 
 namespace Game
 {
-    [Serializable]
     public class ItemState
     {
         public int Ammo;
 
-        public ItemState(int ammo = 0)
+        public ItemState() { }
+
+        // Копирующий конструктор
+        public ItemState(ItemState state)
+        {
+            if (state != null)
+                Ammo = state.Ammo;
+        }
+
+        public ItemState(int ammo)
         {
             Ammo = ammo;
         }

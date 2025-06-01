@@ -13,11 +13,18 @@ namespace Game.Network
 
         [Header("Inventory")]
         [SerializeField] private ItemDatabaseSO _itemDatabase;
-        
+
+        [Header("Prefabs")]
+        [SerializeField] private InventorySlotUI _slotPrefab;
+
         [Header("UI Panels")]
         [SerializeField] private InventoryPanel _playerInventoryPanel;
-        [SerializeField] private InventoryPanel _otherInventoryPanel;
-        // [SerializeField] private UIController _uiController;
+        [SerializeField] private OtherInventoryPanel _otherInventoryPanel;
+        // [SerializeField] private InventoryDropZone _inventoryDropZone;
+        // [SerializeField] private InventoryTransferController  _inventoryTransferController;
+
+        [Header("Config")]
+        [SerializeField] private PlayerStatsSO _playerStats;
 
 
 
@@ -87,17 +94,31 @@ namespace Game.Network
                 .FromInstance(_playerInventoryPanel)
                 .AsCached();
 
-            Container.Bind<InventoryPanel>()
+            Container.Bind<OtherInventoryPanel>()
                 .WithId("OtherInventoryPanel")
                 .FromInstance(_otherInventoryPanel)
                 .AsCached();
 
-           Container.Bind<UIController>()
-                .FromComponentInHierarchy()
-                .AsSingle();
+            Container.Bind<UIController>()
+                 .FromComponentInHierarchy()
+                 .AsSingle();
 
+            Container.Bind<InventorySlotUI>()
+                    .WithId("InventorySlotPrefab")
+                    .FromInstance(_slotPrefab)
+                    .AsSingle();
 
+            Container.Bind<PlayerStatsSO>()
+                    .FromInstance(_playerStats)
+                    .AsSingle();
 
+            // Container.Bind<InventoryDropZone>()
+            //         .FromInstance(_inventoryDropZone)
+            //         .AsSingle();
+                    
+            // Container.Bind<InventoryTransferController>()
+            //         .FromInstance(_inventoryTransferController)
+            //         .AsSingle();
         }
     }
 }

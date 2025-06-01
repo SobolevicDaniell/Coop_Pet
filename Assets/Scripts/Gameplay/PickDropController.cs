@@ -9,7 +9,7 @@ namespace Game
         public InventoryService Inventory { get; private set; }
 
         private InventoryPanel _playerInventoryPanel;
-        private InventoryPanel _otherInventoryPanel;
+        private OtherInventoryPanel _otherInventoryPanel;
         private ItemDatabaseSO _itemDatabase;
         private InputHandler _inputHandler;
         private UIController _uiController;
@@ -18,14 +18,14 @@ namespace Game
         private ServerRpcHandler _rpc;
         private PickableItem _focusedItem;
 
-        private IInventory _focusedInventory;
-        private IInventory _openedInventory;
+        private ChestInventory _focusedChestInventory;
+        private ChestInventory _openedChestInventory;
 
         public void Initialize(
             InteractionController controller,
             InventoryService inventory,
             InventoryPanel playerPanel,
-            InventoryPanel otherPanel,
+            OtherInventoryPanel otherPanel,
             ItemDatabaseSO itemDatabase,
             InputHandler input,
             UIController uiController)
@@ -56,13 +56,13 @@ namespace Game
         {
             if (_focusedItem != null)
             {
-                Debug.Log("TryPick: Picking " + _focusedItem.name);
                 _rpc.RPC_RequestPick(_focusedItem.Object);
                 return;
             }
-            if (_focusedInventory != null)
+
+            if (_focusedChestInventory != null)
             {
-                OpenOtherInventory(_focusedInventory);
+                OpenChestInventory(_focusedChestInventory);
             }
         }
 
@@ -75,9 +75,9 @@ namespace Game
             if (selected >= slots.Length) return;
 
             var slot = slots[selected];
-            if (slot.Id == null || slot.Count <= 0) return;
+            if (string.IsNullOrEmpty(slot.Id) || slot.Count <= 0) return;
 
-            int ammo = slot.State != null ? slot.State.Ammo : 0;
+            int ammo = slot.State?.Ammo ?? 0;
 
             _rpc.RPC_RequestDrop(
                 _ic.DropPoint.position,
@@ -89,9 +89,7 @@ namespace Game
 
             slot.Id = null;
             slot.Count = 0;
-
-            if (slot.State != null)
-                slot.State.Ammo = 0;
+            slot.State = null;
 
             Inventory.RaiseQuickSlotsChanged();
 
@@ -104,13 +102,13 @@ namespace Game
 
         public void UpdateRaycast()
         {
-            var ray = _ic.Camera.ScreenPointToRay(new Vector3(Screen.width / 2f, Screen.height / 2f, 0));
+            var ray = _ic.Camera.ScreenPointToRay(new Vector3(Screen.width / 2f, Screen.height / 2f));
             var range = _ic.Range;
 
             Debug.DrawRay(ray.origin, ray.direction * range, Color.green);
 
             _focusedItem = null;
-            _focusedInventory = null;
+            _focusedChestInventory = null;
             _ic.Prompt.Hide();
 
             if (Physics.Raycast(ray, out var hit, range))
@@ -123,36 +121,39 @@ namespace Game
                     return;
                 }
 
-                var inventory = hit.collider.GetComponentInParent<IInventory>();
-                if (inventory != null && inventory != Inventory)
+                var chestInventory = hit.collider.GetComponentInParent<ChestInventory>();
+                if (chestInventory != null)
                 {
-                    _focusedInventory = inventory;
+                    _focusedChestInventory = chestInventory;
                     _ic.Prompt.Show();
                 }
             }
         }
 
-        private void OpenOtherInventory(IInventory otherInventory)
+        private void OpenChestInventory(ChestInventory chestInventory)
         {
-            if (_openedInventory == otherInventory) return;
-            _openedInventory = otherInventory;
+            if (_openedChestInventory == chestInventory) return;
+            _openedChestInventory = chestInventory;
 
+            _otherInventoryPanel.SetInventory(chestInventory, _itemDatabase);
             _playerInventoryPanel.SetInventory(Inventory, _itemDatabase);
-            _otherInventoryPanel.SetInventory(otherInventory, _itemDatabase);
 
-            _uiController.ShowInventory(true); // Через UIController!
+            _uiController.ShowInventory(true);
         }
 
         public void CloseOpenedInventories()
         {
-            _openedInventory = null;
+            _openedChestInventory = null;
+
+            _otherInventoryPanel.ClearInventory();
+            _playerInventoryPanel.ClearInventory();
+
             _uiController.ShowGameUI();
         }
 
         public void TogglePlayerInventory()
         {
-            // Если открыт чужой инвентарь — просто закрой всё!
-            if (_otherInventoryPanel != null && _otherInventoryPanel.gameObject.activeSelf)
+            if (_openedChestInventory != null)
             {
                 CloseOpenedInventories();
                 return;
@@ -166,8 +167,88 @@ namespace Game
             }
             else
             {
+                _playerInventoryPanel.ClearInventory();
                 _uiController.ShowGameUI();
             }
         }
+
+        // Внутри PickDropController
+
+        public void DropFromSlot(Game.UI.InventorySlotUI slotUI)
+        {
+            var parentInv = slotUI.ParentInventory;
+            int absIdx = GetAbsIndex(slotUI);
+
+            // Получаем слот
+            InventorySlot slot;
+            if (parentInv is InventoryService invService)
+            {
+                if (slotUI.ParentPanel is QuickSlotPanel)
+                    slot = invService.GetQuickSlots()[slotUI.SlotIndex];
+                else
+                    slot = invService.GetInventorySlots()[slotUI.SlotIndex];
+            }
+            else if (parentInv is ChestInventory chestInv)
+            {
+                slot = chestInv.GetInventorySlots()[slotUI.SlotIndex];
+            }
+            else
+            {
+                Debug.LogWarning("[PickDropController] Неизвестный тип инвентаря");
+                return;
+            }
+
+            if (slot == null || string.IsNullOrEmpty(slot.Id) || slot.Count <= 0)
+                return;
+
+            int ammo = slot.State?.Ammo ?? 0;
+
+            // Выбросить в мир
+            _rpc.RPC_RequestDrop(
+                _ic.DropPoint.position,
+                _ic.Camera.transform.forward,
+                slot.Id,
+                slot.Count,
+                ammo
+            );
+
+            // Очистить слот
+            slot.Id = null;
+            slot.Count = 0;
+            slot.State = null;
+
+            // Сообщить системе об изменении
+            parentInv.RaiseInventoryChanged();
+            if (parentInv is InventoryService inv) inv.RaiseQuickSlotsChanged();
+
+            // Если quick-слот активен, сбросить hand-модель
+            if (parentInv is InventoryService service && slotUI.ParentPanel is QuickSlotPanel)
+            {
+                if (_ic.NetSelectedQuickSlot == slotUI.SlotIndex)
+                {
+                    _rpc.RPC_SelectQuickSlot(-1);
+                    _rpc.RPC_RequestDespawnHandModel();
+                }
+            }
+        }
+
+
+        // Для получения абсолютного индекса
+        private int GetAbsIndex(Game.UI.InventorySlotUI slotUI)
+        {
+            if (slotUI.ParentInventory is InventoryService)
+            {
+                if (slotUI.ParentPanel is QuickSlotPanel)
+                    return slotUI.SlotIndex;
+                if (slotUI.ParentPanel is InventoryPanel)
+                    return 10 + slotUI.SlotIndex;
+                return slotUI.SlotIndex;
+            }
+            else
+            {
+                return slotUI.SlotIndex;
+            }
+        }
+
     }
 }

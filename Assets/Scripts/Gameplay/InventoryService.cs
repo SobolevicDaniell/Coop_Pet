@@ -74,7 +74,6 @@ namespace Game
             return rem;
         }
 
-
         private int TryQuick(ItemSO item, int rem, int ammo = 0)
         {
             if (item.MaxStack > 1)
@@ -99,14 +98,13 @@ namespace Game
                     slot.Id = item.Id;
                     int toPut = Mathf.Min(rem, item.MaxStack);
                     slot.Count = toPut;
-                    slot.State = new ItemState(ammo); // <-- вот тут!
+                    slot.State = new ItemState(ammo);
                     rem -= toPut;
                     OnQuickSlotsChanged?.Invoke();
                 }
             }
             return rem;
         }
-
 
         private int TryInventory(ItemSO item, int rem, int ammo = 0)
         {
@@ -261,20 +259,103 @@ namespace Game
             return left == 0;
         }
 
+        // Новый метод — перенос предмета именно в выбранный слот, например, в quick slot!
+        public bool TryMoveToSlot(string itemId, int count, int targetSlot, ItemState state = null)
+        {
+            InventorySlot[] allSlots;
+            int slotCount;
+            bool isQuick = false;
+
+            if (targetSlot < 10)
+            {
+                allSlots = _quickSlots;
+                slotCount = _quickSlots.Length;
+                isQuick = true;
+            }
+            else
+            {
+                int invIndex = targetSlot - 10;
+                if (invIndex < 0 || invIndex >= _inventorySlots.Length) return false;
+                allSlots = _inventorySlots;
+                slotCount = _inventorySlots.Length;
+                targetSlot = invIndex;
+            }
+
+            if (targetSlot < 0 || targetSlot >= slotCount)
+                return false;
+
+            var itemSo = _db.Get(itemId);
+            if (itemSo == null) return false;
+
+            var slot = allSlots[targetSlot];
+
+            // Если пусто — кладём весь стек
+            if (slot.Id == null)
+            {
+                slot.Id = itemId;
+                slot.Count = count;
+                slot.State = state != null ? new ItemState(state) : null;
+                if (isQuick) OnQuickSlotsChanged?.Invoke();
+                else OnInventoryChanged?.Invoke();
+                return true;
+            }
+            // Если такой же предмет — стакаем до максимума
+            if (slot.Id == itemId && slot.Count < itemSo.MaxStack)
+            {
+                int canPut = Mathf.Min(count, itemSo.MaxStack - slot.Count);
+                slot.Count += canPut;
+                if (slot.State == null && state != null)
+                    slot.State = new ItemState(state);
+                if (isQuick) OnQuickSlotsChanged?.Invoke();
+                else OnInventoryChanged?.Invoke();
+                return canPut == count;
+            }
+
+            // Если другой предмет — не кладём, возвращаем false
+            return false;
+        }
+
         public bool TryRemoveItem(int slotIndex, int amount)
         {
-            if (slotIndex < 0 || slotIndex >= _inventorySlots.Length) return false;
-            var slot = _inventorySlots[slotIndex];
+            InventorySlot[] allSlots;
+            int slotCount;
+            bool isQuick = false;
+
+            if (slotIndex < 10)
+            {
+                allSlots = _quickSlots;
+                slotCount = _quickSlots.Length;
+                isQuick = true;
+            }
+            else
+            {
+                int invIndex = slotIndex - 10;
+                if (invIndex < 0 || invIndex >= _inventorySlots.Length) return false;
+                allSlots = _inventorySlots;
+                slotCount = _inventorySlots.Length;
+                slotIndex = invIndex;
+            }
+
+            if (slotIndex < 0 || slotIndex >= slotCount) return false;
+            var slot = allSlots[slotIndex];
             if (slot.Id == null || slot.Count < amount) return false;
             slot.Count -= amount;
             if (slot.Count <= 0)
             {
                 slot.Id = null;
                 slot.Count = 0;
+                slot.State = null;
             }
-            OnInventoryChanged?.Invoke();
+            if (isQuick) OnQuickSlotsChanged?.Invoke();
+            else OnInventoryChanged?.Invoke();
             return true;
         }
+        public void RaiseInventoryChanged()
+        {
+            OnInventoryChanged?.Invoke();
+        }
+
+
 
     }
 }

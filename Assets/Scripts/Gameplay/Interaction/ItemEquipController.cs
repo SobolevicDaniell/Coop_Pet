@@ -1,7 +1,5 @@
-// Scripts/Gameplay/Interaction/ItemEquipController.cs
 using UnityEngine;
 using Zenject;
-using static Zenject.CheatSheet;
 
 namespace Game
 {
@@ -17,10 +15,13 @@ namespace Game
             _db = itemDatabase;
             _controller = interactionController;
         }
+
+        /// <summary>
+        /// Экипировать предмет по индексу слота quickSlots (или снять, если индекс -1 или слот пустой)
+        /// </summary>
         public void Equip(int slotIdx, InventorySlot[] quickSlots)
         {
             _controller.CurrentBehavior?.OnUnequip();
-
             if (_controller.CurrentBehavior is MonoBehaviour oldBehavior)
                 Destroy(oldBehavior.gameObject);
 
@@ -36,6 +37,22 @@ namespace Game
             _controller.SetCurrentBehavior(behavior);
 
             _controller.RpcHandler.RPC_RequestSpawnHandModel(slot.Id);
+        }
+
+        /// <summary>
+        /// Проверка актуальности предмета в руках (если quick-слот очистился/изменился)
+        /// </summary>
+        public void ValidateEquipped(int selectedQuickSlot, InventorySlot[] quickSlots)
+        {
+            // если предмет был экипирован, а слот теперь пуст — снять с рук
+            if (selectedQuickSlot < 0 || quickSlots == null) {
+                Equip(-1, quickSlots);
+                return;
+            }
+
+            var slot = quickSlots[selectedQuickSlot];
+            if (slot == null || string.IsNullOrEmpty(slot.Id))
+                Equip(-1, quickSlots);
         }
     }
 }

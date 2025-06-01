@@ -12,7 +12,7 @@ namespace Game.Network
     {
         [Inject] private NetworkRunner _runner;
         [Inject] private NetworkCallbacks _callbacks;
-        [Inject] private UIController _uiController; // <-- Инъекция UIController
+        [Inject] private UIController _uiController;
 
         public static event Action OnSessionStarted;
 
@@ -90,11 +90,9 @@ namespace Game.Network
 
             Debug.Log($"[Startup] Fusion started as {mode}");
 
-            // UI должен появиться у всех после старта сессии
-            if (_uiController != null)
-                _uiController.ShowGameUI();
-
             OnSessionStarted?.Invoke();
+
+            
         }
 
         // Вызовется из NetworkCallbacks

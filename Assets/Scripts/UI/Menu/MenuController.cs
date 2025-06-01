@@ -34,13 +34,13 @@ namespace Game.Network
             string sessionName = _sessionInput.text.Trim();
             Debug.Log("[Menu] Connect pressed, checking session: " + sessionName);
 
-            // Ожидание и показ окна с таймаутом (если нет ответа Relay)
             var exists = await _startup.CheckSessionExists(sessionName);
             Debug.Log("[Menu] Session exists: " + exists);
 
             if (!exists)
             {
                 Debug.Log("[Menu] Launching as Host: " + sessionName);
+                
                 await Launch(GameMode.Host, sessionName);
             }
             else
