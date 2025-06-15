@@ -3,7 +3,6 @@ using UnityEngine;
 
 public class HandItemBehaviorFactory
 {
-    // Для оружия обязательно прокидываем InventorySlot!
     public IHandItemBehavior Create(ItemSO so, Transform handParent, InteractionController ic, InventorySlot slot)
     {
         GameObject go = new GameObject($"[Behavior] {so.Id}");

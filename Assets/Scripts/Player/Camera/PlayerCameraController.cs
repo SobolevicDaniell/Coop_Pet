@@ -30,8 +30,6 @@ namespace Game.Network
 
         private void ApplyCursorAndCameras()
         {
-            Cursor.lockState = _isLocal ? CursorLockMode.Locked : CursorLockMode.None;
-            Cursor.visible = !_isLocal;
 
             if (_playerCamera != null) _playerCamera.enabled = _isLocal;
             if (_audioListener != null) _audioListener.enabled = _isLocal;

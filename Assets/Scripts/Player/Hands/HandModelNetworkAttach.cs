@@ -24,10 +24,10 @@ namespace Game
             {
                 ic = FindObjectsOfType<InteractionController>()
                         .FirstOrDefault(x => x.Object.InputAuthority == Object.InputAuthority);
-                yield return null; // ∆дЄм следующий кадр, если InteractionController не найден
+                yield return null;
             }
 
-            transform.SetParent(ic.HandPoint, false);
+            transform.SetParent(ic.handPoint, false);
             transform.localPosition = Vector3.zero;
             transform.localRotation = Quaternion.identity;
         }

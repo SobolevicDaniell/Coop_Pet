@@ -33,14 +33,14 @@ namespace Game.Network
         {
             _sessionListAwaiter = new TaskCompletionSource<List<SessionInfo>>();
 
-            Debug.Log("[Startup] JoinSessionLobby...");
+            // Debug.Log("[Startup] JoinSessionLobby...");
             await _runner.JoinSessionLobby(SessionLobby.Shared);
-            Debug.Log("[Startup] Waiting for session list...");
+            // Debug.Log("[Startup] Waiting for session list...");
 
             var completedTask = await Task.WhenAny(_sessionListAwaiter.Task, Task.Delay(5000));
             if (completedTask != _sessionListAwaiter.Task)
             {
-                Debug.LogWarning("[Startup] Timeout waiting for session list, returning empty list");
+                // Debug.LogWarning("[Startup] Timeout waiting for session list, returning empty list");
                 return new List<SessionInfo>();
             }
             return await _sessionListAwaiter.Task;
@@ -49,10 +49,10 @@ namespace Game.Network
         public async Task<bool> CheckSessionExists(string sessionName)
         {
             var sessionList = await GetSessionList();
-            Debug.Log("[Startup] Session list received. Checking...");
+            // Debug.Log("[Startup] Session list received. Checking...");
             foreach (var session in sessionList)
             {
-                Debug.Log($"[Startup] Found session: {session.Name}");
+                // Debug.Log($"[Startup] Found session: {session.Name}");
                 if (session.Name == sessionName)
                     return true;
             }
@@ -61,7 +61,7 @@ namespace Game.Network
 
         public async Task BeginSession(GameMode mode, string sessionName)
         {
-            Debug.Log($"[Startup] BeginSession: mode={mode}, session={sessionName}");
+            // Debug.Log($"[Startup] BeginSession: mode={mode}, session={sessionName}");
 
             _runner.ProvideInput = true;
 
@@ -71,7 +71,7 @@ namespace Game.Network
             if (sceneRef.IsValid)
                 sceneInfo.AddSceneRef(sceneRef, UnityEngine.SceneManagement.LoadSceneMode.Additive);
 
-            Debug.Log("[Startup] Calling StartGame...");
+            // Debug.Log("[Startup] Calling StartGame...");
             var result = await _runner.StartGame(new StartGameArgs
             {
                 GameMode = mode,
@@ -80,15 +80,15 @@ namespace Game.Network
                 Scene = sceneInfo,
             });
 
-            Debug.Log($"[Startup] StartGame result: {result.Ok}, reason: {result.ShutdownReason}");
+            // Debug.Log($"[Startup] StartGame result: {result.Ok}, reason: {result.ShutdownReason}");
 
             if (!result.Ok)
             {
-                Debug.LogError($"[Startup] Runner start failed: {result.ShutdownReason}");
+                // Debug.LogError($"[Startup] Runner start failed: {result.ShutdownReason}");
                 return;
             }
 
-            Debug.Log($"[Startup] Fusion started as {mode}");
+            // Debug.Log($"[Startup] Fusion started as {mode}");
 
             OnSessionStarted?.Invoke();
 
@@ -98,7 +98,7 @@ namespace Game.Network
         // Вызовется из NetworkCallbacks
         public void OnSessionListUpdatedHandler(List<SessionInfo> sessionList)
         {
-            Debug.Log("[Startup] OnSessionListUpdatedHandler called.");
+            // Debug.Log("[Startup] OnSessionListUpdatedHandler called.");
             _sessionListAwaiter?.TrySetResult(sessionList);
         }
     }

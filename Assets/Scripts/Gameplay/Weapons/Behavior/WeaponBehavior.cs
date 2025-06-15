@@ -93,12 +93,12 @@ namespace Game
         private void TryShoot()
         {
             if (TryUseAmmo())
-                _ic.RpcHandler.RPC_RequestShoot();
+                _ic.rpcHandler.RPC_RequestShoot();
             // else: звук "нет патронов"
         }
 
-        public void OnEquip() => _ic.RpcHandler.RPC_RequestSpawnHandModel(_so.Id);
-        public void OnUnequip() => _ic.RpcHandler.RPC_RequestDespawnHandModel();
+        public void OnEquip() {}/*=> _ic.rpcHandler.RPC_RequestSpawnHandModel(_so.Id, _ic.handModelNetObj);*/
+        public void OnUnequip() { }/*=> _ic.rpcHandler.RPC_RequestDespawnHandModel();*/
         public void OnMuzzleFlash() { /* vfx */ }
     }
 }

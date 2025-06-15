@@ -9,7 +9,7 @@ namespace Game
         [Networked] public string ItemId { get; private set; }
         [Networked] public int Count { get; private set; }
 
-        public ItemState State; // Обычное поле (не сетевое), синхронизация нужна только при спавне
+        public ItemState State;
 
         public void Initialize(string itemId, int count, ItemState state = null)
         {

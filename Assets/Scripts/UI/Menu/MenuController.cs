@@ -32,20 +32,20 @@ namespace Game.Network
         private async void OnConnectPressed()
         {
             string sessionName = _sessionInput.text.Trim();
-            Debug.Log("[Menu] Connect pressed, checking session: " + sessionName);
+            // Debug.Log("[Menu] Connect pressed, checking session: " + sessionName);
 
             var exists = await _startup.CheckSessionExists(sessionName);
-            Debug.Log("[Menu] Session exists: " + exists);
+            // Debug.Log("[Menu] Session exists: " + exists);
 
             if (!exists)
             {
-                Debug.Log("[Menu] Launching as Host: " + sessionName);
+                // Debug.Log("[Menu] Launching as Host: " + sessionName);
                 
                 await Launch(GameMode.Host, sessionName);
             }
             else
             {
-                Debug.Log("[Menu] Session already exists, showing panel");
+                // Debug.Log("[Menu] Session already exists, showing panel");
                 _confirmText.text = "The session already exists. Do you want to connect?";
                 _confirmPanel.SetActive(true);
             }
@@ -55,19 +55,19 @@ namespace Game.Network
         {
             string sessionName = _sessionInput.text.Trim();
             _confirmPanel.SetActive(false);
-            Debug.Log("[Menu] Connecting as client to session: " + sessionName);
+            // Debug.Log("[Menu] Connecting as client to session: " + sessionName);
             await Launch(GameMode.Client, sessionName);
         }
 
         private void OnNoPressed()
         {
-            Debug.Log("[Menu] Cancel connect");
+            // Debug.Log("[Menu] Cancel connect");
             _confirmPanel.SetActive(false);
         }
 
         private async Task Launch(GameMode mode, string sessionName)
         {
-            Debug.Log($"[Menu] Launch called, mode={mode}, session={sessionName}");
+            // Debug.Log($"[Menu] Launch called, mode={mode}, session={sessionName}");
             gameObject.SetActive(false);
             await _startup.BeginSession(mode, sessionName);
         }

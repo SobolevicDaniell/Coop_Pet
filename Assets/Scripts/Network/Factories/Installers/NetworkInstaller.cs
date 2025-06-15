@@ -20,8 +20,6 @@ namespace Game.Network
         [Header("UI Panels")]
         [SerializeField] private InventoryPanel _playerInventoryPanel;
         [SerializeField] private OtherInventoryPanel _otherInventoryPanel;
-        // [SerializeField] private InventoryDropZone _inventoryDropZone;
-        // [SerializeField] private InventoryTransferController  _inventoryTransferController;
 
         [Header("Config")]
         [SerializeField] private PlayerStatsSO _playerStats;
@@ -112,13 +110,14 @@ namespace Game.Network
                     .FromInstance(_playerStats)
                     .AsSingle();
 
-            // Container.Bind<InventoryDropZone>()
-            //         .FromInstance(_inventoryDropZone)
-            //         .AsSingle();
+            Container.Bind<HandItemController>()
+                   .FromComponentInHierarchy()
+                   .AsSingle();
                     
-            // Container.Bind<InventoryTransferController>()
-            //         .FromInstance(_inventoryTransferController)
-            //         .AsSingle();
+            Container.Bind<QuickSlotPanel>()
+                    .FromComponentInHierarchy()
+                    .AsSingle();
+
         }
     }
 }

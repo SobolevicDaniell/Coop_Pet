@@ -199,6 +199,7 @@ GameObject:
   - component: {fileID: -1714052981254222063}
   - component: {fileID: 2463555043750146276}
   - component: {fileID: 8491464657264315941}
+  - component: {fileID: 2350279358449871782}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -249,6 +250,7 @@ MonoBehaviour:
   - {fileID: 3095013385705595450}
   - {fileID: 1471281778754899274}
   - {fileID: 4406319223466987321}
+  - {fileID: 2350279358449871782}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &4402347777045086714
 MonoBehaviour:
@@ -388,15 +390,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e5056f5ebbd9d2346954eba05b58a81c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.InteractionController
-  Input: {fileID: 0}
-  Prompt: {fileID: 0}
+  input: {fileID: 0}
+  prompt: {fileID: 0}
   _handPoint: {fileID: 135403576282410744}
+  _dropPoint: {fileID: 345444223730738563}
   _rangePick: 4
   _rangePlace: 8
-  _dropPoint: {fileID: 345444223730738563}
   _throwForce: 5
-  _NetSelectedQuickSlot: -1
-  _HandModelId: 
+  _netSelectedQuickSlot: -1
+  _handModelNetId:
+    Raw: 0
+  handModelNetObj: {fileID: 0}
 --- !u!114 &4406319223466987321
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -471,6 +475,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 910fb4c6e10eed8469e7e2cd4d3cb823, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.PickDropController
+--- !u!114 &2350279358449871782
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3950158868047817375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 41f291ab73f0c3049ae849fe85bb59c4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.HandItemController
+  _handPoint: {fileID: 135403576282410744}
+  _handModelNetId:
+    Raw: 0
 --- !u!1 &5556326248227318228
 GameObject:
   m_ObjectHideFlags: 0

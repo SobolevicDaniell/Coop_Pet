@@ -11,15 +11,14 @@ namespace Game
         private InventoryPanel _playerInventoryPanel;
         private OtherInventoryPanel _otherInventoryPanel;
         private ItemDatabaseSO _itemDatabase;
-        private InputHandler _inputHandler;
         private UIController _uiController;
-
         private InteractionController _ic;
         private ServerRpcHandler _rpc;
         private PickableItem _focusedItem;
-
         private ChestInventory _focusedChestInventory;
         private ChestInventory _openedChestInventory;
+
+        private Camera _camera;
 
         public void Initialize(
             InteractionController controller,
@@ -27,65 +26,48 @@ namespace Game
             InventoryPanel playerPanel,
             OtherInventoryPanel otherPanel,
             ItemDatabaseSO itemDatabase,
-            InputHandler input,
-            UIController uiController)
+            UIController uiController,
+            Camera camera)
         {
             _ic = controller;
-            _rpc = controller.RpcHandler;
+            _rpc = controller.rpcHandler;
             Inventory = inventory;
             _playerInventoryPanel = playerPanel;
             _otherInventoryPanel = otherPanel;
             _itemDatabase = itemDatabase;
-            _inputHandler = input;
             _uiController = uiController;
-
-            _inputHandler.OnGlobalUiCloseRequested += CloseOpenedInventories;
-            _inputHandler.OnInventoryToggle += TogglePlayerInventory;
-        }
-
-        private void OnDestroy()
-        {
-            if (_inputHandler != null)
-            {
-                _inputHandler.OnGlobalUiCloseRequested -= CloseOpenedInventories;
-                _inputHandler.OnInventoryToggle -= TogglePlayerInventory;
-            }
+            _camera = camera;
         }
 
         public void TryPick()
         {
-            if (_focusedItem != null)
-            {
-                _rpc.RPC_RequestPick(_focusedItem.Object);
-                return;
-            }
+            if (!_ic.Object.HasInputAuthority) return;
 
-            if (_focusedChestInventory != null)
-            {
+            if (_focusedItem != null)
+                _rpc.RPC_RequestPick(_focusedItem.Object);
+            else if (_focusedChestInventory != null)
                 OpenChestInventory(_focusedChestInventory);
-            }
         }
 
         public void TryDrop()
         {
-            var selected = _ic.NetSelectedQuickSlot;
+            if (!_ic.Object.HasInputAuthority) return;
+
+            int selected = _ic.netSelectedQuickSlot;
             if (selected < 0) return;
 
             var slots = Inventory.GetQuickSlots();
-            if (selected >= slots.Length) return;
+            if (slots == null || selected >= slots.Length) return;
 
             var slot = slots[selected];
             if (string.IsNullOrEmpty(slot.Id) || slot.Count <= 0) return;
 
-            int ammo = slot.State?.Ammo ?? 0;
-
             _rpc.RPC_RequestDrop(
-                _ic.DropPoint.position,
-                _ic.Camera.transform.forward,
+                _ic.dropPoint.position,
+                _camera.transform.forward,
                 slot.Id,
                 slot.Count,
-                ammo
-            );
+                slot.State?.Ammo ?? 0);
 
             slot.Id = null;
             slot.Count = 0;
@@ -93,23 +75,29 @@ namespace Game
 
             Inventory.RaiseQuickSlotsChanged();
 
-            if (_ic.NetSelectedQuickSlot == selected)
+            if (_ic.netSelectedQuickSlot == selected)
             {
-                _rpc.RPC_SelectQuickSlot(-1);
-                _rpc.RPC_RequestDespawnHandModel();
+                _ic.inventory.ForceSetQuickSlot(-1);
             }
         }
 
         public void UpdateRaycast()
         {
-            var ray = _ic.Camera.ScreenPointToRay(new Vector3(Screen.width / 2f, Screen.height / 2f));
-            var range = _ic.Range;
+            if (_ic == null || !_ic.Object.HasInputAuthority)
+                return;
+
+            if (_camera == null || _ic.prompt == null)
+                return;
+
+            var ray = _camera.ScreenPointToRay(new Vector3(Screen.width / 2f, Screen.height / 2f));
+            float range = _ic._rangePlace;
 
             Debug.DrawRay(ray.origin, ray.direction * range, Color.green);
 
             _focusedItem = null;
             _focusedChestInventory = null;
-            _ic.Prompt.Hide();
+
+            _ic.prompt.Hide();
 
             if (Physics.Raycast(ray, out var hit, range))
             {
@@ -117,7 +105,7 @@ namespace Game
                 if (pickable != null)
                 {
                     _focusedItem = pickable;
-                    _ic.Prompt.Show();
+                    _ic.prompt.Show();
                     return;
                 }
 
@@ -125,14 +113,24 @@ namespace Game
                 if (chestInventory != null)
                 {
                     _focusedChestInventory = chestInventory;
-                    _ic.Prompt.Show();
+                    _ic.prompt.Show();
+                    return;
                 }
             }
         }
 
-        private void OpenChestInventory(ChestInventory chestInventory)
+
+        public void OpenPlayerInventory()
         {
+            _playerInventoryPanel.SetInventory(Inventory, _itemDatabase);
+        }
+
+        public void OpenChestInventory(ChestInventory chestInventory)
+        {
+            if (!_ic.Object.HasInputAuthority) return;
+
             if (_openedChestInventory == chestInventory) return;
+
             _openedChestInventory = chestInventory;
 
             _otherInventoryPanel.SetInventory(chestInventory, _itemDatabase);
@@ -143,112 +141,71 @@ namespace Game
 
         public void CloseOpenedInventories()
         {
-            _openedChestInventory = null;
+            if (!_ic.Object.HasInputAuthority) return;
 
+            _openedChestInventory = null;
             _otherInventoryPanel.ClearInventory();
             _playerInventoryPanel.ClearInventory();
 
             _uiController.ShowGameUI();
         }
 
-        public void TogglePlayerInventory()
+        public void DropFromSlot(InventorySlotUI slotUI)
         {
-            if (_openedChestInventory != null)
-            {
-                CloseOpenedInventories();
-                return;
-            }
+            if (!_ic.Object.HasInputAuthority) return;
 
-            bool isActive = _playerInventoryPanel.gameObject.activeSelf;
-            if (!isActive)
-            {
-                _playerInventoryPanel.SetInventory(Inventory, _itemDatabase);
-                _uiController.ShowInventory(false);
-            }
-            else
-            {
-                _playerInventoryPanel.ClearInventory();
-                _uiController.ShowGameUI();
-            }
-        }
-
-        // Внутри PickDropController
-
-        public void DropFromSlot(Game.UI.InventorySlotUI slotUI)
-        {
             var parentInv = slotUI.ParentInventory;
-            int absIdx = GetAbsIndex(slotUI);
+            InventorySlot slot = null;
 
-            // Получаем слот
-            InventorySlot slot;
             if (parentInv is InventoryService invService)
             {
-                if (slotUI.ParentPanel is QuickSlotPanel)
-                    slot = invService.GetQuickSlots()[slotUI.SlotIndex];
-                else
-                    slot = invService.GetInventorySlots()[slotUI.SlotIndex];
+                slot = slotUI.ParentPanel is QuickSlotPanel
+                    ? invService.GetQuickSlots()[slotUI.SlotIndex]
+                    : invService.GetInventorySlots()[slotUI.SlotIndex];
             }
             else if (parentInv is ChestInventory chestInv)
-            {
                 slot = chestInv.GetInventorySlots()[slotUI.SlotIndex];
-            }
-            else
-            {
-                Debug.LogWarning("[PickDropController] Неизвестный тип инвентаря");
-                return;
-            }
 
             if (slot == null || string.IsNullOrEmpty(slot.Id) || slot.Count <= 0)
                 return;
 
-            int ammo = slot.State?.Ammo ?? 0;
-
-            // Выбросить в мир
             _rpc.RPC_RequestDrop(
-                _ic.DropPoint.position,
-                _ic.Camera.transform.forward,
+                _ic.dropPoint.position,
+                _ic.GetComponent<Camera>().transform.forward,
                 slot.Id,
                 slot.Count,
-                ammo
-            );
+                slot.State?.Ammo ?? 0);
 
-            // Очистить слот
             slot.Id = null;
             slot.Count = 0;
             slot.State = null;
 
-            // Сообщить системе об изменении
             parentInv.RaiseInventoryChanged();
-            if (parentInv is InventoryService inv) inv.RaiseQuickSlotsChanged();
 
-            // Если quick-слот активен, сбросить hand-модель
-            if (parentInv is InventoryService service && slotUI.ParentPanel is QuickSlotPanel)
+            if (parentInv is InventoryService inv)
+                inv.RaiseQuickSlotsChanged();
+
+            if (parentInv is InventoryService && slotUI.ParentPanel is QuickSlotPanel)
             {
-                if (_ic.NetSelectedQuickSlot == slotUI.SlotIndex)
+                if (_ic.netSelectedQuickSlot == slotUI.SlotIndex)
                 {
-                    _rpc.RPC_SelectQuickSlot(-1);
-                    _rpc.RPC_RequestDespawnHandModel();
+                    // _rpc.RPC_SelectQuickSlot(-1);
+                    _ic.inventory.ForceSetQuickSlot(-1);
+                    // _rpc.RPC_RequestDespawnHandModel();
                 }
             }
         }
 
-
-        // Для получения абсолютного индекса
-        private int GetAbsIndex(Game.UI.InventorySlotUI slotUI)
+        private int GetAbsIndex(InventorySlotUI slotUI)
         {
             if (slotUI.ParentInventory is InventoryService)
             {
-                if (slotUI.ParentPanel is QuickSlotPanel)
-                    return slotUI.SlotIndex;
-                if (slotUI.ParentPanel is InventoryPanel)
-                    return 10 + slotUI.SlotIndex;
-                return slotUI.SlotIndex;
+                return slotUI.ParentPanel is QuickSlotPanel
+                    ? slotUI.SlotIndex
+                    : 10 + slotUI.SlotIndex;
             }
-            else
-            {
-                return slotUI.SlotIndex;
-            }
-        }
 
+            return slotUI.SlotIndex;
+        }
     }
 }

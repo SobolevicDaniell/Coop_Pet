@@ -18,25 +18,42 @@ namespace Game.UI
         public event Action<InventorySlotUI> OnSlotEnter;
         public event Action<InventorySlotUI> OnSlotExit;
 
+        private bool _initialized = false;
+
         [Inject]
-        public void Construct(InventoryService inv, ItemDatabaseSO db, [Inject(Id = "InventorySlotPrefab")] InventorySlotUI slotPrefab)
+        public void Construct(
+            InventoryService inv,
+            ItemDatabaseSO db,
+            [Inject(Id = "InventorySlotPrefab")] InventorySlotUI slotPrefab)
         {
             _inv = inv;
             _db = db;
             _slotPrefab = slotPrefab;
-            CreateSlots();
-            _inv.OnQuickSlotsChanged += Refresh;
-            Refresh();
-
-            _inv.OnQuickSlotsChanged += Refresh;
-            _inv.OnQuickSlotSelectionChanged += OnQuickSlotChanged; // подписка
-
         }
-        private void OnQuickSlotChanged(int index)
+
+        // Вызывается только для локального игрока
+        public void InitializeIfLocal(InteractionController controller)
         {
+            if (controller == null || !controller.Object.HasInputAuthority)
+            {
+                gameObject.SetActive(false);
+                return;
+            }
+            if (_initialized)
+                return;
+
+            _initialized = true;
+
+            CreateSlots();
+
+            // Подписка без дублирования!
+            _inv.OnQuickSlotsChanged -= Refresh;
+            _inv.OnQuickSlotSelectionChanged -= OnQuickSlotChanged;
+            _inv.OnQuickSlotsChanged += Refresh;
+            _inv.OnQuickSlotSelectionChanged += OnQuickSlotChanged;
+
             Refresh();
         }
-
 
         private void CreateSlots()
         {
@@ -63,6 +80,9 @@ namespace Game.UI
 
         private void Refresh()
         {
+            if (!_initialized || _inv == null || _db == null || _slots == null)
+                return;
+
             var slots = _inv.GetQuickSlots();
             int selected = _inv.SelectedQuickSlot;
 
@@ -71,9 +91,47 @@ namespace Game.UI
                 var s = slots[i];
                 var item = s.Id != null ? _db.Get(s.Id) : null;
                 _slots[i].Set(item, item is WeaponSO ? s.State?.Ammo ?? 0 : s.Count);
-                _slots[i].SetActive(i == selected); // активация только выбранного слота
+                _slots[i].SetActive(i == selected);
             }
         }
 
+        private void OnQuickSlotChanged(int index)
+        {
+            Debug.Log($"[QuickSlotPanel] OnQuickSlotChanged: {index}");
+            Refresh();
+        }
+
+        public void SetInventory(InventoryService inv, ItemDatabaseSO db)
+        {
+            if (_inv != null)
+            {
+                _inv.OnQuickSlotsChanged -= Refresh;
+                _inv.OnQuickSlotSelectionChanged -= OnQuickSlotChanged;
+            }
+
+            _inv = inv;
+            _db = db;
+
+            if (_inv != null)
+            {
+                _inv.OnQuickSlotsChanged += Refresh;
+                _inv.OnQuickSlotSelectionChanged += OnQuickSlotChanged;
+            }
+
+            Refresh();
+        }
+
+        public void ClearInventory()
+        {
+            if (_inv != null)
+            {
+                _inv.OnQuickSlotsChanged -= Refresh;
+                _inv.OnQuickSlotSelectionChanged -= OnQuickSlotChanged;
+            }
+            _inv = null;
+            if (_slots == null) return;
+            foreach (var slotUI in _slots)
+                slotUI.Set(null, 0);
+        }
     }
 }

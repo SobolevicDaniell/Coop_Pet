@@ -1,90 +1,81 @@
 ﻿using Fusion;
 using UnityEngine;
-using Zenject;
 
 namespace Game
 {
     public class QuickSlotController : MonoBehaviour
     {
-        [Inject] public InventoryService Inventory { get; private set; }
+        public InventoryService Inventory { get; private set; }
 
         private InteractionController _ic;
-        private ServerRpcHandler _rpc;
 
-        // Важно: вызывай после спавна и Inject
-        public void Initialize(InteractionController controller)
+        public void Initialize(InteractionController controller, InventoryService inventory)
         {
             _ic = controller;
-            _rpc = controller.RpcHandler;
+            Inventory = inventory;
+            if (Inventory == null)
+            {
+                // Debug.LogError("[QuickSlotController] InventoryService is NULL!");
+                return;
+            }
+            // Debug.Log("[QuickSlotController] Initialized");
         }
 
         public void ChangeSlotAbsolute(int slot)
         {
+            // Debug.Log($"[{name}] InputAuthority: {_ic.Object.HasInputAuthority}, NetworkId: {_ic.Object.Id}");
+
             if (!_ic.Object.HasInputAuthority) return;
 
-            var currentSelectedSlot = _ic.NetSelectedQuickSlot;
+            int prev = Inventory.SelectedQuickSlot;
+            Inventory.ToggleQuickSlot(slot);
 
-            if (currentSelectedSlot == slot)
+            int curr = Inventory.SelectedQuickSlot;
+
+            if (curr == -1)
             {
-                // Повторное нажатие на активный слот — отключаем его
-                _rpc.RPC_SelectQuickSlot(-1);
-                _rpc.RPC_RequestDespawnHandModel();
+                _ic.handItemController.RequestUnEquip();
+                // Debug.Log($"[QuickSlotController] Слот {slot} сброшен");
             }
             else
             {
-                //// Переключение на новый слот
-                //var id = Inventory.GetQuickSlots()[slot].Id;
-
-                //if (!string.IsNullOrEmpty(id))
-                //{
-                //    _rpc.RPC_SelectQuickSlot(slot);
-                //    _rpc.RPC_RequestSpawnHandModel(id);
-                //}
-                //else
-                //{
-                //    // Если слот пустой — сбрасываем выбор и деспавним модель
-                //    _rpc.RPC_SelectQuickSlot(-1);
-                //    _rpc.RPC_RequestDespawnHandModel();
-                //}
-
-                // *** УБРАНА ПРОВЕРКА НА ПУСТОТУ СЛОТА ***
-                _rpc.RPC_SelectQuickSlot(slot);
-
-                var id = Inventory.GetQuickSlots()[slot].Id;
-                if (!string.IsNullOrEmpty(id))
-                    _rpc.RPC_RequestSpawnHandModel(id);
-                else
-                    _rpc.RPC_RequestDespawnHandModel();
+                var quickSlots = Inventory.GetQuickSlots();
+                if (quickSlots != null && slot >= 0 && slot < quickSlots.Length)
+                {
+                    var id = quickSlots[slot].Id;
+                    if (!string.IsNullOrEmpty(id))
+                    {
+                        var so = _ic.db.Get(id);
+                        if (so != null)
+                        {
+                            // string itemId = so.Id;
+                            _ic.handItemController.RequestEquip(id);
+                        }
+                        else
+                        {
+                            _ic.handItemController.RequestUnEquip();
+                        }
+                    }
+                    else
+                    {
+                        _ic.handItemController.RequestUnEquip();
+                    }
+                }
+                // Debug.Log($"[QuickSlotController] Слот {slot} выбран");
             }
         }
 
         public void ChangeSlotRelative(int d)
         {
-            if (!_ic.Object.HasInputAuthority) return;
+            if (_ic == null || !_ic.Object.HasInputAuthority || Inventory == null)
+                return;
 
             var slots = Inventory.GetQuickSlots();
             int cnt = slots.Length;
-            int cur = _ic.NetSelectedQuickSlot < 0 ? 0 : _ic.NetSelectedQuickSlot;
+            int cur = Inventory.SelectedQuickSlot < 0 ? 0 : Inventory.SelectedQuickSlot;
             int next = (cur + d + cnt) % cnt;
 
-            //int checkedSlots = 0;
-            //while (string.IsNullOrEmpty(slots[next].Id) && checkedSlots < cnt)
-            //{
-            //    next = (next + d + cnt) % cnt;
-            //    checkedSlots++;
-            //}
-            //if (string.IsNullOrEmpty(slots[next].Id))
-            //    return;
-
             ChangeSlotAbsolute(next);
-        }
-
-        public void OnNetworkSlotChanged(int newSlot)
-        {
-            if (_ic.Object.HasInputAuthority)
-            {
-                Inventory.ForceSetQuickSlot(newSlot);
-            }
         }
     }
 }

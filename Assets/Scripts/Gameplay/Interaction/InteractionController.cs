@@ -8,137 +8,201 @@ namespace Game
     [RequireComponent(typeof(ServerRpcHandler), typeof(NetworkObject))]
     public class InteractionController : NetworkBehaviour
     {
-        [Inject] public HandItemBehaviorFactory Factory { get; private set; }
-        [Inject] public ItemDatabaseSO Db { get; private set; }
-        [Inject] public UIHealthView UI { get; private set; }
-
-        public InputHandler Input;
-        public InteractionPromptView Prompt;
+        public InputHandler input;
+        public InteractionPromptView prompt;
         public InventoryService inventory;
 
-        public InteractionInputHandler InputHandler { get; private set; }
-        public ItemEquipController ItemEquip { get; private set; }
-        public PickDropController PickDrop { get; private set; }
-        public PlaceItemController PlaceItem { get; private set; }
-        public QuickSlotController QuickSlot { get; private set; }
-        public HealthComponent HealthComponent { get; private set; }
-        public UIController UIController { get; private set; }
-
-        public ServerRpcHandler RpcHandler { get; private set; }
-        public IHandItemBehavior CurrentBehavior { get; private set; }
-
-        public Transform HandPoint => _handPoint;
-        public Transform DropPoint => _dropPoint;
-        public Camera Camera => Camera.main;
-        public float Range => _rangePick;
-        public float ThrowForce => _throwForce;
+        public HandItemBehaviorFactory factory { get; private set; }
+        public ItemDatabaseSO db { get; private set; }
+        public UIHealthView ui { get; private set; }
+        public InteractionInputHandler inputHandler { get; private set; }
+        public ItemEquipController itemEquip { get; private set; }
+        public PickDropController pickDrop { get; private set; }
+        public PlaceItemController placeItem { get; private set; }
+        public QuickSlotController quickSlot { get; private set; }
+        public HealthComponent healthComponent { get; private set; }
+        public UIController uiController { get; private set; }
+        public HandItemController handItemController { get; private set; }
+        public QuickSlotPanel quickSlotPanel { get; private set; }
+        public ServerRpcHandler rpcHandler { get; private set; }
+        public IHandItemBehavior currentBehavior { get; private set; }
 
         [SerializeField] private Transform _handPoint;
+        [SerializeField] private Transform _dropPoint;
         [SerializeField] private float _rangePick = 4f;
         [SerializeField] public float _rangePlace = 8f;
-        [SerializeField] private Transform _dropPoint;
         [SerializeField] private float _throwForce = 5f;
 
-        private IInventory _openedOtherInventory;
+        [Networked] public int netSelectedQuickSlot { get; set; } = -1;
 
-        [Networked] public int NetSelectedQuickSlot { get; set; } = -1;
-        [Networked] public string HandModelId { get; set; }
 
-        private NetworkObject _handModelNetObj;
+        public Transform handPoint => _handPoint;
+        public Transform dropPoint => _dropPoint;
+        public Camera camera => Camera.main;
+        public float range => _rangePick;
+        public float ThrowForce => _throwForce;
 
-        public void SetHandModelNetworkInstance(NetworkObject netObj) => _handModelNetObj = netObj;
-        public NetworkObject GetHandModelNetworkInstance() => _handModelNetObj;
+        private SceneContext sceneContext;
 
-        public void ManualInit(InputHandler input, InteractionPromptView prompt, InventoryService inventory,
-            InventoryPanel playerPanel, OtherInventoryPanel otherPanel, ItemDatabaseSO itemDatabase, UIController uiController)
+
+        [Networked] public NetworkId handModelNetId { get; set; }
+        public NetworkObject handModelNetObj;
+
+        public void SetHandModelNetworkInstance(NetworkObject netObj)
         {
-            Input = input;
-            Prompt = prompt;
-            this.inventory = inventory;
-            UIController = uiController;
+            handModelNetObj = netObj;
+            handModelNetId = (netObj != null) ? netObj.Id : default;
+        }
+        public NetworkObject GetHandModelNetworkInstance()
+        {
+            if (handModelNetObj != null) return handModelNetObj;
+            if (handModelNetId != default && Runner != null)
+                handModelNetObj = Runner.FindObject(handModelNetId);
+            return handModelNetObj;
+        }
+        public override void Spawned()
+        {
+            sceneContext = FindObjectOfType<SceneContext>();
+            var container = sceneContext.Container;
 
-            // Find all local controllers here!
-            InputHandler = GetComponent<InteractionInputHandler>();
-            ItemEquip = GetComponent<ItemEquipController>();
-            PickDrop = GetComponent<PickDropController>();
-            PlaceItem = GetComponent<PlaceItemController>();
-            QuickSlot = GetComponent<QuickSlotController>();
-            RpcHandler = GetComponent<ServerRpcHandler>();
-            HealthComponent = GetComponent<HealthComponent>();
+            input = container.Resolve<InputHandler>();
+            prompt = container.Resolve<InteractionPromptView>();
+            inventory = container.Resolve<InventoryService>();
+            uiController = container.Resolve<UIController>();
+            var playerPanel = container.ResolveId<InventoryPanel>("PlayerInventoryPanel");
+            var otherPanel = container.ResolveId<OtherInventoryPanel>("OtherInventoryPanel");
+            // var db = container.Resolve<ItemDatabaseSO>();
+            factory = container.Resolve<HandItemBehaviorFactory>();
+            db = container.Resolve<ItemDatabaseSO>();
+            ui = container.Resolve<UIHealthView>();
+            handItemController = container.Resolve<HandItemController>();
+            quickSlotPanel = container.Resolve<QuickSlotPanel>();
+            // Debug.Log($"handItemController = {handItemController}");
+            ManualInit(input, prompt, inventory, playerPanel, otherPanel, db, uiController, handItemController, quickSlotPanel);
+        }
 
-            if (InputHandler != null)
-                InputHandler.Initialize(this, Input, this.inventory, Prompt);
+        public void ManualInit(
+            InputHandler input,
+            InteractionPromptView prompt,
+            InventoryService inventory,
+            InventoryPanel playerPanel,
+            OtherInventoryPanel otherPanel,
+            ItemDatabaseSO itemDatabase,
+            UIController uiController,
+            HandItemController handItemController,
+            QuickSlotPanel quickSlotPanel
+            )
+        {
+            rpcHandler = GetComponent<ServerRpcHandler>();
+            inputHandler = GetComponent<InteractionInputHandler>();
+            itemEquip = GetComponent<ItemEquipController>();
+            pickDrop = GetComponent<PickDropController>();
+            placeItem = GetComponent<PlaceItemController>();
+            quickSlot = GetComponent<QuickSlotController>();
+            healthComponent = GetComponent<HealthComponent>();
+            handItemController = GetComponent<HandItemController>();
 
-            if (ItemEquip != null)
-                ItemEquip.Initialize(Factory, Db, this);
+            if (Object.HasInputAuthority)
+            {
+                rpcHandler?.Construct(itemDatabase, handItemController, this, sceneContext);
+                inputHandler?.Initialize(this, input, inventory, prompt);
+                itemEquip?.Initialize(factory, db, this);
+                pickDrop?.Initialize(this, inventory, playerPanel, otherPanel, itemDatabase, uiController, camera);
+                placeItem?.Initialize(this);
+                quickSlot?.Initialize(this, inventory);
+                healthComponent?.Initialize(ui, Object.HasStateAuthority, true);
+                handItemController?.Initialize(itemDatabase, rpcHandler, this);
+                quickSlotPanel?.InitializeIfLocal(this);
 
-            if (PickDrop != null)
-                PickDrop.Initialize(this, this.inventory, playerPanel, otherPanel, itemDatabase, Input, UIController);
+                input.OnInventoryToggle += ToggleInventory;
+                input.OnGlobalUiCloseRequested += CloseInventory;
+                input.OnInteractPressed += pickDrop.TryPick;
+                inventory.OnQuickSlotsChanged += OnQuickSlotsChanged;
+            }
+        }
 
-            if (PlaceItem != null)
-                PlaceItem.Initialize(this);
+        private void ToggleInventory()
+        {
+            if (!Object.HasInputAuthority) return;
 
-            if (QuickSlot != null)
-                QuickSlot.Initialize(this);
+            if (uiController.InventoryOpened)
+            {
+                uiController.ShowGameUI();
+                pickDrop.CloseOpenedInventories();
+            }
+            else
+            {
+                uiController.ShowInventory();
+                pickDrop.OpenPlayerInventory();
+            }
+        }
 
-            if (HealthComponent != null)
-                HealthComponent.Initialize(UI, Object.HasStateAuthority, Object.HasInputAuthority);
+        private void CloseInventory()
+        {
+            if (!Object.HasInputAuthority) return;
 
-            if (this.inventory != null && ItemEquip != null)
-                this.inventory.OnQuickSlotsChanged += OnQuickSlotsChanged;
+            uiController.ShowGameUI();
+            pickDrop.CloseOpenedInventories();
         }
 
         public void Update()
         {
-            PickDrop.UpdateRaycast();
-        }
-
-        private int _lastQuickSlot = -2;
-
-        public override void FixedUpdateNetwork()
-        {
-            if (_lastQuickSlot != NetSelectedQuickSlot)
-            {
-                QuickSlot?.OnNetworkSlotChanged(NetSelectedQuickSlot);
-                _lastQuickSlot = NetSelectedQuickSlot;
-            }
-        }
-
-        public override void Spawned()
-        {
-            Debug.Log("Spawned");
-
-            InputHandler = GetComponent<InteractionInputHandler>();
-            ItemEquip = GetComponent<ItemEquipController>();
-            PickDrop = GetComponent<PickDropController>();
-            PlaceItem = GetComponent<PlaceItemController>();
-            QuickSlot = GetComponent<QuickSlotController>();
-            RpcHandler = GetComponent<ServerRpcHandler>();
-            HealthComponent = GetComponent<HealthComponent>();
-
-            if (!InputHandler || !ItemEquip || !PickDrop || !PlaceItem || !QuickSlot)
-                Debug.LogError("[InteractionController] Не все контроллеры найдены на объекте игрока! Проверь prefab.");
+            if (Object.HasInputAuthority)
+                pickDrop?.UpdateRaycast();
         }
 
         public void SetCurrentBehavior(IHandItemBehavior behavior)
         {
-            CurrentBehavior = behavior;
+            currentBehavior = behavior;
         }
 
         public void ClearBehavior()
         {
-            CurrentBehavior?.OnUnequip();
-            CurrentBehavior = null;
+            currentBehavior?.OnUnequip();
+            currentBehavior = null;
         }
+
         private void OnQuickSlotsChanged()
         {
-            if (ItemEquip != null && inventory != null)
-                ItemEquip.Equip(inventory.SelectedQuickSlot, inventory.GetQuickSlots());
+            if (itemEquip != null && inventory != null)
+            {
+                var idx = inventory.SelectedQuickSlot;
+                var slots = inventory.GetQuickSlots();
+
+                if (slots == null || slots.Length == 0)
+                {
+                    itemEquip.Equip(-1, slots);
+                    return;
+                }
+                if (idx < 0 || idx >= slots.Length)
+                {
+                    itemEquip.Equip(-1, slots);
+                    return;
+                }
+
+                var slot = slots[idx];
+                if (slot == null || string.IsNullOrEmpty(slot.Id))
+                {
+                    itemEquip.Equip(-1, slots);
+                    return;
+                }
+
+                itemEquip.Equip(idx, slots);
+            }
         }
+
+
         private void OnDestroy()
         {
-            if (inventory != null && ItemEquip != null)
+            if (inventory != null && itemEquip != null)
                 inventory.OnQuickSlotsChanged -= OnQuickSlotsChanged;
+
+            if (Object.HasInputAuthority && input != null)
+            {
+                input.OnInventoryToggle -= ToggleInventory;
+                input.OnGlobalUiCloseRequested -= CloseInventory;
+                input.OnInteractPressed -= pickDrop.TryPick;
+            }
         }
     }
 }

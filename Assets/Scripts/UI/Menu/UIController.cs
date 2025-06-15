@@ -13,10 +13,7 @@ namespace Game.UI
 
         [SerializeField] private InputHandler _inputHandler;
 
-        // private void Awake()
-        // {
-        //     HideGameUI();
-        // }
+        public bool InventoryOpened => _inventoryPanel.activeSelf;
 
         private void OnEnable()
         {
@@ -30,7 +27,7 @@ namespace Game.UI
 
         public void ShowGameUI()
         {
-            Debug.Log("[UIController] ShowGameUI called");
+            // Debug.Log("[UIController] ShowGameUI called");
             _gameUI.SetActive(true);
             _inventoryPanel.SetActive(false);
             _otherInventoryPanel.SetActive(false);

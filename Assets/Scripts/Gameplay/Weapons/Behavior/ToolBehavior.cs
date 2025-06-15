@@ -19,19 +19,18 @@ namespace Game
 
         public void OnEquip()
         {
-            _ic.RpcHandler.RPC_RequestSpawnHandModel(_so.Id);
+            // _ic.rpcHandler.RPC_RequestSpawnHandModel(_so.Id, _ic.handModelNetObj);
         }
 
 
         public void OnUnequip()
         {
             //Destroy(_instance);
-            _ic.RpcHandler.RPC_RequestDespawnHandModel();
+            // _ic.rpcHandler.RPC_RequestDespawnHandModel();
         }
 
         public void OnUsePressed()
         {
-            // например, удар киркой: raycast по объекту, наносим урон
         }
 
         public void OnUseHeld(float delta) { }

@@ -30,27 +30,22 @@ namespace Game
         public InventorySlot[] GetQuickSlots() => _quickSlots;
         public InventorySlot[] GetInventorySlots() => _inventorySlots;
 
-        public void SelectQuickSlot(int idx)
+        
+
+        public void ToggleQuickSlot(int idx)
         {
-            if (idx < 0 || idx >= _quickSlots.Length) return;
-            SelectedQuickSlot = (SelectedQuickSlot == idx) ? -1 : idx;
+            if (SelectedQuickSlot == idx)
+            {
+                SelectedQuickSlot = -1;
+            }
+            else
+            {
+                SelectedQuickSlot = idx;
+            }
             OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
         }
 
-        public void SetQuickSlot(int idx)
-        {
-            if (idx < 0 || idx >= _quickSlots.Length) return;
-            if (SelectedQuickSlot == idx) return;
-            SelectedQuickSlot = idx;
-            OnQuickSlotSelectionChanged?.Invoke(idx);
-        }
-
-        public void ClearQuickSlot()
-        {
-            if (SelectedQuickSlot < 0) return;
-            SelectedQuickSlot = -1;
-            OnQuickSlotSelectionChanged?.Invoke(-1);
-        }
+       
 
         public int HandlePick(string itemId, int count, int ammo)
         {
@@ -197,12 +192,16 @@ namespace Game
                     yield return slot;
         }
 
+
         public void ForceSetQuickSlot(int idx)
         {
             if (idx < -1 || idx >= _quickSlots.Length) return;
+            if (SelectedQuickSlot == idx) return;
             SelectedQuickSlot = idx;
             OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
         }
+
+        
 
         public bool TryAddItem(string itemId, int count)
         {

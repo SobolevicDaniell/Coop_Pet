@@ -1,4 +1,4 @@
-﻿using Fusion;
+using Fusion;
 using UnityEngine;
 using System;
 
@@ -27,6 +27,7 @@ public class InputHandler : MonoBehaviour
             OnInventoryToggle?.Invoke();
             OnUseUp?.Invoke();
         }
+
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             OnGlobalUiCloseRequested?.Invoke();
@@ -38,21 +39,19 @@ public class InputHandler : MonoBehaviour
         }
         else
         {
-            // Движение
             _networkInput.movement = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
 
-            // --- МЫШЬ И СТРЕЛКИ ВМЕСТЕ ---
+            // Мышь и стрелки вместе
             float mouseX = Input.GetAxis("Mouse X");
             float mouseY = Input.GetAxis("Mouse Y");
 
-            // Стрелки — при удержании добавляют фиксированную дельту каждый кадр
             float keyboardX = 0f;
             float keyboardY = 0f;
 
             if (Input.GetKey(KeyCode.RightArrow)) keyboardX += keyboardLookSensitivity * Time.deltaTime;
-            if (Input.GetKey(KeyCode.LeftArrow))  keyboardX -= keyboardLookSensitivity * Time.deltaTime;
-            if (Input.GetKey(KeyCode.UpArrow))    keyboardY += keyboardLookSensitivity * Time.deltaTime;
-            if (Input.GetKey(KeyCode.DownArrow))  keyboardY -= keyboardLookSensitivity * Time.deltaTime;
+            if (Input.GetKey(KeyCode.LeftArrow)) keyboardX -= keyboardLookSensitivity * Time.deltaTime;
+            if (Input.GetKey(KeyCode.UpArrow)) keyboardY += keyboardLookSensitivity * Time.deltaTime;
+            if (Input.GetKey(KeyCode.DownArrow)) keyboardY -= keyboardLookSensitivity * Time.deltaTime;
 
             _networkInput.mouseX = mouseX + keyboardX;
             _networkInput.mouseY = mouseY + keyboardY;
@@ -63,10 +62,18 @@ public class InputHandler : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.R)) OnReloadPressed?.Invoke();
 
             for (int i = 1; i <= 9; i++)
+            {
                 if (Input.GetKeyDown(KeyCode.Alpha0 + i))
+                {
+                    Debug.Log($"Pressed {i}, slot {i - 1}");
                     OnQuickSlotPressed?.Invoke(i - 1);
+                }
+            }
             if (Input.GetKeyDown(KeyCode.Alpha0))
+            {
+                Debug.Log("Pressed 0, slot 9");
                 OnQuickSlotPressed?.Invoke(9);
+            }
 
             float scroll = Input.mouseScrollDelta.y;
             if (Mathf.Abs(scroll) > 0.01f)
@@ -78,7 +85,6 @@ public class InputHandler : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.Q)) OnQuickDropPressed?.Invoke();
             if (Input.GetKeyDown(KeyCode.F)) OnPlacePressed?.Invoke();
         }
-        // Нет прямой работы с InventoryPanel/Transfer здесь!
     }
 
     public void ProvideNetworkInput(NetworkRunner runner, NetworkInput input)
@@ -89,6 +95,5 @@ public class InputHandler : MonoBehaviour
     public void SetInventoryOpen(bool open)
     {
         InventoryOpen = open;
-        // Cursor-lock — только в UIController!
     }
 }
