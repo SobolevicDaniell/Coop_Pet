@@ -29,6 +29,7 @@ namespace Game.Network
             var prefabNetObj = _playerPrefab.GetComponent<NetworkObject>();
             var netObj = _runner.Spawn(prefabNetObj, Vector3.zero, Quaternion.identity, playerRef);
 
+            _runner.SetPlayerObject(playerRef, netObj);
             _container.InjectGameObject(netObj.gameObject);
 
             return netObj;

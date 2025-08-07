@@ -7,64 +7,122 @@ namespace Game
 {
     public class HandItemController : NetworkBehaviour
     {
-        private ItemDatabaseSO _itemDatabase;
-        private ServerRpcHandler _serverRpcHandler;
-        private InteractionController _interactionController;
-
         [SerializeField] private Transform _handPoint;
 
-        public void Initialize(
-            ItemDatabaseSO itemDatabase,
-            ServerRpcHandler serverRpcHandler,
-            InteractionController interactionController)
+        [Networked] public NetworkId HandModelNetId { get; private set; }
+        private NetworkObject _handModel;
+
+        private ItemDatabaseSO       _itemDatabase;
+        private PlayerRpcHandler     _playerRpc;
+        private InteractionController _ic;
+
+        // ⟶ глобальные singletons берём напрямую из ProjectContext
+        public override void Spawned()
+        {
+            var container = ProjectContext.Instance.Container;
+
+            _playerRpc    = GetComponent<PlayerRpcHandler>();
+            _ic           = GetComponent<InteractionController>();
+        }
+        public void Initialize(ItemDatabaseSO itemDatabase)
         {
             _itemDatabase = itemDatabase;
-            _serverRpcHandler = serverRpcHandler;
-            _interactionController = interactionController;
         }
 
-        [Networked] public NetworkId handModelNetId { get; set; }
-        public NetworkObject handModelNetObj { get; private set; }
+        
+        void TryAttach()
+        {
+            if (_handModel == null && HandModelNetId.IsValid)
+                _handModel = Runner.FindObject(HandModelNetId);
 
+            if (_handModel != null)
+                AttachToHand(_handModel.transform);
+        }
         public void RequestEquip(string itemId)
         {
-            Debug.Log($"[HandItemController] InputAuthority={Object.InputAuthority}, Runner.LocalPlayer={Runner.LocalPlayer}");
-            
-            _serverRpcHandler.RPC_RequestEquipHandModel(itemId);
+            if (!Object.HasInputAuthority || _playerRpc == null) return;
+
+            _playerRpc.RPC_EquipItem(itemId);
         }
+
         public void RequestUnEquip()
         {
-            if (!Object.HasInputAuthority)
-                return;
+            if (!Object.HasInputAuthority || _playerRpc == null) return;
 
-            _serverRpcHandler.RPC_RequestUnEquipHandModel();
+            _playerRpc.RPC_UnEquipItem();
         }
 
-       
-        public void OnItemEquipped(NetworkObject netObj)
+
+        public void EquipItemServer(string itemId)
         {
-            handModelNetObj = netObj;
-            handModelNetId = netObj != null ? netObj.Id : default;
-            if (netObj != null)
+            if (!Object.HasStateAuthority) return;
+
+            var item = _itemDatabase.Get(itemId);
+            if (item == null) return;
+
+            var field = item.GetType().GetField("HandModelNetwork");
+            var prefab = field?.GetValue(item) as NetworkObject;
+            if (prefab == null) return;
+
+            DespawnCurrent();
+
+            _handModel = Runner.Spawn(
+                prefab,
+                _handPoint.position,
+                _handPoint.rotation,
+                Object.InputAuthority,
+                (runner, spawned) =>
+                {
+                    spawned.transform.SetParent(_handPoint, false);
+                    spawned.transform.localPosition = Vector3.zero;
+                    spawned.transform.localRotation = Quaternion.identity;
+                });
+
+            HandModelNetId = _handModel.Id;
+        }
+
+
+
+        public void UnEquipItemServer()
+        {
+            if (!Object.HasStateAuthority) return;
+            DespawnCurrent();
+        }
+
+        // ─── вспомогательные ───────────────────────────────────────────────────────────
+        private void DespawnCurrent()
+        {
+            if (_handModel != null && _handModel.IsValid)
+                Runner.Despawn(_handModel);
+
+            _handModel = null;
+            HandModelNetId = default;
+        }
+
+        private void AttachToHand(Transform t)
+        {
+            t.SetParent(_handPoint, false);
+            t.localPosition = Vector3.zero;
+            t.localRotation = Quaternion.identity;
+        }
+
+        // ─── восстановление для late-join ──────────────────────────────────────────────
+        public override void Render()
+        {
+            // При первом получении ссылки на объект
+            if (_handModel == null && HandModelNetId.IsValid)
             {
-                netObj.transform.SetParent(_handPoint, false);
-                netObj.transform.localPosition = Vector3.zero;
-                netObj.transform.localRotation = Quaternion.identity;
+                _handModel = Runner.FindObject(HandModelNetId);
+                if (_handModel != null)
+                    AttachToHand(_handModel.transform);
+            }
+
+            // Если объект уже есть, но случайно потерял родителя
+            if (_handModel != null && _handModel.transform.parent != _handPoint)
+            {
+                AttachToHand(_handModel.transform);
             }
         }
 
-        public void OnItemUnEquipped()
-        {
-            handModelNetObj = null;
-            handModelNetId = default;
-        }
-
-        public NetworkObject GetHandModelNetworkInstance()
-        {
-            if (handModelNetObj != null) return handModelNetObj;
-            if (handModelNetId != default && Runner != null)
-                handModelNetObj = Runner.FindObject(handModelNetId);
-            return handModelNetObj;
-        }
     }
 }

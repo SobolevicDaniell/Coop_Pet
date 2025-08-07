@@ -75,7 +75,6 @@ namespace Game.UI
         {
             if (_draggedSlot == null) return;
 
-            // 1. Проверка выброса через DropZone по тегу
             if (IsPointerOverDropZone())
             {
                 DropFromSlot(_draggedSlot);

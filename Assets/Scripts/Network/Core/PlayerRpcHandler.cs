@@ -9,29 +9,21 @@ using Zenject;
 namespace Game
 {
     [RequireComponent(typeof(NetworkObject))]
-    public class ServerRpcHandler : NetworkBehaviour
+    public class PlayerRpcHandler : NetworkBehaviour
     {
         private ItemDatabaseSO _itemDatabase;
         private HandItemController _handItemController;
         private InteractionController _ic;
-        private PlayerSpawner _playerSpawner;
-        private SceneContext _sceneContext;
 
-        public void Construct(
-            ItemDatabaseSO itemDatabase,
-            HandItemController handItemController,
-            InteractionController interactionController,
-            SceneContext sceneContext
-            )
+
+        public void Construct(ItemDatabaseSO itemDatabase)
         {
             _itemDatabase = itemDatabase;
-            _handItemController = handItemController;
-            _ic = interactionController;
-            _sceneContext = sceneContext;
-
-            var container = sceneContext.Container;
-            _playerSpawner = container.Resolve<PlayerSpawner>();
-            Debug.Log($"ServerRpcHandler: PlayerSpawner={_playerSpawner}");
+        }
+        public override void Spawned()
+        {
+            _handItemController = GetComponent<HandItemController>();
+            _ic = GetComponent<InteractionController>();
         }
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
@@ -41,97 +33,19 @@ namespace Game
         }
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        public void RPC_RequestEquipHandModel(string itemId, RpcInfo info = default)
-        {
-            var playerRef = info.Source;
-
-            if (playerRef == PlayerRef.None)
-                playerRef = Object.InputAuthority;
-
-
-
-            Debug.Log($"[ServerRpcHandler] _playerSpawner={_playerSpawner}, playerRef={playerRef}");
-
-            
-            _playerSpawner.GetComponents(playerRef, out var handItemController, out var interactionController);
-            if (handItemController == null || interactionController == null)
-            {
-                Debug.LogError("[ServerRpcHandler] Компоненты игрока не были найдены!");
-                return;
-            }
-            var itemDatabase = interactionController?.db;
-
-            if (handItemController == null || interactionController == null || itemDatabase == null)
-            {
-                Debug.LogError("[ServerRpcHandler] One or more player components are NULL!");
-                return;
-            }
-            var prevObj = handItemController.GetHandModelNetworkInstance();
-
-
-            if (prevObj != null)
-            {
-                Runner.Despawn(prevObj);
-                handItemController.OnItemUnEquipped();
-            }
-
-            var so = itemDatabase.Get(itemId);
-            if (so == null)
-            {
-                Debug.LogError($"[ServerRpcHandler] Нет SO для itemId {itemId}");
-                return;
-            }
-
-            var prefab = so is WeaponSO w ? w._handModelNetwork
-                        : so is ToolSO t ? t._handModelNetwork
-                        : null;
-
-            if (prefab == null)
-            {
-                Debug.LogError($"[ServerRpcHandler] Нет handModelNetwork для itemId {itemId}");
-                return;
-            }
-
-            var spawned = Runner.Spawn(prefab,
-                                       handItemController.transform.position,
-                                       handItemController.transform.rotation,
-                                       playerRef,
-                                       onBeforeSpawned: (runner, obj) =>
-                                       {
-                                           obj.transform.SetParent(handItemController.transform, false);
-                                           obj.transform.localPosition = Vector3.zero;
-                                           obj.transform.localRotation = Quaternion.identity;
-                                       });
-
-            handItemController.OnItemEquipped(spawned);
-        }
-
-
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        public void RPC_RequestUnEquipHandModel(RpcInfo info = default)
+        public void RPC_EquipItem(string itemId, RpcInfo _ = default)
         {
             if (!Object.HasStateAuthority) return;
-
-            // var playerObj = _playerSpawner?.GetPlayerGameObject(info.Source);
-            // if (info.Source == PlayerRef.None)
-            // {
-            //     playerObj = _playerSpawner?.GetPlayerGameObject(Object.InputAuthority);
-            // }
-
-            // var handItem = playerObj.GetComponent<HandItemController>();
-            // if (handItem == null)
-            // {
-            //     Debug.LogError($"[ServerRpcHandler] Player's HandItemController is null (PlayerRef {info.Source})");
-            //     return;
-            // }
-
-            // var obj = handItem.GetHandModelNetworkInstance();
-            // if (obj != null)
-            // {
-            //     Runner.Despawn(obj);
-            //     handItem.OnItemUnEquipped();
-            // }
+            _handItemController.EquipItemServer(itemId);
         }
+
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void RPC_UnEquipItem(RpcInfo _ = default)
+        {
+            if (!Object.HasStateAuthority) return;
+            _handItemController.UnEquipItemServer();
+        }
+
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestPick(NetworkObject pickable, RpcInfo info = default)
@@ -217,10 +131,12 @@ namespace Game
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestReload(RpcInfo info = default)
         {
+            if (!Object.HasStateAuthority) return;
+
             if (_ic.currentBehavior is WeaponBehavior wb)
             {
                 wb.Reload();
-                RPC_OnReload(info.Source);
+                RPC_OnReload(info.Source); // уведомление всех клиентов
             }
         }
 

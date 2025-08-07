@@ -5,6 +5,7 @@ using System;
 public class InputHandler : MonoBehaviour
 {
     [SerializeField] private float keyboardLookSensitivity = 700f;
+    [SerializeField] private float mouseLookSensitivity = 5f;
     private InputData _networkInput;
     public bool InventoryOpen { get; private set; }
 
@@ -41,9 +42,8 @@ public class InputHandler : MonoBehaviour
         {
             _networkInput.movement = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
 
-            // Мышь и стрелки вместе
-            float mouseX = Input.GetAxis("Mouse X");
-            float mouseY = Input.GetAxis("Mouse Y");
+            float mouseX = Input.GetAxis("Mouse X") * mouseLookSensitivity;
+            float mouseY = Input.GetAxis("Mouse Y") * mouseLookSensitivity;
 
             float keyboardX = 0f;
             float keyboardY = 0f;
@@ -65,13 +65,13 @@ public class InputHandler : MonoBehaviour
             {
                 if (Input.GetKeyDown(KeyCode.Alpha0 + i))
                 {
-                    Debug.Log($"Pressed {i}, slot {i - 1}");
+                    // Debug.Log($"Pressed {i}, slot {i - 1}");
                     OnQuickSlotPressed?.Invoke(i - 1);
                 }
             }
             if (Input.GetKeyDown(KeyCode.Alpha0))
             {
-                Debug.Log("Pressed 0, slot 9");
+                // Debug.Log("Pressed 0, slot 9");
                 OnQuickSlotPressed?.Invoke(9);
             }
 

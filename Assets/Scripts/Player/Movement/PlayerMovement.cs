@@ -31,7 +31,6 @@ namespace Game
                 HandleInput(input, Runner.DeltaTime);
             }
 
-            // Синхронизация авторитетной позиции и поворота
             if (Object.HasStateAuthority)
             {
                 NetworkedPosition = transform.position;

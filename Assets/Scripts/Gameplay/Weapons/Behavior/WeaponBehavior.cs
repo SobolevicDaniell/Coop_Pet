@@ -10,52 +10,59 @@ namespace Game
         private InteractionController _ic;
         private InventorySlot _slot;
         private Transform _muzzlePoint;
+        // private ItemState State => _slot?.State;
 
         private float _autoFireTimer = 0f;
         private bool _isHolding = false;
 
-        public WeaponBehavior Construct(WeaponSO so, Transform handParent, InteractionController ic, InventorySlot slot)
+        private int _slotIndex;
+
+        private InventorySlot Slot =>
+            (_ic != null && _ic.inventory != null && _slotIndex >= 0)
+                ? _ic.inventory.GetQuickSlots()[_slotIndex]
+                : null;
+
+        private ItemState State => Slot?.State;
+
+        public WeaponBehavior Construct(WeaponSO so, Transform handParent, InteractionController ic, int slotIndex, InventorySlot slot)
         {
             _so = so;
             _handPoint = handParent;
             _ic = ic;
-            _slot = slot;
-
-            // !!! Не сбрасываем Ammo на 0, иначе потеряешь заряд при переключении!
-            // При первом появлении оружия (TryQuick/TryInventory) — State создаётся пустым, Ammo = 0.
-            // Пользователь должен перезарядить.
+            _slotIndex = slotIndex;
+            _slot = slot; // <-- важно!
             var netObj = _ic.GetHandModelNetworkInstance();
             if (netObj != null)
                 _muzzlePoint = netObj.transform.GetComponentInChildren<MuzzlePoint>()?.transform;
             return this;
         }
 
-        private ItemState State => _slot?.State;
+        public bool IsValid()
+        {
+            return _slot != null && _ic != null && _so != null;
+        }
+
+
 
         public bool TryUseAmmo()
         {
-            if (State == null || State.Ammo <= 0) return false;
+            if (!IsValid() || State == null || State.Ammo <= 0) return false;
             State.Ammo--;
-            _ic.inventory.RaiseQuickSlotsChanged();
+            _ic?.inventory?.RaiseQuickSlotsChanged();
             return true;
         }
 
         public void Reload()
         {
-            if (_so.ammoResource == null || State == null) return;
+            if (!IsValid() || _so.ammoResource == null || State == null) return;
             var inventory = _ic.inventory;
             int need = _so.maxAmmo - State.Ammo;
             if (need <= 0) return;
             int available = inventory.GetResourceCount(_so.ammoResource.Id);
             int toLoad = Mathf.Min(need, available);
-            if (toLoad > 0)
-            {
-                if (inventory.SpendResource(_so.ammoResource.Id, toLoad))
-                {
-                    State.Ammo += toLoad;
-                }
-            }
-            _ic.inventory.RaiseQuickSlotsChanged();
+            if (toLoad > 0 && inventory.SpendResource(_so.ammoResource.Id, toLoad))
+                State.Ammo += toLoad;
+            inventory.RaiseQuickSlotsChanged();
         }
 
         public NetworkObject GetBulletNetworkObject() => _so.bulletPrefab.GetComponent<NetworkObject>();
@@ -93,12 +100,20 @@ namespace Game
         private void TryShoot()
         {
             if (TryUseAmmo())
-                _ic.rpcHandler.RPC_RequestShoot();
-            // else: звук "нет патронов"
+            {
+                _ic.playerRpcHandler.RPC_RequestShoot();
+            }
         }
 
         public void OnEquip() {}/*=> _ic.rpcHandler.RPC_RequestSpawnHandModel(_so.Id, _ic.handModelNetObj);*/
-        public void OnUnequip() { }/*=> _ic.rpcHandler.RPC_RequestDespawnHandModel();*/
+        public void OnUnequip()
+        {
+            _slot = null;  // очистить ссылку на старый слот
+            _ic = null;    // очистить ссылку на InteractionController
+            _handPoint = null;
+            _muzzlePoint = null;
+            _so = null;
+        }
         public void OnMuzzleFlash() { /* vfx */ }
     }
 }

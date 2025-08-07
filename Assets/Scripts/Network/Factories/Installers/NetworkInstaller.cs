@@ -49,6 +49,10 @@ namespace Game.Network
             Container.Bind<PlayerSpawner>()
                 .AsSingle().NonLazy();
 
+            // Container.Bind<ServerRpcHandler>()
+            //     .FromComponentInHierarchy()
+            //     .AsSingle().NonLazy();
+
             Container.Bind<PickableSpawner>()
                 .FromComponentInHierarchy()
                 .AsSingle().NonLazy();
@@ -110,10 +114,6 @@ namespace Game.Network
                     .FromInstance(_playerStats)
                     .AsSingle();
 
-            Container.Bind<HandItemController>()
-                   .FromComponentInHierarchy()
-                   .AsSingle();
-                    
             Container.Bind<QuickSlotPanel>()
                     .FromComponentInHierarchy()
                     .AsSingle();

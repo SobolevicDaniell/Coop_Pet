@@ -20,7 +20,6 @@ namespace Game.Network
         }
         public override void Spawned()
         {
-            // Только для локального игрока скрываем лицо
             if (Object.HasInputAuthority)
             {
                 if (faceObject != null)

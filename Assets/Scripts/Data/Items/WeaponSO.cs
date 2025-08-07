@@ -7,7 +7,7 @@ namespace Game
     public class WeaponSO : ItemSO
     {
         [Header("Weapon")]
-        public NetworkObject _handModelNetwork;
+        public NetworkObject HandModelNetwork;
         [Range(1, 200)]
         public int maxAmmo;
         public bool isAutomatic;

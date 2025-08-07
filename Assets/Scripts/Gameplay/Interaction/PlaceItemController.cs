@@ -47,7 +47,7 @@ namespace Game
             if (canPlace)
             {
                 var rotation = Quaternion.LookRotation(placeNormal) * Quaternion.Euler(90, 0, 0);
-                _controller.rpcHandler.RPC_RequestPlaceObject(placeable.Id, placePos, rotation);
+                _controller.playerRpcHandler.RPC_RequestPlaceObject(placeable.Id, placePos, rotation);
 
                 slot.Count -= 1;
                 if (slot.Count <= 0)

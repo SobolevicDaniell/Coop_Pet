@@ -5,7 +5,7 @@ using Game.UI;
 
 namespace Game
 {
-    [RequireComponent(typeof(ServerRpcHandler), typeof(NetworkObject))]
+    [RequireComponent(typeof(PlayerRpcHandler), typeof(NetworkObject))]
     public class InteractionController : NetworkBehaviour
     {
         public InputHandler input;
@@ -24,7 +24,9 @@ namespace Game
         public UIController uiController { get; private set; }
         public HandItemController handItemController { get; private set; }
         public QuickSlotPanel quickSlotPanel { get; private set; }
-        public ServerRpcHandler rpcHandler { get; private set; }
+        public PlayerRpcHandler playerRpcHandler { get; private set; }
+        // public ServerRpcHandler serverRpcHandler { get; private set; }
+
         public IHandItemBehavior currentBehavior { get; private set; }
 
         [SerializeField] private Transform _handPoint;
@@ -38,7 +40,8 @@ namespace Game
 
         public Transform handPoint => _handPoint;
         public Transform dropPoint => _dropPoint;
-        public Camera camera => Camera.main;
+        public Camera camera ;
+        // public Camera camera => Camera.main;
         public float range => _rangePick;
         public float ThrowForce => _throwForce;
 
@@ -71,14 +74,13 @@ namespace Game
             uiController = container.Resolve<UIController>();
             var playerPanel = container.ResolveId<InventoryPanel>("PlayerInventoryPanel");
             var otherPanel = container.ResolveId<OtherInventoryPanel>("OtherInventoryPanel");
-            // var db = container.Resolve<ItemDatabaseSO>();
             factory = container.Resolve<HandItemBehaviorFactory>();
             db = container.Resolve<ItemDatabaseSO>();
             ui = container.Resolve<UIHealthView>();
-            handItemController = container.Resolve<HandItemController>();
+            handItemController = GetComponent<HandItemController>();
             quickSlotPanel = container.Resolve<QuickSlotPanel>();
-            // Debug.Log($"handItemController = {handItemController}");
-            ManualInit(input, prompt, inventory, playerPanel, otherPanel, db, uiController, handItemController, quickSlotPanel);
+            playerRpcHandler = GetComponent<PlayerRpcHandler>();
+            ManualInit(input, prompt, inventory, playerPanel, otherPanel, db, uiController, handItemController, quickSlotPanel, sceneContext, playerRpcHandler);
         }
 
         public void ManualInit(
@@ -90,10 +92,12 @@ namespace Game
             ItemDatabaseSO itemDatabase,
             UIController uiController,
             HandItemController handItemController,
-            QuickSlotPanel quickSlotPanel
+            QuickSlotPanel quickSlotPanel,
+            SceneContext sceneContext,
+            PlayerRpcHandler playerRpcHandler
             )
         {
-            rpcHandler = GetComponent<ServerRpcHandler>();
+            playerRpcHandler = GetComponent<PlayerRpcHandler>();
             inputHandler = GetComponent<InteractionInputHandler>();
             itemEquip = GetComponent<ItemEquipController>();
             pickDrop = GetComponent<PickDropController>();
@@ -102,16 +106,17 @@ namespace Game
             healthComponent = GetComponent<HealthComponent>();
             handItemController = GetComponent<HandItemController>();
 
+            handItemController?.Initialize(itemDatabase);
             if (Object.HasInputAuthority)
             {
-                rpcHandler?.Construct(itemDatabase, handItemController, this, sceneContext);
+
+                playerRpcHandler?.Construct(itemDatabase);
                 inputHandler?.Initialize(this, input, inventory, prompt);
                 itemEquip?.Initialize(factory, db, this);
                 pickDrop?.Initialize(this, inventory, playerPanel, otherPanel, itemDatabase, uiController, camera);
                 placeItem?.Initialize(this);
                 quickSlot?.Initialize(this, inventory);
                 healthComponent?.Initialize(ui, Object.HasStateAuthority, true);
-                handItemController?.Initialize(itemDatabase, rpcHandler, this);
                 quickSlotPanel?.InitializeIfLocal(this);
 
                 input.OnInventoryToggle += ToggleInventory;
@@ -119,6 +124,10 @@ namespace Game
                 input.OnInteractPressed += pickDrop.TryPick;
                 inventory.OnQuickSlotsChanged += OnQuickSlotsChanged;
             }
+        }
+        public void InvokeOnQuickSlotsChanged()
+        {
+            OnQuickSlotsChanged();
         }
 
         private void ToggleInventory()
@@ -162,32 +171,34 @@ namespace Game
             currentBehavior = null;
         }
 
+        private string _lastEquippedItemId = null;
+
         private void OnQuickSlotsChanged()
         {
-            if (itemEquip != null && inventory != null)
+            if (itemEquip == null || inventory == null)
+                return;
+
+            int idx = inventory.SelectedQuickSlot;
+            var slots = inventory.GetQuickSlots();
+
+            if (slots == null || idx < 0 || idx >= slots.Length)
             {
-                var idx = inventory.SelectedQuickSlot;
-                var slots = inventory.GetQuickSlots();
+                itemEquip.Equip(-1, slots);
+                _lastEquippedItemId = null;
+                return;
+            }
 
-                if (slots == null || slots.Length == 0)
-                {
-                    itemEquip.Equip(-1, slots);
-                    return;
-                }
-                if (idx < 0 || idx >= slots.Length)
-                {
-                    itemEquip.Equip(-1, slots);
-                    return;
-                }
+            var slot = slots[idx];
+            string currentItemId = slot?.Id;
 
-                var slot = slots[idx];
-                if (slot == null || string.IsNullOrEmpty(slot.Id))
-                {
+            if (_lastEquippedItemId != currentItemId)
+            {
+                if (string.IsNullOrEmpty(currentItemId))
                     itemEquip.Equip(-1, slots);
-                    return;
-                }
+                else
+                    itemEquip.Equip(idx, slots);
 
-                itemEquip.Equip(idx, slots);
+                _lastEquippedItemId = currentItemId;
             }
         }
 
@@ -203,6 +214,7 @@ namespace Game
                 input.OnGlobalUiCloseRequested -= CloseInventory;
                 input.OnInteractPressed -= pickDrop.TryPick;
             }
+            
         }
     }
 }

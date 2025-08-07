@@ -51,15 +51,17 @@ namespace Game
             _input.OnPlacePressed += _placeItem.TryPlace;
             _input.OnReloadPressed += () =>
             {
-                if (_controller.currentBehavior is WeaponBehavior)
-                    _controller.rpcHandler.RPC_RequestReload();
+                if (_controller.currentBehavior is WeaponBehavior wb && wb.IsValid())
+                    _controller.playerRpcHandler.RPC_RequestReload();
             };
-
+            
             _input.OnUseDown += () =>
             {
                 _isFiring = true;
-                _controller.currentBehavior?.OnUsePressed();
+                if (_controller.currentBehavior is WeaponBehavior wb && wb.IsValid())
+                    wb.OnUsePressed();
             };
+            
             _input.OnUseUp += () =>
             {
                 _isFiring = false;
@@ -86,9 +88,7 @@ namespace Game
             if (_lastSlot == _controller.netSelectedQuickSlot) return;
             _lastSlot = _controller.netSelectedQuickSlot;
 
-            // _quickSlot.OnNetworkSlotChanged(_lastSlot);
-
-            _controller.currentBehavior?.OnUnequip();
+            _controller.ClearBehavior();
 
             var slots = _inventory.GetQuickSlots();
             if (_lastSlot >= 0 && slots[_lastSlot]?.Id != null)
@@ -97,8 +97,6 @@ namespace Game
             }
             else
             {
-                _controller.ClearBehavior();
-                // _controller.rpcHandler.RPC_RequestDespawnHandModel();
                 _itemEquip.Equip(-1, slots);
             }
         }

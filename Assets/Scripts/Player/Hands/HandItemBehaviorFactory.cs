@@ -3,7 +3,8 @@ using UnityEngine;
 
 public class HandItemBehaviorFactory
 {
-    public IHandItemBehavior Create(ItemSO so, Transform handParent, InteractionController ic, InventorySlot slot)
+    public IHandItemBehavior Create(ItemSO so, Transform handParent, InteractionController ic, int slotIndex, InventorySlot slot)
+
     {
         GameObject go = new GameObject($"[Behavior] {so.Id}");
         go.transform.SetParent(handParent, false);
@@ -11,7 +12,7 @@ public class HandItemBehaviorFactory
 
         if (so is WeaponSO wso)
         {
-            var wb = go.AddComponent<WeaponBehavior>().Construct(wso, handParent, ic, slot);
+            var wb = go.AddComponent<WeaponBehavior>().Construct(wso, handParent, ic, slotIndex, slot);
             return wb;
         }
 
@@ -23,6 +24,7 @@ public class HandItemBehaviorFactory
 
         if (so is PlaceableItemSO piso)
         {
+            slot = ic.inventory.GetQuickSlots()[slotIndex]; 
             var beh = go.AddComponent<PlaceableBehavior>().Construct(piso, handParent, ic, slot);
             return beh;
         }

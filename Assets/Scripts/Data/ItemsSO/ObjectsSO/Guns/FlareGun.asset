@@ -17,7 +17,7 @@ MonoBehaviour:
   Icon: {fileID: 21300000, guid: cdba627949c1d04418bc0850321def12, type: 3}
   MaxStack: 1
   priority: 1
-  _handModelNetwork: {fileID: -5191223913549370429, guid: 12dd052f9eb107f43bfbad5f5c32c3e9, type: 3}
+  HandModelNetwork: {fileID: -5191223913549370429, guid: 12dd052f9eb107f43bfbad5f5c32c3e9, type: 3}
   maxAmmo: 1
   isAutomatic: 0
   fireRate: 1

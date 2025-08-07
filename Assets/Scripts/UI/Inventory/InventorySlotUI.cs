@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using TMPro;
 using UnityEngine.UI;
+using System;
 
 namespace Game.UI
 {
@@ -17,10 +18,10 @@ namespace Game.UI
         public IInventoryPanelUI ParentPanel { get; private set; }
         public ItemSO Item { get; private set; }
 
-        public event System.Action<InventorySlotUI> OnBeginDrag;
-        public event System.Action<InventorySlotUI> OnEndDrag;
-        public event System.Action<InventorySlotUI> OnEnter;
-        public event System.Action<InventorySlotUI> OnExit;
+        public event Action<InventorySlotUI> OnBeginDrag;
+        public event Action<InventorySlotUI> OnEndDrag;
+        public event Action<InventorySlotUI> OnEnter;
+        public event Action<InventorySlotUI> OnExit;
 
         public void Set(ItemSO item, int count)
         {
@@ -29,9 +30,8 @@ namespace Game.UI
             {
                 _icon.sprite = item.Icon;
                 _icon.enabled = true;
-                // Показывай ammo если WeaponSO, иначе count если >1
                 if (item is WeaponSO)
-                    _countText.text = count > 0 ? count.ToString() : "";
+                    _countText.text = count > 0 ? count.ToString() : "0";
                 else
                     _countText.text = count > 1 ? count.ToString() : "";
             }

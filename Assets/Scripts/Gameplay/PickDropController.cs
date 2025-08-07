@@ -13,10 +13,12 @@ namespace Game
         private ItemDatabaseSO _itemDatabase;
         private UIController _uiController;
         private InteractionController _ic;
-        private ServerRpcHandler _rpc;
+        private PlayerRpcHandler _rpc;
         private PickableItem _focusedItem;
         private ChestInventory _focusedChestInventory;
         private ChestInventory _openedChestInventory;
+
+        // [SerializeField] private Camera _camera;
 
         private Camera _camera;
 
@@ -30,7 +32,7 @@ namespace Game
             Camera camera)
         {
             _ic = controller;
-            _rpc = controller.rpcHandler;
+            _rpc = controller.playerRpcHandler;
             Inventory = inventory;
             _playerInventoryPanel = playerPanel;
             _otherInventoryPanel = otherPanel;
@@ -51,16 +53,36 @@ namespace Game
 
         public void TryDrop()
         {
-            if (!_ic.Object.HasInputAuthority) return;
+            Debug.Log("TryDrop called");
 
-            int selected = _ic.netSelectedQuickSlot;
-            if (selected < 0) return;
+            if (!_ic.Object.HasInputAuthority)
+            {
+                Debug.LogWarning("No InputAuthority!");
+                return;
+            }
+
+            int selected = Inventory.SelectedQuickSlot; // используем локальное значение
+            if (selected < 0)
+            {
+                Debug.LogWarning("No slot selected!");
+                return;
+            }
 
             var slots = Inventory.GetQuickSlots();
-            if (slots == null || selected >= slots.Length) return;
+            if (slots == null || selected >= slots.Length)
+            {
+                Debug.LogWarning("Invalid slots array or index!");
+                return;
+            }
 
             var slot = slots[selected];
-            if (string.IsNullOrEmpty(slot.Id) || slot.Count <= 0) return;
+            if (string.IsNullOrEmpty(slot.Id) || slot.Count <= 0)
+            {
+                Debug.LogWarning("Selected slot is empty!");
+                return;
+            }
+
+            Debug.Log($"Dropping item {slot.Id}, count {slot.Count}");
 
             _rpc.RPC_RequestDrop(
                 _ic.dropPoint.position,
@@ -75,10 +97,7 @@ namespace Game
 
             Inventory.RaiseQuickSlotsChanged();
 
-            if (_ic.netSelectedQuickSlot == selected)
-            {
-                _ic.inventory.ForceSetQuickSlot(-1);
-            }
+            Inventory.ForceSetQuickSlot(-1);
         }
 
         public void UpdateRaycast()

@@ -24,7 +24,7 @@ namespace Game.Network
         {
             if (player == PlayerRef.None || _spawned.ContainsKey(player))
             {
-                Debug.LogError($"[PlayerSpawner] Игрок с PlayerRef {player} уже существует или некорректен!");
+                // Debug.LogError($"[PlayerSpawner] Игрок с PlayerRef {player} уже существует или некорректен!");
                 return;
             }
 
@@ -32,16 +32,16 @@ namespace Game.Network
 
             if (netObj == null)
             {
-                Debug.LogError($"[PlayerSpawner] NetworkObject не создан для PlayerRef={player}");
+                // Debug.LogError($"[PlayerSpawner] NetworkObject не создан для PlayerRef={player}");
                 return;
             }
 
             _spawned[player] = netObj.gameObject;
-            Debug.Log($"[PlayerSpawner] Игрок {player} успешно добавлен в словарь.");
+            // Debug.Log($"[PlayerSpawner] Игрок {player} успешно добавлен в словарь.");
 
             GameObject _player = GetPlayerGameObject(player);
             InteractionController interactionController = _player.GetComponent<InteractionController>();
-            Debug.Log($"[PlayerSpawner] {interactionController} для игрока {player} успешно получен.");
+            // Debug.Log($"[PlayerSpawner] {interactionController} для игрока {player} успешно получен.");
         }
 
 
@@ -60,12 +60,12 @@ namespace Game.Network
         {
             if (_spawned.TryGetValue(player, out var obj))
             {
-                Debug.Log($"PlayerSpawner: GameObject {obj} найден для {player}!");
+                // Debug.Log($"PlayerSpawner: GameObject {obj} найден для {player}!");
                 return obj;
             }
             else
             {
-                Debug.LogError($"PlayerSpawner: playerRef {player} не найден!");
+                // Debug.LogError($"PlayerSpawner: playerRef {player} не найден!");
                 return null;
             }
         }
@@ -80,14 +80,14 @@ namespace Game.Network
 
                 if (interactionController == null || handItemController == null)
                 {
-                    Debug.LogError($"[PlayerSpawner] Один из компонентов не найден на игроке с PlayerRef {player}");
+                    // Debug.LogError($"[PlayerSpawner] Один из компонентов не найден на игроке с PlayerRef {player}");
                 }
             }
             else
             {
                 interactionController = null;
                 handItemController = null;
-                Debug.LogError($"[PlayerSpawner] Игрок с PlayerRef {player} не найден!");
+                // Debug.LogError($"[PlayerSpawner] Игрок с PlayerRef {player} не найден!");
             }
         }
             

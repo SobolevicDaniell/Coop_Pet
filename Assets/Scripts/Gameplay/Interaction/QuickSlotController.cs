@@ -13,69 +13,54 @@ namespace Game
         {
             _ic = controller;
             Inventory = inventory;
-            if (Inventory == null)
-            {
-                // Debug.LogError("[QuickSlotController] InventoryService is NULL!");
-                return;
-            }
-            // Debug.Log("[QuickSlotController] Initialized");
+            if (_ic.Object.HasInputAuthority)
+                Inventory.OnQuickSlotsChanged += HandleQuickSlotsChanged;
         }
-
         public void ChangeSlotAbsolute(int slot)
         {
-            // Debug.Log($"[{name}] InputAuthority: {_ic.Object.HasInputAuthority}, NetworkId: {_ic.Object.Id}");
+            if (!_ic.Object.HasInputAuthority || Inventory == null) return;
 
-            if (!_ic.Object.HasInputAuthority) return;
-
-            int prev = Inventory.SelectedQuickSlot;
             Inventory.ToggleQuickSlot(slot);
 
-            int curr = Inventory.SelectedQuickSlot;
+            // Всегда вызываем HandleQuickSlotsChanged явно после изменения слота
+            HandleQuickSlotsChanged();
 
-            if (curr == -1)
-            {
-                _ic.handItemController.RequestUnEquip();
-                // Debug.Log($"[QuickSlotController] Слот {slot} сброшен");
-            }
-            else
-            {
-                var quickSlots = Inventory.GetQuickSlots();
-                if (quickSlots != null && slot >= 0 && slot < quickSlots.Length)
-                {
-                    var id = quickSlots[slot].Id;
-                    if (!string.IsNullOrEmpty(id))
-                    {
-                        var so = _ic.db.Get(id);
-                        if (so != null)
-                        {
-                            // string itemId = so.Id;
-                            _ic.handItemController.RequestEquip(id);
-                        }
-                        else
-                        {
-                            _ic.handItemController.RequestUnEquip();
-                        }
-                    }
-                    else
-                    {
-                        _ic.handItemController.RequestUnEquip();
-                    }
-                }
-                // Debug.Log($"[QuickSlotController] Слот {slot} выбран");
-            }
+            // Также вызываем активацию поведения
+            _ic.InvokeOnQuickSlotsChanged();
         }
 
-        public void ChangeSlotRelative(int d)
+
+        public void ChangeSlotRelative(int delta)
         {
-            if (_ic == null || !_ic.Object.HasInputAuthority || Inventory == null)
-                return;
+            if (_ic == null || !_ic.Object.HasInputAuthority || Inventory == null) return;
 
             var slots = Inventory.GetQuickSlots();
             int cnt = slots.Length;
             int cur = Inventory.SelectedQuickSlot < 0 ? 0 : Inventory.SelectedQuickSlot;
-            int next = (cur + d + cnt) % cnt;
+            int next = (cur + delta + cnt) % cnt;
 
             ChangeSlotAbsolute(next);
+        }
+        private void HandleQuickSlotsChanged()
+        {
+            if (!_ic.Object.HasInputAuthority || Inventory == null) return;
+
+            int idx = Inventory.SelectedQuickSlot;
+            var slots = Inventory.GetQuickSlots();
+
+            if (idx < 0 || idx >= slots.Length)
+            {
+                _ic.handItemController.RequestUnEquip();
+                return;
+            }
+
+            var slot = slots[idx];
+            string id = slot.Id;
+
+            if (string.IsNullOrEmpty(id))
+                _ic.handItemController.RequestUnEquip();   // слот опустел
+            else
+                _ic.handItemController.RequestEquip(id);   // в слоте новый предмет
         }
     }
 }

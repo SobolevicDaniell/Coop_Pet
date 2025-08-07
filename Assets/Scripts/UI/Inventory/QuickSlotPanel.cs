@@ -20,6 +20,9 @@ namespace Game.UI
 
         private bool _initialized = false;
 
+        private InventorySlotUI _draggingSlot;
+        private InventorySlotUI _targetSlot;
+
         [Inject]
         public void Construct(
             InventoryService inv,
@@ -31,7 +34,6 @@ namespace Game.UI
             _slotPrefab = slotPrefab;
         }
 
-        // Вызывается только для локального игрока
         public void InitializeIfLocal(InteractionController controller)
         {
             if (controller == null || !controller.Object.HasInputAuthority)
@@ -39,6 +41,7 @@ namespace Game.UI
                 gameObject.SetActive(false);
                 return;
             }
+
             if (_initialized)
                 return;
 
@@ -46,7 +49,6 @@ namespace Game.UI
 
             CreateSlots();
 
-            // Подписка без дублирования!
             _inv.OnQuickSlotsChanged -= Refresh;
             _inv.OnQuickSlotSelectionChanged -= OnQuickSlotChanged;
             _inv.OnQuickSlotsChanged += Refresh;
@@ -70,10 +72,44 @@ namespace Game.UI
 
         private void SubscribeSlot(InventorySlotUI slot)
         {
+            slot.OnBeginDrag += HandleSlotBeginDrag;
+            slot.OnEndDrag += HandleSlotEndDrag;
+            slot.OnEnter += HandleSlotEnter;
+            slot.OnExit += HandleSlotExit;
+
+            // Сохраняем старую логику (прокидываем события дальше)
             slot.OnBeginDrag += slotUI => OnSlotBeginDrag?.Invoke(slotUI);
             slot.OnEndDrag += slotUI => OnSlotEndDrag?.Invoke(slotUI);
             slot.OnEnter += slotUI => OnSlotEnter?.Invoke(slotUI);
             slot.OnExit += slotUI => OnSlotExit?.Invoke(slotUI);
+        }
+
+        private void HandleSlotBeginDrag(InventorySlotUI slot)
+        {
+            _draggingSlot = slot;
+        }
+
+        private void HandleSlotEndDrag(InventorySlotUI slot)
+        {
+            if (_draggingSlot != null && _targetSlot != null && _draggingSlot != _targetSlot)
+            {
+                int from = _draggingSlot.SlotIndex;
+                int to = _targetSlot.SlotIndex;
+
+                // if (_inv.MoveQuickSlot(from, to))
+                    // Debug.Log($"Moved quick slot from {from} to {to}");
+            }
+
+            _draggingSlot = null;
+            _targetSlot = null;
+        }
+
+        private void HandleSlotEnter(InventorySlotUI slot) => _targetSlot = slot;
+
+        private void HandleSlotExit(InventorySlotUI slot)
+        {
+            if (_targetSlot == slot)
+                _targetSlot = null;
         }
 
         public void RefreshPanel() => Refresh();
@@ -97,7 +133,7 @@ namespace Game.UI
 
         private void OnQuickSlotChanged(int index)
         {
-            Debug.Log($"[QuickSlotPanel] OnQuickSlotChanged: {index}");
+            // Debug.Log($"[QuickSlotPanel] OnQuickSlotChanged: {index}");
             Refresh();
         }
 
@@ -129,7 +165,10 @@ namespace Game.UI
                 _inv.OnQuickSlotSelectionChanged -= OnQuickSlotChanged;
             }
             _inv = null;
-            if (_slots == null) return;
+
+            if (_slots == null)
+                return;
+
             foreach (var slotUI in _slots)
                 slotUI.Set(null, 0);
         }

@@ -45,6 +45,22 @@ namespace Game
             OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
         }
 
+        public bool MoveQuickSlot(int from, int to)
+        {
+            if (from == to) return false;
+            if (from < 0 || from >= _quickSlots.Length) return false;
+            if (to < 0 || to >= _quickSlots.Length) return false;
+
+            (_quickSlots[from], _quickSlots[to]) = (_quickSlots[to], _quickSlots[from]);
+
+            // Если выбранный слот был перемещён, сбрасываем выбор
+            if (SelectedQuickSlot == from || SelectedQuickSlot == to)
+                SelectedQuickSlot = -1;
+
+            OnQuickSlotsChanged?.Invoke();
+            OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
+            return true;
+        }
        
 
         public int HandlePick(string itemId, int count, int ammo)

@@ -7,7 +7,7 @@ namespace Game
     public class ToolSO : ItemSO
     {
         [Header("Tool")]
-        public NetworkObject _handModelNetwork;
+        public NetworkObject HandModelNetwork;
         public float durability;
         public float harvestSpeed;
     }
