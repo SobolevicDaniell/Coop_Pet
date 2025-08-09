@@ -47,6 +47,9 @@ namespace Game
 
         private SceneContext sceneContext;
 
+        private string _lastEquippedItemId = null;
+        private int _lastEquippedSlot = -1;
+
 
         [Networked] public NetworkId handModelNetId { get; set; }
         public NetworkObject handModelNetObj;
@@ -171,36 +174,48 @@ namespace Game
             currentBehavior = null;
         }
 
-        private string _lastEquippedItemId = null;
+        
 
         private void OnQuickSlotsChanged()
+    {
+        if (itemEquip == null || inventory == null)
+            return;
+
+        int idx = inventory.SelectedQuickSlot;
+        var slots = inventory.GetQuickSlots();
+
+        // держим в синхроне сетевой индекс для клиентов/лейтджойнов
+        if (Object.HasInputAuthority)
+            netSelectedQuickSlot = idx;
+
+        // нет активного слота — снимаем предмет
+        if (slots == null || idx < 0 || idx >= slots.Length)
         {
-            if (itemEquip == null || inventory == null)
-                return;
-
-            int idx = inventory.SelectedQuickSlot;
-            var slots = inventory.GetQuickSlots();
-
-            if (slots == null || idx < 0 || idx >= slots.Length)
-            {
-                itemEquip.Equip(-1, slots);
-                _lastEquippedItemId = null;
-                return;
-            }
-
-            var slot = slots[idx];
-            string currentItemId = slot?.Id;
-
-            if (_lastEquippedItemId != currentItemId)
-            {
-                if (string.IsNullOrEmpty(currentItemId))
-                    itemEquip.Equip(-1, slots);
-                else
-                    itemEquip.Equip(idx, slots);
-
-                _lastEquippedItemId = currentItemId;
-            }
+            itemEquip.Equip(-1, slots);
+            _lastEquippedItemId = null;
+            _lastEquippedSlot = -1;
+            return;
         }
+
+        var slot = slots[idx];
+        string currentItemId = slot?.Id;
+
+        bool needEquip =
+            currentBehavior == null      // нет поведения
+            || _lastEquippedSlot != idx  // сменился индекс слота (ВАЖНО!)
+            || _lastEquippedItemId != currentItemId; // сменился тип предмета
+
+        if (needEquip)
+        {
+            if (string.IsNullOrEmpty(currentItemId))
+                itemEquip.Equip(-1, slots);
+            else
+                itemEquip.Equip(idx, slots);
+
+            _lastEquippedItemId = currentItemId;
+            _lastEquippedSlot = idx;
+        }
+    }
 
 
         private void OnDestroy()

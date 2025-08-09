@@ -22,10 +22,13 @@ namespace Game
 
             Inventory.ToggleQuickSlot(slot);
 
-            // Всегда вызываем HandleQuickSlotsChanged явно после изменения слота
+            // поддерживаем сетевое поле (для клиентов и late-join)
+            _ic.netSelectedQuickSlot = Inventory.SelectedQuickSlot;
+
+            // 1) визуальная часть (модель в руках через RPC)
             HandleQuickSlotsChanged();
 
-            // Также вызываем активацию поведения
+            // 2) логика поведения (Equip через единую точку)
             _ic.InvokeOnQuickSlotsChanged();
         }
 
@@ -58,9 +61,9 @@ namespace Game
             string id = slot.Id;
 
             if (string.IsNullOrEmpty(id))
-                _ic.handItemController.RequestUnEquip();   // слот опустел
+                _ic.handItemController.RequestUnEquip();
             else
-                _ic.handItemController.RequestEquip(id);   // в слоте новый предмет
+                _ic.handItemController.RequestEquip(id);
         }
     }
 }

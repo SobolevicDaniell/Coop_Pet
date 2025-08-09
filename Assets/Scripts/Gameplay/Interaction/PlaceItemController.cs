@@ -6,15 +6,20 @@ namespace Game
     public class PlaceItemController : MonoBehaviour
     {
         private InteractionController _controller;
+        private Camera _camera;
 
         public void Initialize(InteractionController controller)
         {
             _controller = controller;
+            // Берём камеру из контроллера (он возвращает Camera.main), либо запасной Camera.main
+            _camera = controller != null ? controller.camera : Camera.main;
         }
 
         public void TryPlace()
         {
-            var selected = _controller.netSelectedQuickSlot;
+            if (_controller == null || !_controller.Object.HasInputAuthority) return;
+
+            int selected = _controller.netSelectedQuickSlot;
             if (selected < 0) return;
 
             var slots = _controller.inventory.GetQuickSlots();
@@ -24,39 +29,51 @@ namespace Game
             if (string.IsNullOrEmpty(slot.Id) || slot.Count <= 0) return;
 
             var so = _controller.db.Get(slot.Id);
-            if (!(so is PlaceableItemSO placeable)) return;
+            if (so is not PlaceableItemSO placeable) return;
 
-            var camera = _controller.GetComponent<Camera>();
-            Vector3 placePos = Vector3.zero;
-            Vector3 placeNormal = Vector3.up;
-            bool canPlace = false;
-            Ray ray = camera.ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2));
-            if (Physics.Raycast(ray, out var hit, _controller._rangePlace))
+            // НЕ Ищем камеру на игроке! Берём из кэша/Camera.main
+            var cam = _camera != null ? _camera : Camera.main;
+            if (cam == null)
+            {
+                Debug.LogError("[PlaceItemController] Camera is NULL. Проставь тег MainCamera на игровой камере.");
+                return;
+            }
+
+            // Луч из центра экрана (удобнее для клавиши F)
+            Vector3 screenPoint = new(Screen.width * 0.5f, Screen.height * 0.5f, 0f);
+            Ray ray = cam.ScreenPointToRay(screenPoint);
+
+            Vector3 placePos;
+            Vector3 up;
+
+            if (Physics.Raycast(ray, out var hit, _controller._rangePlace, ~0, QueryTriggerInteraction.Ignore))
             {
                 placePos = hit.point;
-                placeNormal = hit.normal;
-                canPlace = true;
+                up = hit.normal;
             }
             else
             {
-                placePos = ray.origin + ray.direction * _controller._rangePlace;
-                canPlace = true;
+                // Фоллбек — ставим по направлению камеры на дальности
+                placePos = cam.transform.position + cam.transform.forward * _controller._rangePlace;
+                up = Vector3.up;
             }
 
+            // Ориентация: up = нормаль поверхности, forward = проекция взгляда на плоскость
+            Vector3 forward = Vector3.ProjectOnPlane(cam.transform.forward, up);
+            if (forward.sqrMagnitude < 1e-6f) forward = Vector3.Cross(up, Vector3.right);
+            forward.Normalize();
+            Quaternion rotation = Quaternion.LookRotation(forward, up);
 
-            if (canPlace)
+            _controller.playerRpcHandler.RPC_RequestPlaceObject(placeable.Id, placePos, rotation);
+
+            // Списываем предмет из слота
+            slot.Count -= 1;
+            if (slot.Count <= 0)
             {
-                var rotation = Quaternion.LookRotation(placeNormal) * Quaternion.Euler(90, 0, 0);
-                _controller.playerRpcHandler.RPC_RequestPlaceObject(placeable.Id, placePos, rotation);
-
-                slot.Count -= 1;
-                if (slot.Count <= 0)
-                {
-                    slot.Id = null;
-                    slot.State = new ItemState();
-                }
-                _controller.inventory.RaiseQuickSlotsChanged();
+                slot.Id = null;
+                slot.State = null; // именно null, чтобы слот считался пустым
             }
+            _controller.inventory.RaiseQuickSlotsChanged();
         }
     }
 }

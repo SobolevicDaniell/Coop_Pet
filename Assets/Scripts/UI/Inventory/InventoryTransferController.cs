@@ -75,50 +75,137 @@ namespace Game.UI
         {
             if (_draggedSlot == null) return;
 
-            if (IsPointerOverDropZone())
+            // 1) если можно бросить в мир — бросаем
+            if (CanDropToWorldHere())
             {
-                DropFromSlot(_draggedSlot);
-            }
-            else
-            {
-                if (_hoveredSlot == null)
-                    _hoveredSlot = GetSlotUnderMouse();
-
-                if (_hoveredSlot != null && _hoveredSlot != _draggedSlot)
-                {
-                    var fromInv = _draggedSlot.ParentInventory;
-                    var toInv = _hoveredSlot.ParentInventory;
-
-                    int fromAbsIndex = GetInventoryServiceIndex(_draggedSlot);
-                    int toAbsIndex = GetInventoryServiceIndex(_hoveredSlot);
-
-                    InventorySlot fromSlotData;
-
-                    if (_draggedSlot.ParentPanel is QuickSlotPanel && fromInv is InventoryService serviceFrom)
-                        fromSlotData = serviceFrom.GetQuickSlots()[_draggedSlot.SlotIndex];
-                    else
-                        fromSlotData = fromInv.GetInventorySlots()[_draggedSlot.SlotIndex];
-
-                    if (string.IsNullOrEmpty(fromSlotData.Id))
-                    {
-                        Debug.LogWarning("Попытка переместить пустой слот.");
-                        ResetDrag();
-                        return;
-                    }
-
-                    bool moved = toInv.TryMoveToSlot(fromSlotData.Id, fromSlotData.Count, toAbsIndex, fromSlotData.State);
-
-                    if (moved)
-                        fromInv.TryRemoveItem(fromAbsIndex, fromSlotData.Count);
-                    else
-                        Debug.LogWarning("Перенос предмета не удался.");
-                }
+                DropFromSlot(_draggedSlot); // вызовет PickDropController.DropFromSlot(...)
+                FinishAndRefresh();
+                return;
             }
 
+            // 2) иначе — ищем слот под мышью (если _hoveredSlot не пойман из enter/exit)
+            if (_hoveredSlot == null)
+                _hoveredSlot = GetSlotUnderMouse();
+
+            // 2.1) если есть другой слот — пытаемся перенести / сложить стаки / иначе ОБМЕН
+            if (_hoveredSlot != null && _hoveredSlot != _draggedSlot)
+            {
+                TryMoveOrSwap(_draggedSlot, _hoveredSlot);
+                FinishAndRefresh();
+                return;
+            }
+
+            // 3) иначе — просто закончить
+            FinishAndRefresh();
+        }
+
+        private void FinishAndRefresh()
+        {
             foreach (var panel in _allPanels)
                 panel?.RefreshPanel();
 
             ResetDrag();
+        }
+
+        private void TryMoveOrSwap(InventorySlotUI fromUI, InventorySlotUI toUI)
+        {
+            var fromInv = fromUI.ParentInventory;
+            var toInv = toUI.ParentInventory;
+
+            int fromAbsIndex = GetInventoryServiceIndex(fromUI);
+            int toAbsIndex = GetInventoryServiceIndex(toUI);
+
+            var fromSlot = GetBackendSlotRef(fromUI);
+            var toSlot = GetBackendSlotRef(toUI);
+
+            if (fromSlot == null || string.IsNullOrEmpty(fromSlot.Id))
+            {
+                Debug.LogWarning("Попытка переместить пустой слот.");
+                return;
+            }
+
+            // сначала пробуем обычный перенос (даст стаки, если можно)
+            bool moved = toInv.TryMoveToSlot(fromSlot.Id, fromSlot.Count, toAbsIndex, fromSlot.State);
+            if (moved)
+            {
+                fromInv.TryRemoveItem(fromAbsIndex, fromSlot.Count);
+                return;
+            }
+
+            // если не получилось — делаем ОБМЕН, только если целевой слот занят
+            bool toOccupied = (toSlot != null && !string.IsNullOrEmpty(toSlot.Id));
+            if (!toOccupied)
+                return;
+
+            // один и тот же инвентарь → своп полей
+            if (ReferenceEquals(fromInv, toInv))
+            {
+                (fromSlot.Id, toSlot.Id) = (toSlot.Id, fromSlot.Id);
+                (fromSlot.Count, toSlot.Count) = (toSlot.Count, fromSlot.Count);
+                (fromSlot.State, toSlot.State) = (toSlot.State, fromSlot.State);
+
+                // Сигналы обновления
+                fromInv.RaiseInventoryChanged();
+                if (fromInv is InventoryService svc)
+                    svc.RaiseQuickSlotsChanged();
+                return;
+            }
+
+            // разные инвентари → «двойной мув» как обмен
+            string keepId = toSlot.Id; int keepCount = toSlot.Count; var keepState = toSlot.State;
+
+            // освободить целевой
+            toInv.TryRemoveItem(toAbsIndex, keepCount);
+
+            // from → to
+            bool toOk = toInv.TryMoveToSlot(fromSlot.Id, fromSlot.Count, toAbsIndex, fromSlot.State);
+            if (!toOk)
+            {
+                // откат
+                toInv.TryMoveToSlot(keepId, keepCount, toAbsIndex, keepState);
+                return;
+            }
+
+            // toSaved → from
+            fromInv.TryRemoveItem(fromAbsIndex, fromSlot.Count);
+            fromInv.TryMoveToSlot(keepId, keepCount, fromAbsIndex, keepState);
+        }
+        private InventorySlot GetBackendSlotRef(InventorySlotUI slotUI)
+        {
+            var parentInv = slotUI.ParentInventory;
+
+            if (parentInv is InventoryService svc)
+            {
+                if (slotUI.ParentPanel is QuickSlotPanel)
+                    return svc.GetQuickSlots()[slotUI.SlotIndex];
+                else if (slotUI.ParentPanel is InventoryPanel)
+                    return svc.GetInventorySlots()[slotUI.SlotIndex];
+            }
+            // другие инвентари (сундук и т.д.)
+            return parentInv.GetInventorySlots()[slotUI.SlotIndex];
+        }
+
+        private bool CanDropToWorldHere()
+        {
+            // Нельзя, если курсор над панелями/слотами инвентаря
+            if (GetSlotUnderMouse() != null)
+                return false;
+
+            // Если курсор над любым из UI-панелей инвентаря — запрещаем
+            PointerEventData pointerData = new PointerEventData(EventSystem.current) { position = Input.mousePosition };
+            var results = new List<RaycastResult>();
+            EventSystem.current.RaycastAll(pointerData, results);
+
+            foreach (var hit in results)
+            {
+                if (hit.gameObject.GetComponent<InventoryPanel>() != null ||
+                    hit.gameObject.GetComponent<OtherInventoryPanel>() != null ||
+                    hit.gameObject.GetComponent<QuickSlotPanel>() != null)
+                    return false;
+            }
+
+            // Всё остальное (пустое пространство или любой не-инвентарный UI) — позволяем бросить
+            return true;
         }
 
         private void OnSlotEnter(InventorySlotUI slot)

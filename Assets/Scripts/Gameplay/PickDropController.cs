@@ -173,46 +173,57 @@ namespace Game
         {
             if (!_ic.Object.HasInputAuthority) return;
 
+            // 1) достаём ссылку на реальный слот
             var parentInv = slotUI.ParentInventory;
             InventorySlot slot = null;
 
-            if (parentInv is InventoryService invService)
+            if (parentInv is InventoryService svc)
             {
                 slot = slotUI.ParentPanel is QuickSlotPanel
-                    ? invService.GetQuickSlots()[slotUI.SlotIndex]
-                    : invService.GetInventorySlots()[slotUI.SlotIndex];
+                    ? svc.GetQuickSlots()[slotUI.SlotIndex]
+                    : svc.GetInventorySlots()[slotUI.SlotIndex];
             }
-            else if (parentInv is ChestInventory chestInv)
-                slot = chestInv.GetInventorySlots()[slotUI.SlotIndex];
+            else
+            {
+                slot = parentInv.GetInventorySlots()[slotUI.SlotIndex];
+            }
 
             if (slot == null || string.IsNullOrEmpty(slot.Id) || slot.Count <= 0)
                 return;
 
+            // 2) выбираем камеру и считаем позицию/направление
+            var cam = _camera != null ? _camera : Camera.main;      // <<< НИ КАКОГО GetComponent<Camera>() на игроке
+            Vector3 forward = cam != null ? cam.transform.forward : _ic.transform.forward;
+            Vector3 pos = _ic.dropPoint != null ? _ic.dropPoint.position : _ic.transform.position + forward * 1.0f;
+
+            // рейкаст под курсор для более точного дропа
+            if (cam != null)
+            {
+                var ray = cam.ScreenPointToRay(Input.mousePosition);
+                if (Physics.Raycast(ray, out var hit, _ic._rangePlace))
+                {
+                    pos = hit.point;
+                    forward = cam.transform.forward;
+                }
+            }
+
+            // 3) сетевой дроп (как по Q)
             _rpc.RPC_RequestDrop(
-                _ic.dropPoint.position,
-                _ic.GetComponent<Camera>().transform.forward,
+                pos,
+                forward,
                 slot.Id,
                 slot.Count,
-                slot.State?.Ammo ?? 0);
+                slot.State?.Ammo ?? 0
+            );
 
+            // 4) очистка слота и события (иначе «в инвентаре не удаляется»)
             slot.Id = null;
             slot.Count = 0;
             slot.State = null;
 
             parentInv.RaiseInventoryChanged();
-
-            if (parentInv is InventoryService inv)
-                inv.RaiseQuickSlotsChanged();
-
-            if (parentInv is InventoryService && slotUI.ParentPanel is QuickSlotPanel)
-            {
-                if (_ic.netSelectedQuickSlot == slotUI.SlotIndex)
-                {
-                    // _rpc.RPC_SelectQuickSlot(-1);
-                    _ic.inventory.ForceSetQuickSlot(-1);
-                    // _rpc.RPC_RequestDespawnHandModel();
-                }
-            }
+            if (parentInv is InventoryService isvc)
+                isvc.RaiseQuickSlotsChanged();
         }
 
         private int GetAbsIndex(InventorySlotUI slotUI)
