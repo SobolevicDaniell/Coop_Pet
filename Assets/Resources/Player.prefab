@@ -221,6 +221,9 @@ GameObject:
   - component: {fileID: -6335083702584605143}
   - component: {fileID: -3395697285265996011}
   - component: {fileID: -2158133828490695294}
+  - component: {fileID: 2956075808528719169}
+  - component: {fileID: 2851646817115359618}
+  - component: {fileID: 4709696160151012762}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -274,6 +277,7 @@ MonoBehaviour:
   - {fileID: 6153325551596305792}
   - {fileID: 5935501579931714443}
   - {fileID: 3269879759306030424}
+  - {fileID: 4709696160151012762}
   - {fileID: 2445908070462576243}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &4402347777045086714
@@ -371,10 +375,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerMovement
   _controller: {fileID: 8738837504596620008}
   _cameraRoot: {fileID: 9057606014164570482}
-  _moveSpeed: 5
-  _mouseSensitivity: 2
+  _moveSpeed: 7
+  _mouseSensitivity: 6
   _gravity: -9.81
-  _jumpForce: 5
+  _jumpForce: 1
+  _groundCheck: {fileID: 0}
+  _groundRadius: 0.25
+  _groundMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
 --- !u!114 &8225079911294365844
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -402,6 +411,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9c96045e3e2bbd04c9377a0d4b4d209e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerRpcHandler
+  defaultBulletPrefab: {fileID: -3301543703974256972, guid: 62d89cc04b19b7348bd19b274080c461, type: 3}
 --- !u!114 &536071863030034606
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -414,18 +424,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e5056f5ebbd9d2346954eba05b58a81c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.InteractionController
-  input: {fileID: 7251172290690331865}
-  prompt: {fileID: 0}
   _handPoint: {fileID: 135403576282410744}
   _dropPoint: {fileID: 345444223730738563}
   _rangePick: 4
   _rangePlace: 8
   _throwForce: 5
   _netSelectedQuickSlot: -1
-  camera: {fileID: 614458143632551072}
   _handModelNetId:
     Raw: 0
-  handModelNetObj: {fileID: 0}
 --- !u!114 &7002019134348824070
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -489,8 +495,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43073b4c1b8ba934581e9df5297195ff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InputHandler
-  keyboardLookSensitivity: 700
-  mouseLookSensitivity: 15
+  keyboardLookSensitivity: 50000
+  mouseLookSensitivity: 60
 --- !u!114 &5935501579931714443
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -503,6 +509,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9c96045e3e2bbd04c9377a0d4b4d209e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerRpcHandler
+  defaultBulletPrefab: {fileID: 0}
 --- !u!114 &3269879759306030424
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -553,6 +560,52 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 75abaacbc75dbed469b35ab47bee7dc6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlaceItemController
+--- !u!114 &2956075808528719169
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3950158868047817375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 08eca9f7688a0a24685b89133b020c8e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Zenject::Zenject.GameObjectContext
+  _scriptableObjectInstallers: []
+  _monoInstallers:
+  - {fileID: 2851646817115359618}
+  _installerPrefabs: []
+  _autoRun: 1
+  _kernel: {fileID: 0}
+--- !u!114 &2851646817115359618
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3950158868047817375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ff1b44a433bb75344a686526fba7452b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Zenject::Zenject.SpaceFighter.PlayerInstaller
+--- !u!114 &4709696160151012762
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3950158868047817375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2aec953314c189347b47878e86529eb3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerInputRouter
+  _slotCount: 10
+  _wheelCooldown: 0
+  _placeMaxDistance: 4
+  _dropCooldown: 0.12
 --- !u!1 &5556326248227318228
 GameObject:
   m_ObjectHideFlags: 0

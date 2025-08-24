@@ -1,12 +1,11 @@
-﻿using Fusion;
+﻿using System.Collections;
+using System.Linq;
+using Fusion;
 using UnityEngine;
 using Zenject;
-using Game;
-using System.Linq;
 
 namespace Game.Gameplay
 {
-    [RequireComponent(typeof(NetworkRunnerProvider))]
     public class PickableSpawner : MonoBehaviour
     {
         [Inject] private NetworkRunner _runner;
@@ -18,48 +17,67 @@ namespace Game.Gameplay
         [Header("Желаемое количество (≤ MaxStack)")]
         [SerializeField] private int _requestedCount = 1;
 
+        private bool _spawned;
+        private Coroutine _routine;
 
         private void OnEnable()
         {
-            Network.Startup.OnSessionStarted += SpawnPickable;
+            if (!Application.isPlaying) return;
+            _routine = StartCoroutine(CoSpawnWhenReady());
         }
 
         private void OnDisable()
         {
-            Network.Startup.OnSessionStarted -= SpawnPickable;
+            if (!Application.isPlaying) return;
+            if (_routine != null) StopCoroutine(_routine);
+            _routine = null;
+        }
+
+        private IEnumerator CoSpawnWhenReady()
+        {
+            while (_runner == null)
+            {
+                _runner = FindObjectOfType<NetworkRunner>();
+                yield return null;
+            }
+
+            while (!_runner.IsRunning)
+                yield return null;
+
+            if (!HasAuthority(_runner))
+                yield break;
+
+            if (_spawned)
+                yield break;
+
+            SpawnPickable();
+            _spawned = true;
+        }
+
+        private bool HasAuthority(NetworkRunner runner)
+        {
+            return runner.IsServer || runner.IsSharedModeMasterClient;
         }
 
         private void OnValidate()
         {
             if (_database == null) return;
-
             var names = new string[_database.Items.Count];
             for (int i = 0; i < names.Length; i++)
                 names[i] = _database.Items[i].Id;
-
             if (!names.Contains(_itemId) && names.Length > 0)
                 _itemId = names[0];
         }
 
         private void SpawnPickable()
         {
-            if (!_runner.IsServer) return;
-
             var itemDef = _database.Get(_itemId);
-            if (itemDef == null)
-            {
-                Debug.LogError($"[PickableSpawner] ItemSO '{_itemId}' не найден в базе!");
-                return;
-            }
+            if (itemDef == null) return;
 
             int count = Mathf.Clamp(_requestedCount, 1, itemDef.MaxStack);
 
             var prefabNetObj = itemDef.Prefab.GetComponent<NetworkObject>();
-            if (prefabNetObj == null)
-            {
-                Debug.LogError($"[PickableSpawner] У Prefab предмета '{_itemId}' нет компонента NetworkObject!");
-                return;
-            }
+            if (prefabNetObj == null) return;
 
             _runner.Spawn(
                 prefabNetObj,
@@ -69,7 +87,8 @@ namespace Game.Gameplay
                 onBeforeSpawned: (runner, spawnedObj) =>
                 {
                     var pickable = spawnedObj.GetComponent<PickableItem>();
-                    pickable.Initialize(_itemId, count);
+                    if (pickable != null)
+                        pickable.ServerInit(_itemId, count, 0);
                 }
             );
         }

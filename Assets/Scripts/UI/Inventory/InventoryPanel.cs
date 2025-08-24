@@ -13,68 +13,102 @@ namespace Game.UI
         private InventorySlotUI _slotPrefab;
         private InventorySlotUI[] _slotsUI;
 
+        public PanelKind Kind => PanelKind.Player;
+
         public event Action<InventorySlotUI> OnSlotBeginDrag;
         public event Action<InventorySlotUI> OnSlotEndDrag;
         public event Action<InventorySlotUI> OnSlotEnter;
-        public event Action<InventorySlotUI> OnSlotExit;
+        public event Action<InventorySlotUI> OnSlotExit; 
 
         [Inject]
-        public void Construct(InventoryService inventory, ItemDatabaseSO database, [Inject(Id = "InventorySlotPrefab")] InventorySlotUI slotPrefab, PlayerStatsSO playerStats)
+        public void Construct(ItemDatabaseSO database, [Inject(Id = "InventorySlotPrefab")] InventorySlotUI slotPrefab, PlayerStatsSO playerStats)
         {
-            _slotPrefab = slotPrefab;
-            _inventory = inventory;
             _database = database;
+            _slotPrefab = slotPrefab;
 
-            CreateSlots(playerStats.inventorySlotsCount);
-            _inventory.OnInventoryChanged += Refresh;
-            Refresh();
+            int count = playerStats != null ? playerStats.inventorySlotsCount : 30;
+            CreateSlots(count);
         }
 
-        private void CreateSlots(int count)
-        {
-            _slotsUI = new InventorySlotUI[count];
-            for (int i = 0; i < count; i++)
-            {
-                var slot = Instantiate(_slotPrefab, _slotsParent);
-                slot.Init(i, _inventory, this);
-                slot.SetActive(false);
-                SubscribeSlot(slot);
-                _slotsUI[i] = slot;
-            }
-        }
-
-        private void SubscribeSlot(InventorySlotUI slot)
-        {
-            slot.OnBeginDrag += slotUI => OnSlotBeginDrag?.Invoke(slotUI);
-            slot.OnEndDrag += slotUI => OnSlotEndDrag?.Invoke(slotUI);
-            slot.OnEnter += slotUI => OnSlotEnter?.Invoke(slotUI);
-            slot.OnExit += slotUI => OnSlotExit?.Invoke(slotUI);
-        }
-
-        public void RefreshPanel() => Refresh();
-
-        private void Refresh()
-        {
-            var slots = _inventory.GetInventorySlots();
-            for (int i = 0; i < _slotsUI.Length; i++)
-            {
-                var slotUI = _slotsUI[i];
-                var slotData = slots[i];
-                var item = slotData.Id != null ? _database.Get(slotData.Id) : null;
-                slotUI.Set(item, item is WeaponSO ? slotData.State?.Ammo ?? 0 : slotData.Count);
-            }
-        }
-
-        public void SetInventory(IInventory inventory, ItemDatabaseSO database)
+        public void Construct(IInventory inventory)
         {
             if (_inventory != null)
                 _inventory.OnInventoryChanged -= Refresh;
 
             _inventory = inventory;
-            _database = database;
-            _inventory.OnInventoryChanged += Refresh;
+
+            if (_slotsUI != null)
+            {
+                for (int i = 0; i < _slotsUI.Length; i++)
+                    _slotsUI[i]?.Init(i, _inventory, this);
+            }
+
+            if (_inventory != null)
+                _inventory.OnInventoryChanged += Refresh;
 
             Refresh();
+        }
+
+        public void RefreshPanel() => Refresh();
+
+        private void CreateSlots(int count)
+        {
+            if (_slotsUI != null && _slotsUI.Length > 0)
+            {
+                foreach (var s in _slotsUI)
+                    if (s != null) Destroy(s.gameObject);
+            }
+
+            _slotsUI = new InventorySlotUI[count];
+
+            for (int i = 0; i < count; i++)
+            {
+                var slot = Instantiate(_slotPrefab, _slotsParent);
+                slot.Init(i, _inventory, this);
+
+                slot.OnBeginDrag += HandleBeginDrag;
+                slot.OnEndDrag += HandleEndDrag;
+                slot.OnEnter += HandleEnter;
+                slot.OnExit += HandleExit;
+
+                _slotsUI[i] = slot;
+            }
+        }
+
+        private void HandleBeginDrag(InventorySlotUI slot) => OnSlotBeginDrag?.Invoke(slot);
+        private void HandleEndDrag(InventorySlotUI slot)   => OnSlotEndDrag?.Invoke(slot);
+        private void HandleEnter(InventorySlotUI slot)     => OnSlotEnter?.Invoke(slot);
+        private void HandleExit(InventorySlotUI slot)      => OnSlotExit?.Invoke(slot);
+
+        private void Refresh()
+        {
+            if (_slotsUI == null || _database == null)
+                return;
+
+            var slots = _inventory != null ? _inventory.GetInventorySlots() : null;
+
+            for (int i = 0; i < _slotsUI.Length; i++)
+            {
+                var ui = _slotsUI[i];
+                if (ui == null) continue;
+
+                ui.Init(i, _inventory, this);
+
+                ItemSO item = null;
+                int count = 0;
+
+                if (slots != null && i < slots.Length)
+                {
+                    var backend = slots[i];
+                    if (backend != null && !string.IsNullOrEmpty(backend.Id))
+                    {
+                        item = _database.Get(backend.Id);
+                        count = backend.Count;
+                    }
+                }
+
+                ui.Set(item, count);
+            }
         }
 
         public void ClearInventory()
@@ -84,8 +118,28 @@ namespace Game.UI
 
             _inventory = null;
 
+            if (_slotsUI == null) return;
+
             foreach (var slotUI in _slotsUI)
                 slotUI.Set(null, 0);
+        }
+
+        private void OnDestroy()
+        {
+            if (_inventory != null)
+                _inventory.OnInventoryChanged -= Refresh;
+
+            if (_slotsUI != null)
+            {
+                foreach (var slot in _slotsUI)
+                {
+                    if (slot == null) continue;
+                    slot.OnBeginDrag -= HandleBeginDrag;
+                    slot.OnEndDrag -= HandleEndDrag;
+                    slot.OnEnter -= HandleEnter;
+                    slot.OnExit  -= HandleExit;
+                }
+            }
         }
     }
 }

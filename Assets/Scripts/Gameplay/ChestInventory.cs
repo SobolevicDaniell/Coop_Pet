@@ -109,10 +109,10 @@ namespace Game
                 return canStack == count;
             }
 
-            // Если предметы разные, сделаем swap (обмен)
-            slot.Id = slot.Id;
-            slot.Count = slot.Count;
-            var tempState = slot.State;
+            // // Если предметы разные, сделаем swap (обмен)
+            // slot.Id = slot.Id;
+            // slot.Count = slot.Count;
+            // var tempState = slot.State;=============================================================================
 
             slot.Id = itemId;
             slot.Count = count;

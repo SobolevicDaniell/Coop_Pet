@@ -12,54 +12,37 @@ namespace Game
         [SerializeField] private float _gravity = -9.81f;
         [SerializeField] private float _jumpForce = 5f;
 
-        [Networked] private Vector3 NetworkedPosition { get; set; }
-        [Networked] private Quaternion NetworkedRotation { get; set; }
+        [Header("Ground Check")]
+        [SerializeField] private Transform _groundCheck;
+        [SerializeField] private float _groundRadius = 0.25f;
+        [SerializeField] private LayerMask _groundMask = ~0;
 
-        private Vector3 _velocity;
+        private Vector3 _velocity;   // ось Y для гравитации/прыжка
         private float _xRotation;
 
-        public override void Spawned()
+        // Вызывается из NetworkPlayer один раз за тик (и на StateAuthority, и на InputAuthority)
+        public void HandleInput(InputData input, float dt)
         {
-            NetworkedPosition = transform.position;
-            NetworkedRotation = transform.rotation;
-        }
+            Vector3 move = (transform.right * input.movement.x + transform.forward * input.movement.y) * _moveSpeed;
 
-        public override void FixedUpdateNetwork()
-        {
-            if (GetInput(out InputData input))
-            {
-                HandleInput(input, Runner.DeltaTime);
-            }
+            bool grounded =
+                _groundCheck != null
+                ? Physics.CheckSphere(_groundCheck.position, _groundRadius, _groundMask, QueryTriggerInteraction.Ignore)
+                : _controller.isGrounded;
 
-            if (Object.HasStateAuthority)
-            {
-                NetworkedPosition = transform.position;
-                NetworkedRotation = transform.rotation;
-            }
-            else
-            {
-                transform.position = Vector3.Lerp(transform.position, NetworkedPosition, Runner.DeltaTime * 15);
-                transform.rotation = Quaternion.Slerp(transform.rotation, NetworkedRotation, Runner.DeltaTime * 15);
-            }
-        }
+            if (grounded && _velocity.y < 0f) _velocity.y = -2f;
+            if (input.jump && grounded) _velocity.y = Mathf.Sqrt(_jumpForce * -2f * _gravity);
+            _velocity.y += _gravity * dt;
 
-        public void HandleInput(InputData input, float deltaTime)
-        {
-            Vector3 move = transform.right * input.movement.x + transform.forward * input.movement.y;
-            _controller.Move(move * _moveSpeed * deltaTime);
+            _controller.Move(new Vector3(move.x, _velocity.y, move.z) * dt);
 
-            if (_controller.isGrounded && _velocity.y < 0)
-                _velocity.y = -2f;
-            if (input.jump && _controller.isGrounded)
-                _velocity.y = Mathf.Sqrt(_jumpForce * -2f * _gravity);
-
-            _velocity.y += _gravity * deltaTime;
-            _controller.Move(_velocity * deltaTime);
-
-            _xRotation -= input.mouseY * _mouseSensitivity * deltaTime;
+            _xRotation -= input.mouseY * _mouseSensitivity * dt;
             _xRotation = Mathf.Clamp(_xRotation, -90f, 90f);
-            _cameraRoot.localRotation = Quaternion.Euler(_xRotation, 0f, 0f);
-            transform.Rotate(Vector3.up * input.mouseX * _mouseSensitivity * deltaTime);
+            if (_cameraRoot != null) _cameraRoot.localRotation = Quaternion.Euler(_xRotation, 0f, 0f);
+            transform.Rotate(Vector3.up * input.mouseX * _mouseSensitivity * dt);
         }
+
+        public override void FixedUpdateNetwork() { }
+
     }
 }

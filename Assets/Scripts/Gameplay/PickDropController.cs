@@ -6,236 +6,179 @@ namespace Game
 {
     public class PickDropController : MonoBehaviour
     {
-        public InventoryService Inventory { get; private set; }
-
-        private InventoryPanel _playerInventoryPanel;
-        private OtherInventoryPanel _otherInventoryPanel;
-        private ItemDatabaseSO _itemDatabase;
-        private UIController _uiController;
         private InteractionController _ic;
         private PlayerRpcHandler _rpc;
-        private PickableItem _focusedItem;
-        private ChestInventory _focusedChestInventory;
-        private ChestInventory _openedChestInventory;
+        private InventoryService _inventory;
+        private ItemDatabaseSO _db;
+        private UIController _ui;
+        private InventoryPanel _playerPanel;
+        private OtherInventoryPanel _otherPanel;
+        private InteractionPromptView _prompt;
+        private Camera _overrideCamera;
 
-        // [SerializeField] private Camera _camera;
-
-        private Camera _camera;
-
-        public void Initialize(
-            InteractionController controller,
+        public void Construct(
+            InteractionController ic,
+            PlayerRpcHandler rpc,
             InventoryService inventory,
             InventoryPanel playerPanel,
             OtherInventoryPanel otherPanel,
-            ItemDatabaseSO itemDatabase,
-            UIController uiController,
-            Camera camera)
+            ItemDatabaseSO db,
+            UIController ui,
+            InteractionPromptView prompt,
+            Camera camOverride)
         {
-            _ic = controller;
-            _rpc = controller.playerRpcHandler;
-            Inventory = inventory;
-            _playerInventoryPanel = playerPanel;
-            _otherInventoryPanel = otherPanel;
-            _itemDatabase = itemDatabase;
-            _uiController = uiController;
-            _camera = camera;
+            _ic = ic;
+            _rpc = rpc;
+            _inventory = inventory;
+            _playerPanel = playerPanel;
+            _otherPanel = otherPanel;
+            _db = db;
+            _ui = ui;
+            _prompt = prompt;
+            _overrideCamera = camOverride;
+        }
+
+        private Camera Cam => _overrideCamera != null ? _overrideCamera : _ic?.camera;
+
+        public void UpdateRaycast()
+        {
+            if (_ic == null || !_ic.Object.HasInputAuthority) return;
+            var cam = Cam;
+            if (cam == null) { _prompt?.Hide(); return; }
+            var center = new Vector3(Screen.width * 0.5f, Screen.height * 0.5f);
+            var ray = cam.ScreenPointToRay(center);
+            if (Physics.Raycast(ray, out var hit, _ic.range, ~0, QueryTriggerInteraction.Ignore)) { }
+            else { _prompt?.Hide(); }
+        }
+
+        public void TryPickAtCrosshair()
+        {
+            if (_ic == null || !_ic.Object.HasInputAuthority || _rpc == null) return;
+            var cam = Cam;
+            if (cam == null) return;
+            var center = new Vector3(Screen.width * 0.5f, Screen.height * 0.5f);
+            var ray = cam.ScreenPointToRay(center);
+            if (!Physics.Raycast(ray, out var hit, _ic.range, ~0, QueryTriggerInteraction.Ignore)) return;
+            var netObj = hit.collider.GetComponentInParent<NetworkObject>();
+            if (netObj == null) return;
+            _rpc.RPC_RequestPick(netObj);
         }
 
         public void TryPick()
         {
-            if (!_ic.Object.HasInputAuthority) return;
-
-            if (_focusedItem != null)
-                _rpc.RPC_RequestPick(_focusedItem.Object);
-            else if (_focusedChestInventory != null)
-                OpenChestInventory(_focusedChestInventory);
+            TryPickAtCrosshair();
         }
 
         public void TryDrop()
         {
-            Debug.Log("TryDrop called");
+            if (_ic == null || !_ic.Object.HasInputAuthority || _rpc == null) return;
 
-            if (!_ic.Object.HasInputAuthority)
+            Vector3 origin;
+            Vector3 forward;
+            var cam = Cam;
+
+            if (_ic.dropPoint != null)
             {
-                Debug.LogWarning("No InputAuthority!");
-                return;
+                origin = _ic.dropPoint.position;
+                forward = _ic.dropPoint.forward;
+            }
+            else if (cam != null)
+            {
+                origin = cam.transform.position + cam.transform.forward * 0.2f;
+                forward = cam.transform.forward;
+            }
+            else
+            {
+                origin = _ic.transform.position + _ic.transform.forward * 0.5f;
+                forward = _ic.transform.forward;
             }
 
-            int selected = Inventory.SelectedQuickSlot; // используем локальное значение
-            if (selected < 0)
-            {
-                Debug.LogWarning("No slot selected!");
-                return;
-            }
-
-            var slots = Inventory.GetQuickSlots();
-            if (slots == null || selected >= slots.Length)
-            {
-                Debug.LogWarning("Invalid slots array or index!");
-                return;
-            }
-
-            var slot = slots[selected];
-            if (string.IsNullOrEmpty(slot.Id) || slot.Count <= 0)
-            {
-                Debug.LogWarning("Selected slot is empty!");
-                return;
-            }
-
-            Debug.Log($"Dropping item {slot.Id}, count {slot.Count}");
-
-            _rpc.RPC_RequestDrop(
-                _ic.dropPoint.position,
-                _camera.transform.forward,
-                slot.Id,
-                slot.Count,
-                slot.State?.Ammo ?? 0);
-
-            slot.Id = null;
-            slot.Count = 0;
-            slot.State = null;
-
-            Inventory.RaiseQuickSlotsChanged();
-
-            Inventory.ForceSetQuickSlot(-1);
+            TryDropFromQuickSlot(origin, forward, true);
         }
 
-        public void UpdateRaycast()
+        public void TryDropFromQuickSlot(Vector3 origin, Vector3 forward, bool dropAll)
         {
-            if (_ic == null || !_ic.Object.HasInputAuthority)
-                return;
+            if (_ic == null || !_ic.Object.HasInputAuthority || _rpc == null || _inventory == null || _db == null) return;
 
-            if (_camera == null || _ic.prompt == null)
-                return;
+            int idx = _inventory.SelectedQuickSlot;
+            var slots = _inventory.GetQuickSlots();
+            if (slots == null || idx < 0 || idx >= slots.Length) return;
 
-            var ray = _camera.ScreenPointToRay(new Vector3(Screen.width / 2f, Screen.height / 2f));
-            float range = _ic._rangePlace;
+            var slot = slots[idx];
+            if (slot == null || string.IsNullOrEmpty(slot.Id) || slot.Count <= 0) return;
 
-            Debug.DrawRay(ray.origin, ray.direction * range, Color.green);
+            var item = _db.Get(slot.Id);
+            int dropCount = dropAll ? slot.Count : ((item != null && item.MaxStack <= 1) ? slot.Count : 1);
 
-            _focusedItem = null;
-            _focusedChestInventory = null;
+            var fwd = forward.sqrMagnitude > 0f ? forward.normalized : Vector3.forward;
+            _rpc.RPC_RequestDrop(origin, fwd, slot.Id, dropCount, slot.State?.Ammo ?? 0);
 
-            _ic.prompt.Hide();
+            slot.Count -= dropCount;
+            if (slot.Count <= 0) { slot.Id = null; slot.State = null; }
 
-            if (Physics.Raycast(ray, out var hit, range))
-            {
-                var pickable = hit.collider.GetComponentInParent<PickableItem>();
-                if (pickable != null)
-                {
-                    _focusedItem = pickable;
-                    _ic.prompt.Show();
-                    return;
-                }
-
-                var chestInventory = hit.collider.GetComponentInParent<ChestInventory>();
-                if (chestInventory != null)
-                {
-                    _focusedChestInventory = chestInventory;
-                    _ic.prompt.Show();
-                    return;
-                }
-            }
+            _inventory.RaiseQuickSlotsChanged();
         }
 
-
-        public void OpenPlayerInventory()
+        public void TryPlaceFromQuickSlot(Vector3 pos, Quaternion rot)
         {
-            _playerInventoryPanel.SetInventory(Inventory, _itemDatabase);
-        }
-
-        public void OpenChestInventory(ChestInventory chestInventory)
-        {
-            if (!_ic.Object.HasInputAuthority) return;
-
-            if (_openedChestInventory == chestInventory) return;
-
-            _openedChestInventory = chestInventory;
-
-            _otherInventoryPanel.SetInventory(chestInventory, _itemDatabase);
-            _playerInventoryPanel.SetInventory(Inventory, _itemDatabase);
-
-            _uiController.ShowInventory(true);
-        }
-
-        public void CloseOpenedInventories()
-        {
-            if (!_ic.Object.HasInputAuthority) return;
-
-            _openedChestInventory = null;
-            _otherInventoryPanel.ClearInventory();
-            _playerInventoryPanel.ClearInventory();
-
-            _uiController.ShowGameUI();
+            if (_ic == null || !_ic.Object.HasInputAuthority || _rpc == null || _inventory == null) return;
+            int idx = _inventory.SelectedQuickSlot;
+            var slots = _inventory.GetQuickSlots();
+            if (slots == null || idx < 0 || idx >= slots.Length) return;
+            var slot = slots[idx];
+            if (slot == null || string.IsNullOrEmpty(slot.Id)) return;
+            _rpc.RPC_RequestPlaceObject(slot.Id, pos, rot);
         }
 
         public void DropFromSlot(InventorySlotUI slotUI)
         {
-            if (!_ic.Object.HasInputAuthority) return;
-
-            // 1) достаём ссылку на реальный слот
-            var parentInv = slotUI.ParentInventory;
-            InventorySlot slot = null;
-
-            if (parentInv is InventoryService svc)
+            if (_ic == null || !_ic.Object.HasInputAuthority || _rpc == null || slotUI == null) return;
+            var slot = GetBackendSlotRef(slotUI);
+            if (slot == null || string.IsNullOrEmpty(slot.Id) || slot.Count <= 0) return;
+            var cam = Cam;
+            if (cam == null) return;
+            Vector3 pos;
+            Vector3 forward = cam.transform.forward;
+            var ray = cam.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out var hit, _ic.PlaceRange, ~0, QueryTriggerInteraction.Ignore))
             {
-                slot = slotUI.ParentPanel is QuickSlotPanel
-                    ? svc.GetQuickSlots()[slotUI.SlotIndex]
-                    : svc.GetInventorySlots()[slotUI.SlotIndex];
+                pos = hit.point;
+                forward = cam.transform.forward;
             }
             else
             {
-                slot = parentInv.GetInventorySlots()[slotUI.SlotIndex];
+                pos = cam.transform.position + cam.transform.forward * _ic.PlaceRange;
             }
-
-            if (slot == null || string.IsNullOrEmpty(slot.Id) || slot.Count <= 0)
-                return;
-
-            // 2) выбираем камеру и считаем позицию/направление
-            var cam = _camera != null ? _camera : Camera.main;      // <<< НИ КАКОГО GetComponent<Camera>() на игроке
-            Vector3 forward = cam != null ? cam.transform.forward : _ic.transform.forward;
-            Vector3 pos = _ic.dropPoint != null ? _ic.dropPoint.position : _ic.transform.position + forward * 1.0f;
-
-            // рейкаст под курсор для более точного дропа
-            if (cam != null)
-            {
-                var ray = cam.ScreenPointToRay(Input.mousePosition);
-                if (Physics.Raycast(ray, out var hit, _ic._rangePlace))
-                {
-                    pos = hit.point;
-                    forward = cam.transform.forward;
-                }
-            }
-
-            // 3) сетевой дроп (как по Q)
-            _rpc.RPC_RequestDrop(
-                pos,
-                forward,
-                slot.Id,
-                slot.Count,
-                slot.State?.Ammo ?? 0
-            );
-
-            // 4) очистка слота и события (иначе «в инвентаре не удаляется»)
+            _rpc.RPC_RequestDrop(pos, forward, slot.Id, slot.Count, slot.State?.Ammo ?? 0);
             slot.Id = null;
             slot.Count = 0;
             slot.State = null;
-
+            var parentInv = slotUI.ParentInventory;
             parentInv.RaiseInventoryChanged();
-            if (parentInv is InventoryService isvc)
-                isvc.RaiseQuickSlotsChanged();
+            if (parentInv is InventoryService svc)
+                svc.RaiseQuickSlotsChanged();
         }
 
-        private int GetAbsIndex(InventorySlotUI slotUI)
+        public void OpenPlayerInventory()
         {
-            if (slotUI.ParentInventory is InventoryService)
-            {
-                return slotUI.ParentPanel is QuickSlotPanel
-                    ? slotUI.SlotIndex
-                    : 10 + slotUI.SlotIndex;
-            }
+        }
 
-            return slotUI.SlotIndex;
+        public void CloseOpenedInventories()
+        {
+        }
+
+        private InventorySlot GetBackendSlotRef(InventorySlotUI slotUI)
+        {
+            var parentInv = slotUI.ParentInventory;
+            if (parentInv is InventoryService svc)
+            {
+                if (slotUI.ParentPanel is QuickSlotPanel)
+                    return svc.GetQuickSlots()[slotUI.SlotIndex];
+                else if (slotUI.ParentPanel is InventoryPanel)
+                    return svc.GetInventorySlots()[slotUI.SlotIndex];
+            }
+            var slots = parentInv.GetInventorySlots();
+            return (slotUI.SlotIndex >= 0 && slotUI.SlotIndex < slots.Length) ? slots[slotUI.SlotIndex] : null;
         }
     }
 }

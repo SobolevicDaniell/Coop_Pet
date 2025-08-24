@@ -764,8 +764,24 @@ PlayerSettings:
   webWasm2023: 0
   webEnableSubmoduleStrippingCompatibility: 0
   scriptingDefineSymbols:
-    Standalone: FUSION_LOGLEVEL_INFO;FUSION_WEAVER;FUSION2
-    WebGL: FUSION_WEAVER;FUSION2;FUSION_LOGLEVEL_INFO
+    Android: FUSION_LOGLEVEL_WARN
+    EmbeddedLinux: FUSION_LOGLEVEL_WARN
+    GameCoreScarlett: FUSION_LOGLEVEL_WARN
+    GameCoreXboxOne: FUSION_LOGLEVEL_WARN
+    Kepler: FUSION_LOGLEVEL_WARN
+    LinuxHeadlessSimulation: FUSION_LOGLEVEL_WARN
+    Nintendo Switch: FUSION_LOGLEVEL_WARN
+    PS4: FUSION_LOGLEVEL_WARN
+    PS5: FUSION_LOGLEVEL_WARN
+    QNX: FUSION_LOGLEVEL_WARN
+    ReservedCFE: FUSION_LOGLEVEL_WARN
+    Standalone: FUSION_WEAVER;FUSION2;FUSION_LOGLEVEL_WARN
+    VisionOS: FUSION_LOGLEVEL_WARN
+    WebGL: FUSION_WEAVER;FUSION2;FUSION_LOGLEVEL_WARN
+    Windows Store Apps: FUSION_LOGLEVEL_WARN
+    XboxOne: FUSION_LOGLEVEL_WARN
+    iPhone: FUSION_LOGLEVEL_WARN
+    tvOS: FUSION_LOGLEVEL_WARN
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

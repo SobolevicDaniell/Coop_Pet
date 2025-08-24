@@ -1,7 +1,6 @@
 using UnityEngine;
 using Fusion;
-using Zenject;
-using System;
+using System.Reflection;
 
 namespace Game
 {
@@ -12,117 +11,152 @@ namespace Game
         [Networked] public NetworkId HandModelNetId { get; private set; }
         private NetworkObject _handModel;
 
-        private ItemDatabaseSO       _itemDatabase;
-        private PlayerRpcHandler     _playerRpc;
+        private ItemDatabaseSO _itemDatabase;
+        private PlayerRpcHandler _playerRpc;
         private InteractionController _ic;
 
-        // ⟶ глобальные singletons берём напрямую из ProjectContext
-        public override void Spawned()
+        public void Construct(ItemDatabaseSO db, PlayerRpcHandler rpc, InteractionController ic)
         {
-            var container = ProjectContext.Instance.Container;
-
-            _playerRpc    = GetComponent<PlayerRpcHandler>();
-            _ic           = GetComponent<InteractionController>();
-        }
-        public void Initialize(ItemDatabaseSO itemDatabase)
-        {
-            _itemDatabase = itemDatabase;
+            _itemDatabase = db;
+            _playerRpc = rpc;
+            _ic = ic;
         }
 
-        
-        void TryAttach()
-        {
-            if (_handModel == null && HandModelNetId.IsValid)
-                _handModel = Runner.FindObject(HandModelNetId);
-
-            if (_handModel != null)
-                AttachToHand(_handModel.transform);
-        }
         public void RequestEquip(string itemId)
         {
-            if (!Object.HasInputAuthority || _playerRpc == null) return;
-
+            if (_playerRpc == null) { Debug.LogError("[HandItemController] _playerRpc == null"); return; }
             _playerRpc.RPC_EquipItem(itemId);
         }
 
         public void RequestUnEquip()
         {
-            if (!Object.HasInputAuthority || _playerRpc == null) return;
-
+            if (_playerRpc == null) { Debug.LogError("[HandItemController] _playerRpc == null"); return; }
             _playerRpc.RPC_UnEquipItem();
         }
-
 
         public void EquipItemServer(string itemId)
         {
             if (!Object.HasStateAuthority) return;
-
-            var item = _itemDatabase.Get(itemId);
-            if (item == null) return;
-
-            var field = item.GetType().GetField("HandModelNetwork");
-            var prefab = field?.GetValue(item) as NetworkObject;
-            if (prefab == null) return;
-
             DespawnCurrent();
 
-            _handModel = Runner.Spawn(
-                prefab,
-                _handPoint.position,
-                _handPoint.rotation,
-                Object.InputAuthority,
-                (runner, spawned) =>
-                {
-                    spawned.transform.SetParent(_handPoint, false);
-                    spawned.transform.localPosition = Vector3.zero;
-                    spawned.transform.localRotation = Quaternion.identity;
-                });
+            if (string.IsNullOrEmpty(itemId))
+            {
+                NotifyHandModelChanged(null);
+                return;
+            }
 
-            HandModelNetId = _handModel.Id;
+            if (_itemDatabase == null)
+            {
+                Debug.LogError("[HandItemController] _itemDatabase == null. Вызовите Construct(...)");
+                return;
+            }
+
+            var item = _itemDatabase.Get(itemId);
+            if (item == null)
+            {
+                Debug.LogError($"[HandItemController] Item '{itemId}' not found");
+                return;
+            }
+
+            var handPrefab = ResolveHandPrefab(item);
+            if (handPrefab == null)
+            {
+                // у предмета нет hand-модели — ничего не спавним
+                NotifyHandModelChanged(null);
+                return;
+            }
+
+            var spawned = Runner.Spawn(handPrefab, Vector3.zero, Quaternion.identity, Object.InputAuthority);
+            _handModel = spawned;
+            HandModelNetId = spawned != null ? spawned.Id : default;
+
+            SanitizeHandModel(_handModel != null ? _handModel.gameObject : null);
+            NotifyHandModelChanged(_handModel);
+            AttachToHand(_handModel != null ? _handModel.transform : null);
         }
-
-
 
         public void UnEquipItemServer()
         {
             if (!Object.HasStateAuthority) return;
             DespawnCurrent();
+            HandModelNetId = default;
+            NotifyHandModelChanged(null);
         }
 
-        // ─── вспомогательные ───────────────────────────────────────────────────────────
         private void DespawnCurrent()
         {
-            if (_handModel != null && _handModel.IsValid)
-                Runner.Despawn(_handModel);
-
-            _handModel = null;
-            HandModelNetId = default;
+            if (_handModel != null)
+            {
+                var toDespawn = _handModel;
+                _handModel = null;
+                if (toDespawn != null && toDespawn.Runner) Runner.Despawn(toDespawn);
+            }
         }
+
+        private void NotifyHandModelChanged(NetworkObject model) => _ic?.SetHandModelNetworkInstance(model);
 
         private void AttachToHand(Transform t)
         {
+            if (t == null || _handPoint == null) return;
+            var originalLocalScale = t.localScale;
             t.SetParent(_handPoint, false);
             t.localPosition = Vector3.zero;
             t.localRotation = Quaternion.identity;
+            t.localScale = originalLocalScale;
         }
 
-        // ─── восстановление для late-join ──────────────────────────────────────────────
+        private void SanitizeHandModel(GameObject go)
+        {
+            if (go == null) return;
+            var rbs = go.GetComponentsInChildren<Rigidbody>(true);
+            foreach (var rb in rbs) { rb.isKinematic = true; rb.useGravity = false; rb.detectCollisions = false; }
+            var cols = go.GetComponentsInChildren<Collider>(true);
+            foreach (var c in cols) c.enabled = false;
+        }
+
         public override void Render()
         {
-            // При первом получении ссылки на объект
-            if (_handModel == null && HandModelNetId.IsValid)
+            if (_handModel == null && HandModelNetId != default && Runner != null)
             {
                 _handModel = Runner.FindObject(HandModelNetId);
                 if (_handModel != null)
+                {
+                    SanitizeHandModel(_handModel.gameObject);
                     AttachToHand(_handModel.transform);
+                }
             }
-
-            // Если объект уже есть, но случайно потерял родителя
-            if (_handModel != null && _handModel.transform.parent != _handPoint)
-            {
+            if (_handModel != null && _handPoint != null && _handModel.transform.parent != _handPoint)
                 AttachToHand(_handModel.transform);
-            }
         }
 
+        private static NetworkObject ResolveHandPrefab(ItemSO item)
+        {
+            // 1) Интерфейс — основной путь (любой SO может поддержать руки)
+            if (item is IHandModelProvider p && p.HandModelNetwork != null)
+                return p.HandModelNetwork;
+
+            // 2) Фолбэк: рефлексия по типичному имени
+            var t = item.GetType();
+            var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+            var f = t.GetField("HandModelNetwork", flags);
+            if (f != null)
+            {
+                var v = f.GetValue(item);
+                if (v is NetworkObject no1) return no1;
+                if (v is GameObject go1) { var no = go1.GetComponent<NetworkObject>(); if (no != null) return no; }
+            }
+
+            var pinfo = t.GetProperty("HandModelNetwork", flags);
+            if (pinfo != null && pinfo.CanRead)
+            {
+                var v = pinfo.GetValue(item);
+                if (v is NetworkObject no2) return no2;
+                if (v is GameObject go2) { var no = go2.GetComponent<NetworkObject>(); if (no != null) return no; }
+            }
+
+            // 3) НИКОГДА не используем ItemSO.Prefab как замену
+            return null;
+        }
     }
 }

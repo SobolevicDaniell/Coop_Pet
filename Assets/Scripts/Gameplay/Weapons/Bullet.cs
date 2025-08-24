@@ -1,4 +1,3 @@
-// Assets/Scripts/Gameplay/Bullet.cs
 using Fusion;
 using UnityEngine;
 
@@ -18,9 +17,7 @@ namespace Game
         public override void Spawned()
         {
             _rigidbody = GetComponent<Rigidbody>();
-
-
-            _rigidbody.linearDamping = drag;
+            if (_rigidbody != null) _rigidbody.linearDamping = drag; // изменено
             _timer = TickTimer.CreateFromSeconds(Runner, lifetime);
         }
 
@@ -40,13 +37,13 @@ namespace Game
         {
             if (_rigidbody == null)
                 _rigidbody = GetComponent<Rigidbody>();
-            _rigidbody.linearVelocity = velocity;
+            if (_rigidbody != null) _rigidbody.linearVelocity = velocity; // изменено
         }
 
         private void OnTriggerEnter(Collider other)
         {
-            if (!Object.HasStateAuthority)
-                return;
+            if (Object == null || Runner == null) return; // изменено
+            if (!Object.HasStateAuthority) return;
 
             var health = other.GetComponentInParent<HealthComponent>();
             if (health != null)

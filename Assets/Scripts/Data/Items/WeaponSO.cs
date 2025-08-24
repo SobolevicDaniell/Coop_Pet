@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Game
 {
     [CreateAssetMenu(fileName = "NewWeapon", menuName = "Inventory/WeaponDefinition")]
-    public class WeaponSO : ItemSO
+    public class WeaponSO : ItemSO, IHandModelProvider
     {
         [Header("Weapon")]
         public NetworkObject HandModelNetwork;
@@ -19,5 +19,7 @@ namespace Game
 
         [Header("Ammo")]
         public ResourceSO ammoResource;
+
+        NetworkObject IHandModelProvider.HandModelNetwork => HandModelNetwork;
     }
 }

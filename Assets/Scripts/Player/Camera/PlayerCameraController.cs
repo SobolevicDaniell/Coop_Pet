@@ -13,6 +13,8 @@ namespace Game.Network
 
         private bool _isLocal;
 
+        public object Camera { get; internal set; }
+
         public void SetLocal(bool isLocal)
         {
             _isLocal = isLocal;

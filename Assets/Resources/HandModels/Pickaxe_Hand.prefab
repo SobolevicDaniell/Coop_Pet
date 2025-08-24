@@ -100,7 +100,7 @@ GameObject:
   - component: {fileID: 399847605834187784}
   - component: {fileID: -5741694483387175035}
   m_Layer: 0
-  m_Name: Pickaxe
+  m_Name: Pickaxe_Hand
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

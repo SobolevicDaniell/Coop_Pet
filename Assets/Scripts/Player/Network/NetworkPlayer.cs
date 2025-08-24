@@ -12,24 +12,18 @@ public class NetworkPlayer : NetworkBehaviour
 
     public override void Spawned()
     {
-        bool isLocal = Object.InputAuthority == Runner.LocalPlayer;
-        _cameraController.SetLocal(isLocal);
+        _cameraController.SetLocal(Object.HasInputAuthority);
     }
 
     public override void FixedUpdateNetwork()
     {
-        bool isLocal = Object.InputAuthority == Runner.LocalPlayer;
-        bool isServer = Object.HasStateAuthority;
-
-        if (isLocal && GetInput(out InputData input))
+        if (GetInput(out InputData input))
             _movement.HandleInput(input, Runner.DeltaTime);
 
-        if (isServer && GetInput(out InputData serverInput))
-            _movement.HandleInput(serverInput, Runner.DeltaTime);
-
-        if (isServer)
+        if (Object.HasStateAuthority)
             ServerPosition = transform.position;
-        else if (isLocal)
-            transform.position = Vector3.Lerp(transform.position, ServerPosition, 10f * Time.deltaTime);
+        else
+            transform.position = Vector3.Lerp(transform.position, ServerPosition, 12f * Runner.DeltaTime);
     }
+
 }

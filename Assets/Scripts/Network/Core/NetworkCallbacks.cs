@@ -21,9 +21,11 @@ namespace Game.Network
         {
             foreach (var no in FindObjectsOfType<NetworkObject>())
             {
-                _container.InjectGameObject(no.gameObject);
+                if (no.GetComponent<GameObjectContext>() == null)
+                    _container.InjectGameObject(no.gameObject);
             }
         }
+
 
         public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
         {

@@ -1,4 +1,4 @@
-﻿using Fusion;
+using Fusion;
 using Game.Gameplay;
 using UnityEngine;
 using Zenject;
@@ -24,67 +24,23 @@ namespace Game.Network
         [Header("Config")]
         [SerializeField] private PlayerStatsSO _playerStats;
 
-
-
         public override void InstallBindings()
         {
-            Debug.Log("NetworkInstaller: InstallBindings");
+            Container.BindInstance(_playerPrefab).WithId("PlayerPrefab");
 
-            Container.Bind<Startup>()
-                .FromComponentInHierarchy()
-                .AsSingle().NonLazy();
-
-            Container.Bind<NetworkRunner>()
-                .FromComponentInHierarchy()
-                .AsSingle().NonLazy();
-
-            Container.BindInterfacesAndSelfTo<NetworkCallbacks>()
-                .FromComponentInHierarchy()
-                .AsSingle().NonLazy();
-
-            Container.Bind<IPlayerFactory>()
-                .To<PlayerFactory>()
-                .AsSingle().NonLazy();
-
-            Container.Bind<PlayerSpawner>()
-                .AsSingle().NonLazy();
-
-            // Container.Bind<ServerRpcHandler>()
-            //     .FromComponentInHierarchy()
-            //     .AsSingle().NonLazy();
-
-            Container.Bind<PickableSpawner>()
-                .FromComponentInHierarchy()
-                .AsSingle().NonLazy();
-
-            Container.Bind<GameObject>()
-                .WithId("PlayerPrefab")
-                .FromInstance(_playerPrefab)
+            Container.Bind<ItemDatabaseSO>()
+                .FromInstance(_itemDatabase)
                 .AsSingle();
 
-            Container.Bind<InputHandler>()
+            // Container.BindInterfacesAndSelfTo<InventoryService>()
+            //     .AsSingle();
+
+            Container.Bind<UIController>()
                 .FromComponentInHierarchy()
                 .AsSingle();
 
             Container.Bind<InteractionPromptView>()
                 .FromComponentInHierarchy()
-                .AsSingle();
-
-            Container.Bind<InventoryService>()
-                .AsSingle()
-                .WithArguments(_itemDatabase)
-                .NonLazy();
-
-            Container.Bind<PlayerCameraController>()
-                .FromComponentInHierarchy()
-                .AsSingle();
-
-            Container.Bind<HandItemBehaviorFactory>()
-                .AsSingle()
-                .NonLazy();
-
-            Container.Bind<ItemDatabaseSO>()
-                .FromInstance(_itemDatabase)
                 .AsSingle();
 
             Container.Bind<UIHealthView>()
@@ -93,31 +49,67 @@ namespace Game.Network
 
             Container.Bind<InventoryPanel>()
                 .WithId("PlayerInventoryPanel")
-                .FromInstance(_playerInventoryPanel)
-                .AsCached();
+                .FromComponentInHierarchy()
+                .AsSingle();
 
             Container.Bind<OtherInventoryPanel>()
                 .WithId("OtherInventoryPanel")
-                .FromInstance(_otherInventoryPanel)
-                .AsCached();
-
-            Container.Bind<UIController>()
-                 .FromComponentInHierarchy()
-                 .AsSingle();
-
-            Container.Bind<InventorySlotUI>()
-                    .WithId("InventorySlotPrefab")
-                    .FromInstance(_slotPrefab)
-                    .AsSingle();
-
-            Container.Bind<PlayerStatsSO>()
-                    .FromInstance(_playerStats)
-                    .AsSingle();
+                .FromComponentInHierarchy()
+                .AsSingle();
 
             Container.Bind<QuickSlotPanel>()
-                    .FromComponentInHierarchy()
-                    .AsSingle();
+                .FromComponentInHierarchy()
+                .AsSingle();
+
+            Container.Bind<InputHandler>()
+                .FromComponentInHierarchy()
+                .AsSingle();
+
+            Container.Bind<HandItemBehaviorFactory>()
+                .AsSingle();
+
+            Container.Bind<NetworkRunner>()
+                .FromComponentInHierarchy()
+                .AsSingle();
+
+            Container.Bind<IPlayerFactory>()
+                .To<PlayerFactory>()
+                .AsSingle();
+
+            Container.Bind<PlayerSpawner>()
+                .AsSingle();
+
+            // Container.BindInterfacesTo<FusionZenjectInjector>()
+            //     .AsSingle()
+            //     .NonLazy();
+
+            Container.Bind<INetworkObjectProvider>()
+                .To<ZenjectObjectProvider>()
+                .AsSingle();
+
+            Container.Bind<NetworkCallbacks>()
+                .FromComponentInHierarchy()
+                .AsSingle();
+
+            Container.Bind<InventorySlotUI>()
+                .WithId("InventorySlotPrefab")
+                .FromInstance(_slotPrefab)
+                .AsSingle();
+
+            Container.Bind<Startup>()
+                .FromComponentInHierarchy()
+                .AsSingle();
+
+            Container.Bind<MenuController>()
+                .FromComponentInHierarchy()
+                .AsSingle();
+
+            Container.Bind<PlayerStatsSO>()
+                .FromInstance(_playerStats)
+                .AsSingle();
+
 
         }
+
     }
 }

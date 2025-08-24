@@ -2298,8 +2298,8 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1031318653616274764}
   - {fileID: 553841194349282764}
+  - {fileID: 1031318653616274764}
   - {fileID: 1733221599}
   m_Father: {fileID: 1219273267}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -5812,7 +5812,7 @@ Transform:
   m_GameObject: {fileID: 1113052714}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -5.15, y: 1.264, z: 0.116}
+  m_LocalPosition: {x: -5.15, y: 1.41, z: 0.116}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -6867,9 +6867,10 @@ MonoBehaviour:
   _sessionInput: {fileID: 1788787528}
   _connectButton: {fileID: 280778507}
   _confirmPanel: {fileID: 1357802049}
-  _yesButton: {fileID: 2042162780}
-  _noButton: {fileID: 529535018}
-  _confirmText: {fileID: 1618557631}
+  _confirmText: {fileID: 0}
+  _yesButton: {fileID: 0}
+  _noButton: {fileID: 0}
+  _defaultSessionName: Session_1
 --- !u!1001 &1384181837
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -11601,10 +11602,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 362519201}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 466, y: 283.24}
-  m_SizeDelta: {x: -1241.7, y: -477.789}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 329.0265, y: -245.61008}
+  m_SizeDelta: {x: -658.053, y: 491.22015}
   m_Pivot: {x: 0, y: 0}
 --- !u!224 &1031318653616274764
 RectTransform:
@@ -11639,7 +11640,7 @@ GameObject:
   - component: {fileID: 9016241272738084253}
   - component: {fileID: 5985092772887408915}
   - component: {fileID: 9016241272738084254}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: 'InventoryPanel '
   m_TagString: Untagged
   m_Icon: {fileID: 0}

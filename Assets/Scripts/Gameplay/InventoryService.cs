@@ -30,7 +30,7 @@ namespace Game
         public InventorySlot[] GetQuickSlots() => _quickSlots;
         public InventorySlot[] GetInventorySlots() => _inventorySlots;
 
-        
+
 
         public void ToggleQuickSlot(int idx)
         {
@@ -61,7 +61,7 @@ namespace Game
             OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
             return true;
         }
-       
+
 
         public int HandlePick(string itemId, int count, int ammo)
         {
@@ -217,7 +217,7 @@ namespace Game
             OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
         }
 
-        
+
 
         public bool TryAddItem(string itemId, int count)
         {
@@ -370,6 +370,7 @@ namespace Game
             OnInventoryChanged?.Invoke();
         }
 
+        
 
 
     }

@@ -1,7 +1,6 @@
 using Fusion;
 using UnityEngine;
 using Zenject;
-using Game.UI;
 
 namespace Game.Network
 {
@@ -25,13 +24,15 @@ namespace Game.Network
 
         public NetworkObject Spawn(PlayerRef playerRef)
         {
-            Debug.Log($"[PlayerFactory] Spawning player: {playerRef}");
             var prefabNetObj = _playerPrefab.GetComponent<NetworkObject>();
-            var netObj = _runner.Spawn(prefabNetObj, Vector3.zero, Quaternion.identity, playerRef);
+            var netObj = _runner.Spawn(
+                prefabNetObj,
+                Vector3.zero,
+                Quaternion.identity,
+                playerRef
+            );
 
             _runner.SetPlayerObject(playerRef, netObj);
-            _container.InjectGameObject(netObj.gameObject);
-
             return netObj;
         }
     }

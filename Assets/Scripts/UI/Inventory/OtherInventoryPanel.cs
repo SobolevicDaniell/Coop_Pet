@@ -8,6 +8,7 @@ namespace Game.UI
     {
         [SerializeField] private Transform _slotsParent;
 
+        public PanelKind Kind => PanelKind.Chest;
         private IInventory _inventory;
         private ItemDatabaseSO _database;
         private InventorySlotUI _slotPrefab;

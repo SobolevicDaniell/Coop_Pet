@@ -1,35 +1,77 @@
-using Game;
+using System;
 using UnityEngine;
 
-public class HandItemBehaviorFactory
+namespace Game
 {
-    public IHandItemBehavior Create(ItemSO so, Transform handParent, InteractionController ic, int slotIndex, InventorySlot slot)
-
+    /// <summary>
+    /// Фабрика поведения предметов в руках.
+    /// Создаёт IHandItemBehavior на основе типа ScriptableObject'а из базы.
+    /// </summary>
+    public sealed class HandItemBehaviorFactory
     {
-        GameObject go = new GameObject($"[Behavior] {so.Id}");
-        go.transform.SetParent(handParent, false);
-        go.transform.localPosition = Vector3.zero;
-
-        if (so is WeaponSO wso)
+        public IHandItemBehavior Create(InteractionController ic, string itemId, int quickSlotIndex)
         {
-            var wb = go.AddComponent<WeaponBehavior>().Construct(wso, handParent, ic, slotIndex, slot);
-            return wb;
+            if (ic == null || ic.db == null || string.IsNullOrEmpty(itemId))
+                return new NoOpBehavior(); // безопасная заглушка
+
+            var so = ic.db.Get(itemId);
+            if (so == null)
+                return new NoOpBehavior();
+
+            IHandItemBehavior behavior;
+
+            if (IsWeaponSO(so))
+            {
+                var wb = new WeaponBehavior();
+                wb.Construct(ic, ic.playerRpcHandler, ic.db, itemId, quickSlotIndex);
+                behavior = wb;
+            }
+            else
+            {
+                // здесь можно позже подцепить другие поведения (инструменты, хилки и т.п.)
+                var nb = new NoOpBehavior();
+                nb.Construct(ic, ic.playerRpcHandler, ic.db, itemId, quickSlotIndex);
+                behavior = nb;
+            }
+
+            return behavior;
         }
 
-        if (so is ToolSO tso)
+        private static bool IsWeaponSO(ScriptableObject so)
         {
-            var beh = go.AddComponent<ToolBehavior>().Construct(tso, handParent, ic);
-            return beh;
+            var t = so.GetType();
+            // Предпочтительно: if (t == typeof(WeaponItemSO)) return true;
+            // Универсально по названию:
+            return t.Name.IndexOf("Weapon", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
-        if (so is PlaceableItemSO piso)
+        private sealed class NoOpBehavior : IHandItemBehavior
         {
-            slot = ic.inventory.GetQuickSlots()[slotIndex]; 
-            var beh = go.AddComponent<PlaceableBehavior>().Construct(piso, handParent, ic, slot);
-            return beh;
-        }
+            private InteractionController _ic;
+            private string _itemId;
 
-        var defaultBeh = go.AddComponent<DefaultHandBehavior>().Construct(so, handParent);
-        return defaultBeh;
+            public void Construct(InteractionController ic, PlayerRpcHandler rpc, ItemDatabaseSO db, string itemId, int quickSlotIndex)
+            {
+                _ic = ic;
+                _itemId = itemId;
+            }
+
+            public void OnEquip() { }
+            public void OnUnequip() { }
+
+            public void OnUsePressed() { }
+            public void OnUseHeld(float dt) { }
+            public void OnUseReleased() { }
+
+            public bool IsValid() => _ic != null && !string.IsNullOrEmpty(_itemId);
+
+            // для совместимости с WeaponBehavior API (вызывается из PlayerRpcHandler)
+            public void ServerReload() { }
+
+            public void OnMuzzleFlash()
+            {
+                throw new NotImplementedException();
+            }
+        }
     }
 }
