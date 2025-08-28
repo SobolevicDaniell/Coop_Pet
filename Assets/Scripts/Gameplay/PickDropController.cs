@@ -111,7 +111,7 @@ namespace Game
             int dropCount = dropAll ? slot.Count : ((item != null && item.MaxStack <= 1) ? slot.Count : 1);
 
             var fwd = forward.sqrMagnitude > 0f ? forward.normalized : Vector3.forward;
-            _rpc.RPC_RequestDrop(origin, fwd, slot.Id, dropCount, slot.State?.Ammo ?? 0);
+            _rpc.RPC_RequestDrop(origin, fwd, slot.Id, dropCount, slot.State?.ammo ?? 0);
 
             slot.Count -= dropCount;
             if (slot.Count <= 0) { slot.Id = null; slot.State = null; }
@@ -149,7 +149,7 @@ namespace Game
             {
                 pos = cam.transform.position + cam.transform.forward * _ic.PlaceRange;
             }
-            _rpc.RPC_RequestDrop(pos, forward, slot.Id, slot.Count, slot.State?.Ammo ?? 0);
+            _rpc.RPC_RequestDrop(pos, forward, slot.Id, slot.Count, slot.State?.ammo ?? 0);
             slot.Id = null;
             slot.Count = 0;
             slot.State = null;

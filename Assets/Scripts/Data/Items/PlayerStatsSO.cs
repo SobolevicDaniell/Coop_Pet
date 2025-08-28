@@ -7,6 +7,7 @@ namespace Game
     {
         public int health = 100;
         public float speed = 5f;
-        public int inventorySlotsCount = 30;
+        public int inventorySlotsCount = 24;
+        public int quickSlotsCount = 10;
     }
 }

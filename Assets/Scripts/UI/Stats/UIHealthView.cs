@@ -6,24 +6,24 @@ namespace Game
 {
     public class UIHealthView : MonoBehaviour
     {
-        [SerializeField] private Slider healthSlider;
-        [SerializeField] private GameObject deathText;
+        [SerializeField] private Slider _healthSlider;
+        [SerializeField] private GameObject _deathScreen;
 
         public void SetMaxHealth(int max)
         {
-            healthSlider.maxValue = max;
-            healthSlider.value = max;
-            deathText.SetActive(false);
+            _healthSlider.maxValue = max;
+            _healthSlider.value = max;
+            _deathScreen.SetActive(false);
         }
 
         public void UpdateHealth(int current)
         {
-            healthSlider.value = current;
+            _healthSlider.value = current;
         }
 
         public void ShowDeath()
         {
-            deathText.SetActive(true);
+            _deathScreen.SetActive(true);
         }
     }
 }

@@ -146,7 +146,7 @@ namespace Game
             if (wSlot == null || string.IsNullOrEmpty(wSlot.Id)) return;
 
             if (wSlot.State == null) wSlot.State = new ItemState();
-            if (wSlot.State.Ammo <= 0) return;
+            if (wSlot.State.ammo <= 0) return;
 
             var so = _db.Get(wSlot.Id) as WeaponSO;
             if (so == null) return;
@@ -172,11 +172,11 @@ namespace Game
                     }
                 });
 
-            wSlot.State.Ammo -= 1;
+            wSlot.State.ammo -= 1;
             _inventory.RaiseQuickSlotsChanged();
 
             // ↓ добавлено: точная синхронизация боезапаса владельцу
-            RPC_SetSlotAmmo(slotIndex, wSlot.State.Ammo);
+            RPC_SetSlotAmmo(slotIndex, wSlot.State.ammo);
         }
 
         // ↓ добавлено: однонаправленная синхронизация боезапаса после выстрела
@@ -190,7 +190,7 @@ namespace Game
             var s = qs[slotIndex];
             if (s == null) return;
             if (s.State == null) s.State = new ItemState();
-            s.State.Ammo = ammo;
+            s.State.ammo = ammo;
 
             _inventory.RaiseQuickSlotsChanged();
         }
@@ -209,7 +209,7 @@ namespace Game
                     if (s != null && s.Id == itemId)
                     {
                         if (s.State == null) s.State = new ItemState();
-                        s.State.Ammo = ammo;
+                        s.State.ammo = ammo;
                         return;
                     }
                 }
@@ -224,7 +224,7 @@ namespace Game
                     if (s != null && s.Id == itemId)
                     {
                         if (s.State == null) s.State = new ItemState();
-                        s.State.Ammo = ammo;
+                        s.State.ammo = ammo;
                         return;
                     }
                 }

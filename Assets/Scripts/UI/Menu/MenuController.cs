@@ -11,11 +11,14 @@ namespace Game.Network
     public sealed class MenuController : MonoBehaviour
     {
         [Inject] private Startup _startup;
-        [Inject(Optional = true)] private UIController _ui; // не обязателен
+        [Inject(Optional = true)] private UIController _ui;
 
         [Header("UI")]
-        [SerializeField] private TMP_InputField _sessionInput;
+         [SerializeField] private TMP_InputField _sessionInput;
         [SerializeField] private Button _connectButton;
+        [SerializeField] private GameObject _gameHud;
+        [SerializeField] private GameObject _menuHud;
+        [SerializeField] private GameObject _deathScreen;
 
         [Header("Confirm If Session Exists")]
         [SerializeField] private GameObject _confirmPanel;
@@ -38,6 +41,10 @@ namespace Game.Network
             if (_noButton != null) _noButton.onClick.AddListener(OnNoPressed);
 
             if (_confirmPanel != null) _confirmPanel.SetActive(false);
+
+            _gameHud.SetActive(false);
+            _menuHud.SetActive(true);
+            _deathScreen.SetActive(false);
         }
 
         private void Start() => EnsureDefaultSessionName();
@@ -154,7 +161,8 @@ namespace Game.Network
         {
             gameObject.SetActive(false);
             await _startup.BeginSession(mode, sessionName);
-            _ui?.ShowGameUI(); // показать игровой UI после старта
+            _ui?.ShowGameHUD(); // показать игровой UI после старта
         }
     }
 }
+

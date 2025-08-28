@@ -25,7 +25,7 @@ namespace Game.Network
             _runner.AddCallbacks(_callbacks);
 
             if (_uiController != null)
-                _uiController.HideGameUI();
+                _uiController.HideGameHUD();
         }
 
         public async Task<List<SessionInfo>> GetSessionList()

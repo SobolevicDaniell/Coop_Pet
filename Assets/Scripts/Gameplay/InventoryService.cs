@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Zenject;
 
 namespace Game
 {
-    public class InventoryService : IInventory
+    public class InventoryService : IInventory, IInitializable, IDisposable
     {
         public event Action OnQuickSlotsChanged;
         public event Action OnInventoryChanged;
@@ -12,36 +13,119 @@ namespace Game
 
         public int SelectedQuickSlot { get; private set; } = -1;
 
-        private readonly InventorySlot[] _quickSlots;
-        private readonly InventorySlot[] _inventorySlots;
-        private readonly ItemDatabaseSO _db;
+        private InventorySlot[] _quickSlots;
+        private InventorySlot[] _inventorySlots;
 
-        public InventoryService(ItemDatabaseSO db)
+        [Inject] private ItemDatabaseSO _db;
+        [Inject(Optional = true)] private InventoryClientFacade _facade;
+        [Inject(Optional = true)] private ContainerViewSessionClient _view;
+
+        private bool _quickSizedFromServer;
+        private bool _mainSizedFromServer;
+
+        public void Initialize()
         {
-            _db = db;
-            _quickSlots = new InventorySlot[10];
-            _inventorySlots = new InventorySlot[30];
-            for (int i = 0; i < _quickSlots.Length; i++)
-                _quickSlots[i] = new InventorySlot(null, 0);
-            for (int i = 0; i < _inventorySlots.Length; i++)
-                _inventorySlots[i] = new InventorySlot(null, 0);
+            // Стартуем с минимального валидного размера (избегаем хардкодов)
+            int quickCap = Math.Max(_facade?.GetLocalQuickCapacity() ?? 0, 1);
+            int mainCap  = Math.Max(_facade?.GetLocalMainCapacity()  ?? 0, 1);
+
+            _quickSlots     = new InventorySlot[quickCap];
+            _inventorySlots = new InventorySlot[mainCap];
+
+            for (int i = 0; i < _quickSlots.Length; i++)     _quickSlots[i]     = new InventorySlot(null, 0);
+            for (int i = 0; i < _inventorySlots.Length; i++) _inventorySlots[i] = new InventorySlot(null, 0);
+
+            // Подписываемся ВСЕГДА и один раз подгоняем, если снапшоты уже есть
+            if (_view != null && _facade != null)
+            {
+                _view.OnContainerChanged += OnContainerChanged_SizeOncePerContainer;
+                TrySizeNow();
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_view != null)
+                _view.OnContainerChanged -= OnContainerChanged_SizeOncePerContainer;
         }
 
         public InventorySlot[] GetQuickSlots() => _quickSlots;
         public InventorySlot[] GetInventorySlots() => _inventorySlots;
 
+        private void OnContainerChanged_SizeOncePerContainer(ContainerId id)
+        {
+            if (_facade == null) return;
 
+            if (!_quickSizedFromServer && id.Equals(_facade.localQuick))
+            {
+                int q = _facade.GetLocalQuickCapacity();
+                if (q > 0 && _quickSlots.Length != q)
+                {
+                    ResizeQuick(q);
+                    _quickSizedFromServer = true;
+                }
+                else if (q > 0) _quickSizedFromServer = true;
+            }
+
+            if (!_mainSizedFromServer && id.Equals(_facade.localMain))
+            {
+                int m = _facade.GetLocalMainCapacity();
+                if (m > 0 && _inventorySlots.Length != m)
+                {
+                    ResizeMain(m);
+                    _mainSizedFromServer = true;
+                }
+                else if (m > 0) _mainSizedFromServer = true;
+            }
+
+            if (_quickSizedFromServer && _mainSizedFromServer && _view != null)
+                _view.OnContainerChanged -= OnContainerChanged_SizeOncePerContainer;
+        }
+
+        private void TrySizeNow()
+        {
+            int q = _facade.GetLocalQuickCapacity();
+            if (q > 0)
+            {
+                if (_quickSlots.Length != q) ResizeQuick(q);
+                _quickSizedFromServer = true;
+            }
+
+            int m = _facade.GetLocalMainCapacity();
+            if (m > 0)
+            {
+                if (_inventorySlots.Length != m) ResizeMain(m);
+                _mainSizedFromServer = true;
+            }
+
+            if (_quickSizedFromServer && _mainSizedFromServer && _view != null)
+                _view.OnContainerChanged -= OnContainerChanged_SizeOncePerContainer;
+        }
+
+        private void ResizeQuick(int q)
+        {
+            var newQ = new InventorySlot[q];
+            for (int i = 0; i < q; i++)
+                newQ[i] = i < _quickSlots.Length ? _quickSlots[i] : new InventorySlot(null, 0);
+            _quickSlots = newQ;
+            OnQuickSlotsChanged?.Invoke();
+            // Debug.Log($"[InvClient] Quick resized to {q}");
+        }
+
+        private void ResizeMain(int m)
+        {
+            var newM = new InventorySlot[m];
+            for (int i = 0; i < m; i++)
+                newM[i] = i < _inventorySlots.Length ? _inventorySlots[i] : new InventorySlot(null, 0);
+            _inventorySlots = newM;
+            OnInventoryChanged?.Invoke();
+            // Debug.Log($"[InvClient] Main resized to {m}");
+        }
 
         public void ToggleQuickSlot(int idx)
         {
-            if (SelectedQuickSlot == idx)
-            {
-                SelectedQuickSlot = -1;
-            }
-            else
-            {
-                SelectedQuickSlot = idx;
-            }
+            if (idx < -1 || idx >= _quickSlots.Length) return;
+            SelectedQuickSlot = (SelectedQuickSlot == idx) ? -1 : idx;
             OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
         }
 
@@ -49,11 +133,10 @@ namespace Game
         {
             if (from == to) return false;
             if (from < 0 || from >= _quickSlots.Length) return false;
-            if (to < 0 || to >= _quickSlots.Length) return false;
+            if (to   < 0 || to   >= _quickSlots.Length) return false;
 
             (_quickSlots[from], _quickSlots[to]) = (_quickSlots[to], _quickSlots[from]);
 
-            // Если выбранный слот был перемещён, сбрасываем выбор
             if (SelectedQuickSlot == from || SelectedQuickSlot == to)
                 SelectedQuickSlot = -1;
 
@@ -62,26 +145,14 @@ namespace Game
             return true;
         }
 
-
         public int HandlePick(string itemId, int count, int ammo)
         {
             var item = _db.Get(itemId);
             if (item == null) return count;
 
             int rem = count;
-            if (item.priority == 1)
-                rem = TryQuick(item, rem, ammo);
-            else
-                rem = TryInventory(item, rem, ammo);
-
-            if (rem > 0)
-            {
-                if (item.priority == 1)
-                    rem = TryInventory(item, rem, ammo);
-                else
-                    rem = TryQuick(item, rem, ammo);
-            }
-
+            rem = (item.priority == 1) ? TryQuick(item, rem, ammo) : TryInventory(item, rem, ammo);
+            if (rem > 0) rem = (item.priority == 1) ? TryInventory(item, rem, ammo) : TryQuick(item, rem, ammo);
             return rem;
         }
 
@@ -151,8 +222,7 @@ namespace Game
 
         public void RaiseQuickSlotsChanged() => OnQuickSlotsChanged?.Invoke();
         public void RaiseQuickSlotSelectionChanged(int sel) => OnQuickSlotSelectionChanged?.Invoke(sel);
-
-        // ==== Методы для ресурсов (патроны) ====
+        public void RaiseInventoryChanged() => OnInventoryChanged?.Invoke();
 
         public int GetResourceCount(string resourceId)
         {
@@ -166,7 +236,7 @@ namespace Game
 
         public bool SpendResource(string resourceId, int amount)
         {
-            List<InventorySlot> slots = new List<InventorySlot>();
+            var slots = new List<InventorySlot>(_quickSlots.Length + _inventorySlots.Length);
             slots.AddRange(_quickSlots);
             slots.AddRange(_inventorySlots);
 
@@ -198,6 +268,7 @@ namespace Game
                     return slot;
             return null;
         }
+
         public IEnumerable<InventorySlot> FindAllResourceSlots(string resourceId)
         {
             foreach (var slot in _quickSlots)
@@ -208,7 +279,6 @@ namespace Game
                     yield return slot;
         }
 
-
         public void ForceSetQuickSlot(int idx)
         {
             if (idx < -1 || idx >= _quickSlots.Length) return;
@@ -217,15 +287,12 @@ namespace Game
             OnQuickSlotSelectionChanged?.Invoke(SelectedQuickSlot);
         }
 
-
-
         public bool TryAddItem(string itemId, int count)
         {
             var itemSo = _db.Get(itemId);
             if (itemSo == null) return false;
             int left = count;
 
-            // Quick slots (если игроку разрешено класть туда такие предметы)
             foreach (var slot in _quickSlots)
             {
                 if (slot.Id == itemId && slot.Count < itemSo.MaxStack)
@@ -236,7 +303,6 @@ namespace Game
                     if (left <= 0) { OnQuickSlotsChanged?.Invoke(); return true; }
                 }
             }
-            // Inventory slots
             foreach (var slot in _inventorySlots)
             {
                 if (slot.Id == itemId && slot.Count < itemSo.MaxStack)
@@ -274,14 +340,13 @@ namespace Game
             return left == 0;
         }
 
-        // Новый метод — перенос предмета именно в выбранный слот, например, в quick slot!
         public bool TryMoveToSlot(string itemId, int count, int targetSlot, ItemState state = null)
         {
             InventorySlot[] allSlots;
             int slotCount;
-            bool isQuick = false;
+            bool isQuick;
 
-            if (targetSlot < 10)
+            if (targetSlot < _quickSlots.Length)
             {
                 allSlots = _quickSlots;
                 slotCount = _quickSlots.Length;
@@ -289,11 +354,12 @@ namespace Game
             }
             else
             {
-                int invIndex = targetSlot - 10;
+                int invIndex = targetSlot - _quickSlots.Length;
                 if (invIndex < 0 || invIndex >= _inventorySlots.Length) return false;
                 allSlots = _inventorySlots;
                 slotCount = _inventorySlots.Length;
                 targetSlot = invIndex;
+                isQuick = false;
             }
 
             if (targetSlot < 0 || targetSlot >= slotCount)
@@ -304,7 +370,6 @@ namespace Game
 
             var slot = allSlots[targetSlot];
 
-            // Если пусто — кладём весь стек
             if (slot.Id == null)
             {
                 slot.Id = itemId;
@@ -314,7 +379,6 @@ namespace Game
                 else OnInventoryChanged?.Invoke();
                 return true;
             }
-            // Если такой же предмет — стакаем до максимума
             if (slot.Id == itemId && slot.Count < itemSo.MaxStack)
             {
                 int canPut = Mathf.Min(count, itemSo.MaxStack - slot.Count);
@@ -326,7 +390,6 @@ namespace Game
                 return canPut == count;
             }
 
-            // Если другой предмет — не кладём, возвращаем false
             return false;
         }
 
@@ -334,9 +397,9 @@ namespace Game
         {
             InventorySlot[] allSlots;
             int slotCount;
-            bool isQuick = false;
+            bool isQuick;
 
-            if (slotIndex < 10)
+            if (slotIndex < _quickSlots.Length)
             {
                 allSlots = _quickSlots;
                 slotCount = _quickSlots.Length;
@@ -344,16 +407,19 @@ namespace Game
             }
             else
             {
-                int invIndex = slotIndex - 10;
+                int invIndex = slotIndex - _quickSlots.Length;
                 if (invIndex < 0 || invIndex >= _inventorySlots.Length) return false;
                 allSlots = _inventorySlots;
                 slotCount = _inventorySlots.Length;
                 slotIndex = invIndex;
+                isQuick = false;
             }
 
             if (slotIndex < 0 || slotIndex >= slotCount) return false;
+
             var slot = allSlots[slotIndex];
             if (slot.Id == null || slot.Count < amount) return false;
+
             slot.Count -= amount;
             if (slot.Count <= 0)
             {
@@ -361,17 +427,10 @@ namespace Game
                 slot.Count = 0;
                 slot.State = null;
             }
+
             if (isQuick) OnQuickSlotsChanged?.Invoke();
             else OnInventoryChanged?.Invoke();
             return true;
         }
-        public void RaiseInventoryChanged()
-        {
-            OnInventoryChanged?.Invoke();
-        }
-
-        
-
-
     }
 }

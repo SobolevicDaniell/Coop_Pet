@@ -208,6 +208,7 @@ GameObject:
   - component: {fileID: 8080840332799535230}
   - component: {fileID: 3574648107898299525}
   - component: {fileID: 9151890314696254824}
+  - component: {fileID: 2956075808528719169}
   - component: {fileID: 8225079911294365844}
   - component: {fileID: 3951271383083379316}
   - component: {fileID: 536071863030034606}
@@ -216,14 +217,15 @@ GameObject:
   - component: {fileID: 3098677230441079902}
   - component: {fileID: 6153325551596305792}
   - component: {fileID: 7251172290690331865}
-  - component: {fileID: 5935501579931714443}
   - component: {fileID: 3269879759306030424}
   - component: {fileID: -6335083702584605143}
   - component: {fileID: -3395697285265996011}
   - component: {fileID: -2158133828490695294}
-  - component: {fileID: 2956075808528719169}
   - component: {fileID: 2851646817115359618}
   - component: {fileID: 4709696160151012762}
+  - component: {fileID: 8895098840597039882}
+  - component: {fileID: 3471077576768736987}
+  - component: {fileID: 790540318843576373}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -275,9 +277,11 @@ MonoBehaviour:
   - {fileID: 536071863030034606}
   - {fileID: 3098677230441079902}
   - {fileID: 6153325551596305792}
-  - {fileID: 5935501579931714443}
   - {fileID: 3269879759306030424}
   - {fileID: 4709696160151012762}
+  - {fileID: 8895098840597039882}
+  - {fileID: 3471077576768736987}
+  - {fileID: 790540318843576373}
   - {fileID: 2445908070462576243}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &4402347777045086714
@@ -384,6 +388,24 @@ MonoBehaviour:
   _groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &2956075808528719169
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3950158868047817375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 08eca9f7688a0a24685b89133b020c8e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Zenject::Zenject.GameObjectContext
+  _scriptableObjectInstallers: []
+  _monoInstallers:
+  - {fileID: 2851646817115359618}
+  _installerPrefabs: []
+  _autoRun: 1
+  _kernel: {fileID: 0}
 --- !u!114 &8225079911294365844
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -497,19 +519,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::InputHandler
   keyboardLookSensitivity: 50000
   mouseLookSensitivity: 60
---- !u!114 &5935501579931714443
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3950158868047817375}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9c96045e3e2bbd04c9377a0d4b4d209e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerRpcHandler
-  defaultBulletPrefab: {fileID: 0}
 --- !u!114 &3269879759306030424
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -560,24 +569,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 75abaacbc75dbed469b35ab47bee7dc6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlaceItemController
---- !u!114 &2956075808528719169
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3950158868047817375}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 08eca9f7688a0a24685b89133b020c8e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Zenject::Zenject.GameObjectContext
-  _scriptableObjectInstallers: []
-  _monoInstallers:
-  - {fileID: 2851646817115359618}
-  _installerPrefabs: []
-  _autoRun: 1
-  _kernel: {fileID: 0}
 --- !u!114 &2851646817115359618
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -602,10 +593,49 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2aec953314c189347b47878e86529eb3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerInputRouter
-  _slotCount: 10
   _wheelCooldown: 0
   _placeMaxDistance: 4
   _dropCooldown: 0.12
+--- !u!114 &8895098840597039882
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3950158868047817375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f156e45ac7fd3ff45bc7a665e0776076, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerInventoryServer
+  _kind: 1
+  _capacity: 24
+--- !u!114 &3471077576768736987
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3950158868047817375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f156e45ac7fd3ff45bc7a665e0776076, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerInventoryServer
+  _kind: 0
+  _capacity: 10
+--- !u!114 &790540318843576373
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3950158868047817375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b018b4eb05072ef4c8ca7ad63fe22c31, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.InventoryRpcRouter
 --- !u!1 &5556326248227318228
 GameObject:
   m_ObjectHideFlags: 0

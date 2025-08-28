@@ -24,7 +24,7 @@ namespace Game
         [Inject] private InventoryService _inventory;
         [Inject] private HandItemBehaviorFactory _factory;
         [Inject] private ItemDatabaseSO _db;
-        [Inject] private UIHealthView _uiHealth;
+        [Inject(Optional = true)] private UIHealthView _uiHealth;
         [Inject] private UIController _uiController;
         [Inject(Id = "PlayerInventoryPanel")] private InventoryPanel _playerPanel;
         [Inject(Id = "OtherInventoryPanel")] private OtherInventoryPanel _otherPanel;
@@ -39,7 +39,7 @@ namespace Game
         [Inject] private PlaceItemController _placeItem;
         [Inject] private QuickSlotController _quickSlot;
         [Inject] private HealthComponent _health;
-        [Inject] private InventoryTransferController _transfer;
+        [Inject(Optional = true)] private InventoryTransferController _transfer;
 
         // текущее поведение
         public IHandItemBehavior currentBehavior { get; private set; }
@@ -184,7 +184,7 @@ namespace Game
 
             if (_uiController.InventoryOpened)
             {
-                _uiController.ShowGameUI();
+                _uiController.ShowGameHUD();
                 _pickDrop.CloseOpenedInventories();
             }
             else
@@ -198,7 +198,7 @@ namespace Game
         {
             if (!Object.HasInputAuthority) return;
 
-            _uiController.ShowGameUI();
+            _uiController.ShowGameHUD();
             _pickDrop.CloseOpenedInventories();
         }
 
@@ -221,7 +221,7 @@ namespace Game
             var slot = slots[idx];
             string id = slot?.Id;
 
-            string stateHash = slot?.State != null ? $"{slot.State.Ammo}" : "null";
+            string stateHash = slot?.State != null ? $"{slot.State.ammo}" : "null";
             string key = $"{idx}:{id}:{stateHash}";
 
             if (_lastEquipKey != key)

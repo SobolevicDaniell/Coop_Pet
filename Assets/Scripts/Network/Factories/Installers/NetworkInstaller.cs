@@ -43,9 +43,6 @@ namespace Game.Network
                 .FromComponentInHierarchy()
                 .AsSingle();
 
-            Container.Bind<UIHealthView>()
-                .FromComponentInHierarchy()
-                .AsSingle();
 
             Container.Bind<InventoryPanel>()
                 .WithId("PlayerInventoryPanel")
@@ -79,10 +76,6 @@ namespace Game.Network
             Container.Bind<PlayerSpawner>()
                 .AsSingle();
 
-            // Container.BindInterfacesTo<FusionZenjectInjector>()
-            //     .AsSingle()
-            //     .NonLazy();
-
             Container.Bind<INetworkObjectProvider>()
                 .To<ZenjectObjectProvider>()
                 .AsSingle();
@@ -107,6 +100,21 @@ namespace Game.Network
             Container.Bind<PlayerStatsSO>()
                 .FromInstance(_playerStats)
                 .AsSingle();
+
+
+            ClientInventoryInstaller.Install(Container);
+            ServerInventoryInstaller.Install(Container);
+
+            if (!Application.isBatchMode)
+            {
+                Container.Bind<InventoryTransferController>()
+                         .FromComponentInHierarchy()
+                         .AsSingle();
+                         
+                Container.Bind<UIHealthView>()
+                    .FromComponentInHierarchy()
+                    .AsSingle();
+            }
 
 
         }

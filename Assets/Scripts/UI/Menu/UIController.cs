@@ -4,7 +4,10 @@ namespace Game.UI
 {
     public class UIController : MonoBehaviour
     {
-        [SerializeField] private GameObject _gameUI;
+        [SerializeField] private GameObject _gameHud;
+        [SerializeField] private GameObject _menuHud;
+        [SerializeField] private GameObject _deathScreen;
+        [SerializeField] private GameObject _quickSlotPanel;
         [SerializeField] private GameObject _inventoryPanel;
         [SerializeField] private GameObject _otherInventoryPanel;
         [SerializeField] private GameObject _interactionPrompt;
@@ -17,30 +20,32 @@ namespace Game.UI
 
         private void OnEnable()
         {
-            Network.Startup.OnSessionStarted += ShowGameUI;
+            Network.Startup.OnSessionStarted += ShowGameHUD;
         }
 
         private void OnDisable()
         {
-            Network.Startup.OnSessionStarted -= ShowGameUI;
+            Network.Startup.OnSessionStarted -= ShowGameHUD;
         }
 
-        public void ShowGameUI()
+        public void ShowGameHUD()
         {
-            // Debug.Log("[UIController] ShowGameUI called");
-            _gameUI.SetActive(true);
+            _gameHud.SetActive(true);
+            _menuHud.SetActive(false);
+            _quickSlotPanel.SetActive(true);
             _inventoryPanel.SetActive(false);
             _otherInventoryPanel.SetActive(false);
             _uiCamera.SetActive(false);
             _dot.SetActive(true);
-            _interactionPrompt.SetActive(true);
+            _interactionPrompt.SetActive(false);
             SetCursor(false);
             _inputHandler.SetInventoryOpen(false);
+            _deathScreen.SetActive(false);
         }
 
         public void ShowInventory(bool showOther = false)
         {
-            _gameUI.SetActive(true);
+            _gameHud.SetActive(true);
             _inventoryPanel.SetActive(true);
             _otherInventoryPanel.SetActive(showOther);
             _interactionPrompt.SetActive(false);
@@ -50,9 +55,9 @@ namespace Game.UI
             _inputHandler.SetInventoryOpen(true);
         }
 
-        public void HideGameUI()
+        public void HideGameHUD()
         {
-            _gameUI.SetActive(false);
+            _gameHud.SetActive(false);
             _inventoryPanel.SetActive(false);
             _otherInventoryPanel.SetActive(false);
             _interactionPrompt.SetActive(false);

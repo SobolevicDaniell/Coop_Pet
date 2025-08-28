@@ -130,7 +130,7 @@ namespace Game
 
             if (string.IsNullOrEmpty(ammoId)) return;
 
-            int need = Mathf.Max(0, magSize - wSlot.State.Ammo);
+            int need = Mathf.Max(0, magSize - wSlot.State.ammo);
             if (need <= 0) return;
 
             int available = inv.GetResourceCount(ammoId);
@@ -140,7 +140,7 @@ namespace Game
             if (take <= 0) return;
 
             inv.SpendResource(ammoId, take);
-            wSlot.State.Ammo += take;
+            wSlot.State.ammo += take;
 
             inv.RaiseQuickSlotsChanged();
         }
