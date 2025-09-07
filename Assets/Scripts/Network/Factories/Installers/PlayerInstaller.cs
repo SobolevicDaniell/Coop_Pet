@@ -15,7 +15,7 @@ namespace Game
             Container.Bind<ItemEquipController>().FromComponentOnRoot();
             Container.Bind<PickDropController>().FromComponentOnRoot();
             Container.Bind<PlaceItemController>().FromComponentOnRoot();
-            Container.Bind<HealthComponent>().FromComponentOnRoot();
+            // Container.Bind<HealthComponent>().FromComponentOnRoot();
             Container.Bind<PlayerInputRouter>().FromComponentOnRoot();
             Container.BindInterfacesAndSelfTo<InventoryService>().AsSingle();
         }

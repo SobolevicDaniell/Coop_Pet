@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 263835682881869034}
   - component: {fileID: 3637759108545772921}
   - component: {fileID: 4610642512736026270}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: SlotPrefab
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -96,7 +96,7 @@ GameObject:
   - component: {fileID: 6458728904385229055}
   - component: {fileID: 593851276521301446}
   - component: {fileID: 4251678993498708499}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: Count
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -234,7 +234,7 @@ GameObject:
   - component: {fileID: 3524736131507230106}
   - component: {fileID: 4874981106121790669}
   - component: {fileID: 6822530600826991845}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: ImageActive
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -309,7 +309,7 @@ GameObject:
   - component: {fileID: 4709333782747647885}
   - component: {fileID: 1880738647698639576}
   - component: {fileID: 8462561360271368316}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: Image
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -384,7 +384,7 @@ GameObject:
   - component: {fileID: 2340818243919054641}
   - component: {fileID: 8291075044426168305}
   - component: {fileID: 8003126947324978770}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: Fon
   m_TagString: Untagged
   m_Icon: {fileID: 0}

@@ -1,3 +1,4 @@
+// Scripts/Inventory/PlayerInventoryServer.cs
 using Fusion;
 using UnityEngine;
 using Zenject;
@@ -9,13 +10,16 @@ namespace Game
     {
         [SerializeField] private ContainerType _kind = ContainerType.PlayerMain;
 
-        [SerializeField, Min(0)] private int _capacityOverride = 0;
+        // РЕЗЕРВ через инспектор (тот же SO, что использует UI)
+        [SerializeField] private PlayerStatsSO _statsSerialized;
 
-        [Inject(Optional = true)] private InventoryContainerRegistry _registry;
-        [Inject(Optional = true)] private PlayerStatsSO _stats; // источник конфигурации (UI уже его использует)
+        // DI-источник (как и было)
+        [Inject(Optional = true)] private PlayerStatsSO _statsDI;
 
         private InventorySlotState[] _slots;
         private int _version;
+
+        [Inject(Optional = true)] private InventoryContainerRegistry _registry;
 
         public ContainerId Id { get; private set; }
         public int Version => _version;
@@ -32,8 +36,9 @@ namespace Game
                 _kind = ContainerType.PlayerMain;
             }
 
-            var cap = ResolveCapacity(); // ЕДИНЫЙ источник: SO (+ опциональный оверрайд)
-            if (cap < 1) cap = 1;
+            var so = _statsSerialized != null ? _statsSerialized : _statsDI;
+            var cap = ResolveCapacityFromSO(so, _kind);
+            if (cap <= 0) cap = 1;
 
             _slots = new InventorySlotState[cap];
 
@@ -43,8 +48,10 @@ namespace Game
 
             _registry?.Register(this);
 
-            // Диагностика (можно удалить позже)
-            Debug.Log($"[InvServer] {Object.InputAuthority} {_kind} capacity={cap} (SO={GetSoCapacityOrMinus1()}, Override={_capacityOverride})");
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            var soName = so ? $"{so.name}#{so.GetInstanceID()}" : "null";
+            Debug.Log($"[INV][Server] Spawned {Id.type} for {Id.ownerRef}, capacity={_slots.Length}, SO={soName}");
+#endif
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)
@@ -53,25 +60,22 @@ namespace Game
             _registry?.Unregister(Id);
         }
 
+        private static int ResolveCapacityFromSO(PlayerStatsSO so, ContainerType kind)
+        {
+            if (so == null) return 1;
+            return kind == ContainerType.PlayerQuick ? so.quickSlotsCount : so.inventorySlotsCount;
+        }
+
         public bool CanPlayerAccess(PlayerRef player) => player == Object.InputAuthority;
         public bool CanAccept(int slotIndex, InventorySlotState incoming) => true;
 
-        public void SetSlot(int slotIndex, InventorySlotState state) => _slots[slotIndex] = state?.Clone();
-        public void IncrementVersion() => _version++; 
-
-        private int ResolveCapacity()
+        public void SetSlot(int index, InventorySlotState state)
         {
-            if (_capacityOverride > 0) return _capacityOverride;
-            var soCap = GetSoCapacityOrMinus1();
-            if (soCap > 0) return soCap;
-
-            return _kind == ContainerType.PlayerQuick ? 10 : 24;
+            if (_slots == null || index < 0 || index >= _slots.Length) return;
+            // Храним клон с itemState (Clone() уже глубокий)
+            _slots[index] = state?.Clone();
         }
 
-        private int GetSoCapacityOrMinus1()
-        {
-            if (_stats == null) return -1;
-            return _kind == ContainerType.PlayerQuick ? _stats.quickSlotsCount : _stats.inventorySlotsCount;
-        }
+        public void IncrementVersion() => _version++;
     }
 }

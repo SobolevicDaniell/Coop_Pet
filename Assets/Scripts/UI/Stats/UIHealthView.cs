@@ -1,29 +1,31 @@
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
+using Zenject;
 
-namespace Game
+namespace Game.UI
 {
-    public class UIHealthView : MonoBehaviour
+    public sealed class UIHealthView : MonoBehaviour
     {
-        [SerializeField] private Slider _healthSlider;
-        [SerializeField] private GameObject _deathScreen;
+        [SerializeField] private Slider _slider;
+        [Inject(Optional = true)] private HealthClientModel _model;
 
-        public void SetMaxHealth(int max)
+        private void OnEnable()
         {
-            _healthSlider.maxValue = max;
-            _healthSlider.value = max;
-            _deathScreen.SetActive(false);
+            if (_model == null || _slider == null) return;
+            _model.OnChanged += OnChanged;
+            OnChanged(_model.Current, _model.Max);
         }
 
-        public void UpdateHealth(int current)
+        private void OnDisable()
         {
-            _healthSlider.value = current;
+            if (_model == null) return;
+            _model.OnChanged -= OnChanged;
         }
 
-        public void ShowDeath()
+        private void OnChanged(int cur, int max)
         {
-            _deathScreen.SetActive(true);
+            _slider.maxValue = max;
+            _slider.value    = cur;
         }
     }
 }

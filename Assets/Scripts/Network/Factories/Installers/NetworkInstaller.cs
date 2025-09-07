@@ -101,6 +101,9 @@ namespace Game.Network
                 .FromInstance(_playerStats)
                 .AsSingle();
 
+            Container.BindInterfacesAndSelfTo<Game.Network.FusionZenjectInjector>()
+                .AsSingle();
+
 
             ClientInventoryInstaller.Install(Container);
             ServerInventoryInstaller.Install(Container);
@@ -110,11 +113,18 @@ namespace Game.Network
                 Container.Bind<InventoryTransferController>()
                          .FromComponentInHierarchy()
                          .AsSingle();
-                         
+
                 Container.Bind<UIHealthView>()
                     .FromComponentInHierarchy()
                     .AsSingle();
+
+                Container.Bind<HealthClientModel>()
+                    .AsSingle();
             }
+
+            // Container.Bind<InventoryClientModel>().AsSingle();
+            // Container.Bind<InventoryClientFacade>().AsSingle();
+
 
 
         }

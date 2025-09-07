@@ -9,6 +9,7 @@ namespace Game.UI
         [SerializeField] private Transform _slotsParent;
 
         public PanelKind Kind => PanelKind.Quick;
+
         private Game.InventoryService _inv;
         private ItemDatabaseSO _db;
         private InventorySlotUI _slotPrefab;
@@ -22,6 +23,8 @@ namespace Game.UI
         private bool _initialized;
         private InventorySlotUI _draggingSlot;
         private InventorySlotUI _targetSlot;
+        [Inject(Optional = true)] private InventoryClientFacade _facade;
+
 
         [Inject]
         public void Construct(ItemDatabaseSO db, [Inject(Id = "InventorySlotPrefab")] InventorySlotUI slotPrefab)
@@ -37,7 +40,6 @@ namespace Game.UI
                 gameObject.SetActive(false);
                 return;
             }
-
             if (_initialized) return;
 
             _inv = controller.inventory;
@@ -50,55 +52,62 @@ namespace Game.UI
 
             _initialized = true;
 
+            _inv.ForceSetQuickSlot(-1);
+
             CreateSlots();
 
-            _inv.OnQuickSlotsChanged -= Refresh;
-            _inv.OnQuickSlotSelectionChanged -= OnQuickSlotChanged;
             _inv.OnQuickSlotsChanged += Refresh;
             _inv.OnQuickSlotSelectionChanged += OnQuickSlotChanged;
 
             Refresh();
+            OnQuickSlotChanged(_inv.SelectedQuickSlot);
         }
 
         private void CreateSlots()
         {
-            _slots = new InventorySlotUI[10];
-            for (int i = 0; i < _slots.Length; i++)
+            int cap = Mathf.Max(1, _inv?.GetQuickSlots()?.Length ?? 10);
+            _slots = new InventorySlotUI[cap];
+
+            for (int i = 0; i < cap; i++)
             {
                 var slot = Instantiate(_slotPrefab, _slotsParent);
+                slot.gameObject.SetActive(true); 
                 slot.Init(i, _inv, this);
                 slot.SetActive(false);
 
                 slot.OnBeginDrag += HandleBeginDrag;
-                slot.OnEndDrag += HandleEndDrag;
-                slot.OnEnter += HandleSlotEnter;
-                slot.OnExit += HandleSlotExit;
+                slot.OnEndDrag   += HandleEndDrag;
+                slot.OnEnter     += HandleSlotEnter;
+                slot.OnExit      += HandleSlotExit;
 
                 _slots[i] = slot;
             }
         }
 
-        private void HandleBeginDrag(InventorySlotUI slot) => _draggingSlot = slot;
+        private void HandleBeginDrag(InventorySlotUI slot)
+        {
+            _draggingSlot = slot;
+            OnSlotBeginDrag?.Invoke(slot);
+        }
 
         private void HandleEndDrag(InventorySlotUI slot)
         {
-            if (_draggingSlot != null && _targetSlot != null && _inv != null)
-            {
-                int from = _draggingSlot.SlotIndex;
-                int to = _targetSlot.SlotIndex;
-                _inv.MoveQuickSlot(from, to);
-            }
+            OnSlotEndDrag?.Invoke(slot);
 
             _draggingSlot = null;
             _targetSlot = null;
         }
 
-        private void HandleSlotEnter(InventorySlotUI slot) => _targetSlot = slot;
+        private void HandleSlotEnter(InventorySlotUI slot)
+        {
+            _targetSlot = slot;
+            OnSlotEnter?.Invoke(slot);
+        }
 
         private void HandleSlotExit(InventorySlotUI slot)
         {
-            if (_targetSlot == slot)
-                _targetSlot = null;
+            if (_targetSlot == slot) _targetSlot = null;
+            OnSlotExit?.Invoke(slot);
         }
 
         public void RefreshPanel() => Refresh();
@@ -107,7 +116,7 @@ namespace Game.UI
         {
             if (!_initialized || _inv == null || _db == null || _slots == null) return;
 
-            var slots = _inv.GetQuickSlots();
+            var data = _inv.GetQuickSlots();
             int selected = _inv.SelectedQuickSlot;
 
             for (int i = 0; i < _slots.Length; i++)
@@ -115,23 +124,20 @@ namespace Game.UI
                 var ui = _slots[i];
                 if (ui == null) continue;
 
-                ui.Init(i, _inv, this);
-
-                ItemSO item = null;
-                int count = 0;
-
-                if (slots != null && i < slots.Length)
+                ItemSO item = null; int count = 0; Game.ItemState state = null;
+                if (data != null && i < data.Length)
                 {
-                    var backend = slots[i];
+                    var backend = data[i];
                     if (backend != null && !string.IsNullOrEmpty(backend.Id))
                     {
                         item = _db.Get(backend.Id);
                         count = backend.Count;
+                        state = backend.State;
                     }
                 }
 
-                ui.Set(item, count);
-                ui.SetActive(i == selected);
+                ui.Set(item, count, state);
+                ui.SetActive(selected >= 0 && i == selected);
             }
         }
 
@@ -139,10 +145,7 @@ namespace Game.UI
         {
             if (_slots == null) return;
             for (int i = 0; i < _slots.Length; i++)
-            {
-                var ui = _slots[i];
-                if (ui != null) ui.SetActive(i == selected);
-            }
+                _slots[i]?.SetActive(selected >= 0 && i == selected);
         }
 
         public void ClearInventory()
@@ -155,9 +158,9 @@ namespace Game.UI
             _inv = null;
 
             if (_slots == null) return;
-
             foreach (var slotUI in _slots)
-                slotUI.Set(null, 0);
+                slotUI.Set(null, 0, null);
+
         }
 
         private void OnDestroy()
@@ -167,16 +170,15 @@ namespace Game.UI
                 _inv.OnQuickSlotsChanged -= Refresh;
                 _inv.OnQuickSlotSelectionChanged -= OnQuickSlotChanged;
             }
-
             if (_slots != null)
             {
                 foreach (var s in _slots)
                 {
                     if (s == null) continue;
                     s.OnBeginDrag -= HandleBeginDrag;
-                    s.OnEndDrag -= HandleEndDrag;
-                    s.OnEnter -= HandleSlotEnter;
-                    s.OnExit  -= HandleSlotExit;
+                    s.OnEndDrag   -= HandleEndDrag;
+                    s.OnEnter     -= HandleSlotEnter;
+                    s.OnExit      -= HandleSlotExit;
                 }
             }
         }

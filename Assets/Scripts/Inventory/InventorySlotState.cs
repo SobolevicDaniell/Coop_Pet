@@ -11,6 +11,14 @@ namespace Game
         public ItemState itemState;
 
         public bool IsEmpty => string.IsNullOrEmpty(itemId) || count <= 0;
-        public InventorySlotState Clone() => new InventorySlotState { itemId = itemId, count = count, itemState = itemState?.Clone() };
+        public InventorySlotState Clone()
+    {
+        return new InventorySlotState
+        {
+            itemId    = this.itemId,
+            count     = this.count,
+            itemState = this.itemState != null ? new ItemState(this.itemState) : null
+        };
+    }
     }
 }

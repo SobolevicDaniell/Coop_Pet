@@ -17,7 +17,7 @@ namespace Game
         public override void Spawned()
         {
             _rigidbody = GetComponent<Rigidbody>();
-            if (_rigidbody != null) _rigidbody.linearDamping = drag; // изменено
+            if (_rigidbody != null) _rigidbody.linearDamping = drag; // как у тебя
             _timer = TickTimer.CreateFromSeconds(Runner, lifetime);
         }
 
@@ -37,18 +37,25 @@ namespace Game
         {
             if (_rigidbody == null)
                 _rigidbody = GetComponent<Rigidbody>();
-            if (_rigidbody != null) _rigidbody.linearVelocity = velocity; // изменено
+            if (_rigidbody != null) _rigidbody.linearVelocity = velocity; // как у тебя
+        }
+
+        // ↓ добавлено
+        public void SetMass(float mass)
+        {
+            if (_rigidbody == null)
+                _rigidbody = GetComponent<Rigidbody>();
+
+            if (_rigidbody != null)
+                _rigidbody.mass = Mathf.Max(0.001f, mass);
         }
 
         private void OnTriggerEnter(Collider other)
         {
-            if (Object == null || Runner == null) return; // изменено
+            if (Object == null || Runner == null) return;
             if (!Object.HasStateAuthority) return;
 
-            var health = other.GetComponentInParent<HealthComponent>();
-            if (health != null)
-                health.TakeDamage(Damage);
-
+            // тут твоя логика урона по цели (сервер)
             Runner.Despawn(Object);
         }
     }

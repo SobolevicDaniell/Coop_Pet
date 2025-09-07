@@ -30,6 +30,8 @@ namespace Game
         [Inject(Id = "OtherInventoryPanel")] private OtherInventoryPanel _otherPanel;
         [Inject(Optional = true)] private QuickSlotPanel _quickSlotPanel;
         [Inject(Optional = true)] private PlayerCameraController _playerCam;
+        [Inject(Optional = true)] private InventoryClientFacade _inventoryFacade;
+
 
         // компоненты на игроке
         [Inject] private PlayerRpcHandler _playerRpc;
@@ -38,7 +40,7 @@ namespace Game
         [Inject] private PickDropController _pickDrop;
         [Inject] private PlaceItemController _placeItem;
         [Inject] private QuickSlotController _quickSlot;
-        [Inject] private HealthComponent _health;
+        // [Inject] private HealthComponent _health;
         [Inject(Optional = true)] private InventoryTransferController _transfer;
 
         // текущее поведение
@@ -47,6 +49,9 @@ namespace Game
         [Networked] public int netSelectedQuickSlot { get; set; } = -1;
 
         [Networked] public NetworkId handModelNetId { get; set; }
+        [Networked] public int SelectedQuickIndexNet { get; private set; }
+
+        private int _lastSelectedQuickIndexNet = int.MinValue;
         private NetworkObject _handModelNetObj;
 
         // API доступа
@@ -91,28 +96,28 @@ namespace Game
             _pickDrop ??= GetComponent<PickDropController>();
             _placeItem ??= GetComponent<PlaceItemController>();
             _quickSlot ??= GetComponent<QuickSlotController>();
-            _health ??= GetComponent<HealthComponent>();
 
             _quickSlot?.Construct(this, _inventory);
             _handItemController?.Construct(_db, _playerRpc, this);
             _placeItem?.Construct(this);
             _itemEquip?.Initialize(_factory, _db, this);
-            // _playerPanel?.Construct(_inventory);
             _pickDrop?.Construct(this, _playerRpc, _inventory, _playerPanel, _otherPanel, _db, _uiController, _prompt, null);
 
             var inputHandler = GetComponent<InteractionInputHandler>();
             inputHandler?.Construct(this, _input, _inventory, _prompt);
 
-            // ИЗМЕНЕНИЕ: конструируем RPC на обеих сторонах
             _playerRpc?.Construct(_db, this, _inventory);
 
             if (Object.HasInputAuthority)
             {
                 _playerPanel?.Construct(_inventory);
                 _quickSlot?.EnableForLocal();
-                _health?.Initialize(_uiHealth, Object.HasStateAuthority, true);
                 _quickSlotPanel?.InitializeIfLocal(this);
-                _transfer?.Initialize(_inventory, _playerPanel, _quickSlotPanel, _otherPanel);
+                _transfer?.Initialize(_inventory, _playerPanel, _quickSlotPanel, _otherPanel, this, _inventoryFacade);
+
+                var sel = _inventory != null ? _inventory.SelectedQuickSlot : -1;
+                if (sel >= 0)
+                    _playerRpc?.RPC_RequestEquipQuickSlot(sel);
 
                 if (_input != null)
                 {
@@ -128,6 +133,7 @@ namespace Game
 
                 _localInitialized = true;
             }
+
         }
 
         private void Update()
@@ -147,6 +153,21 @@ namespace Game
                 _input.OnGlobalUiCloseRequested -= CloseInventory;
             }
             _quickSlot?.DisableForLocal();
+        }
+        public override void Render()
+        {
+            if (!HasInputAuthority) return;
+
+            if (_lastSelectedQuickIndexNet != SelectedQuickIndexNet)
+            {
+                _lastSelectedQuickIndexNet = SelectedQuickIndexNet;
+
+                // важное дополнение: локальная модель получает подтверждённый индекс сервера
+                _inventory?.ForceSetQuickSlot(SelectedQuickIndexNet);
+
+                // а дальше — ваш прежний путь экипа (IC сам решает, что экипировать)
+                InvokeOnQuickSlotsChanged();
+            }
         }
 
         // API для поведения в руках
@@ -202,7 +223,7 @@ namespace Game
             _pickDrop.CloseOpenedInventories();
         }
 
-        // быстрые слоты → экип
+        // InteractionController.cs
         private void OnQuickSlotsChanged()
         {
             if (_itemEquip == null || _inventory == null)
@@ -211,28 +232,43 @@ namespace Game
             int idx = _inventory.SelectedQuickSlot;
             var slots = _inventory.GetQuickSlots();
 
+            // Если выбран невалидный слот — ключ для "ничего не экипано"
             if (slots == null || idx < 0 || idx >= slots.Length)
             {
-                _itemEquip.Equip(-1, slots);
-                _lastEquipKey = null;
+                const string noneKey = "-1:null";
+                if (_lastEquipKey != noneKey)
+                {
+                    _itemEquip.Equip(-1, slots);
+                    _lastEquipKey = noneKey;
+                }
                 return;
             }
 
             var slot = slots[idx];
-            string id = slot?.Id;
+            var id = slot?.Id;
 
-            string stateHash = slot?.State != null ? $"{slot.State.ammo}" : "null";
-            string key = $"{idx}:{id}:{stateHash}";
+            // ВНИМАНИЕ: ключ экипа зависит ТОЛЬКО от индекса и itemId
+            // Никаких ammo/прочности здесь быть не должно
+            string newKey = $"{idx}:{(string.IsNullOrEmpty(id) ? "null" : id)}";
 
-            if (_lastEquipKey != key)
+            if (_lastEquipKey == newKey)
             {
-                if (string.IsNullOrEmpty(id))
-                    _itemEquip.Equip(-1, slots);
-                else
-                    _itemEquip.Equip(idx, slots);
-
-                _lastEquipKey = key;
+                // Экип уже соответствует — пусть UI сам обновится на событии,
+                // но поведение оружия не пересоздаём
+                return;
             }
+
+            if (string.IsNullOrEmpty(id))
+                _itemEquip.Equip(-1, slots);
+            else
+                _itemEquip.Equip(idx, slots);
+
+            _lastEquipKey = newKey;
+        }
+        public void ServerSetSelectedQuickIndex(int idx)
+        {
+            if (!Object.HasStateAuthority) return;
+            SelectedQuickIndexNet = idx;
         }
     }
 }

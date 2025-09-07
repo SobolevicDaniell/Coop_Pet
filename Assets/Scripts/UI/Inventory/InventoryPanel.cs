@@ -38,10 +38,8 @@ namespace Game.UI
             _inventory = inventory;
 
             if (_slotsUI != null)
-            {
                 for (int i = 0; i < _slotsUI.Length; i++)
-                    _slotsUI[i]?.Init(i, _inventory, this);
-            }
+                    _slotsUI[i]?.Init(i, _inventory, this); // единственный Init
 
             if (_inventory != null)
                 _inventory.OnInventoryChanged += Refresh;
@@ -67,9 +65,9 @@ namespace Game.UI
                 slot.Init(i, _inventory, this);
 
                 slot.OnBeginDrag += HandleBeginDrag;
-                slot.OnEndDrag += HandleEndDrag;
-                slot.OnEnter += HandleEnter;
-                slot.OnExit += HandleExit;
+                slot.OnEndDrag   += HandleEndDrag;
+                slot.OnEnter     += HandleEnter;
+                slot.OnExit      += HandleExit;
 
                 _slotsUI[i] = slot;
             }
@@ -82,8 +80,7 @@ namespace Game.UI
 
         private void Refresh()
         {
-            if (_slotsUI == null || _database == null)
-                return;
+            if (_slotsUI == null || _database == null) return;
 
             var slots = _inventory != null ? _inventory.GetInventorySlots() : null;
 
@@ -92,10 +89,9 @@ namespace Game.UI
                 var ui = _slotsUI[i];
                 if (ui == null) continue;
 
-                ui.Init(i, _inventory, this);
-
                 ItemSO item = null;
                 int count = 0;
+                Game.ItemState state = null;
 
                 if (slots != null && i < slots.Length)
                 {
@@ -104,10 +100,13 @@ namespace Game.UI
                     {
                         item = _database.Get(backend.Id);
                         count = backend.Count;
+                        state = backend.State;
                     }
                 }
 
-                ui.Set(item, count);
+                ui.Set(item, count, state);
+
+
             }
         }
 
@@ -121,7 +120,8 @@ namespace Game.UI
             if (_slotsUI == null) return;
 
             foreach (var slotUI in _slotsUI)
-                slotUI.Set(null, 0);
+                slotUI.Set(null, 0, null);
+
         }
 
         private void OnDestroy()
@@ -135,9 +135,9 @@ namespace Game.UI
                 {
                     if (slot == null) continue;
                     slot.OnBeginDrag -= HandleBeginDrag;
-                    slot.OnEndDrag -= HandleEndDrag;
-                    slot.OnEnter -= HandleEnter;
-                    slot.OnExit  -= HandleExit;
+                    slot.OnEndDrag   -= HandleEndDrag;
+                    slot.OnEnter     -= HandleEnter;
+                    slot.OnExit      -= HandleExit;
                 }
             }
         }

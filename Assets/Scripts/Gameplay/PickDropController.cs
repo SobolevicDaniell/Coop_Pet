@@ -96,6 +96,7 @@ namespace Game
             TryDropFromQuickSlot(origin, forward, true);
         }
 
+        // PickDropController.cs
         public void TryDropFromQuickSlot(Vector3 origin, Vector3 forward, bool dropAll)
         {
             if (_ic == null || !_ic.Object.HasInputAuthority || _rpc == null || _inventory == null || _db == null) return;
@@ -111,13 +112,12 @@ namespace Game
             int dropCount = dropAll ? slot.Count : ((item != null && item.MaxStack <= 1) ? slot.Count : 1);
 
             var fwd = forward.sqrMagnitude > 0f ? forward.normalized : Vector3.forward;
-            _rpc.RPC_RequestDrop(origin, fwd, slot.Id, dropCount, slot.State?.ammo ?? 0);
 
-            slot.Count -= dropCount;
-            if (slot.Count <= 0) { slot.Id = null; slot.State = null; }
-
-            _inventory.RaiseQuickSlotsChanged();
+            // ВАЖНО: передаём на сервер ИНДЕКС СЛОТА и КОЛ-ВО.
+            // НЕ меняем слот локально — дождёмся ContainerDelta.
+            _rpc.RPC_RequestDrop(origin, fwd, idx, dropCount);
         }
+
 
         public void TryPlaceFromQuickSlot(Vector3 pos, Quaternion rot)
         {
@@ -130,34 +130,34 @@ namespace Game
             _rpc.RPC_RequestPlaceObject(slot.Id, pos, rot);
         }
 
-        public void DropFromSlot(InventorySlotUI slotUI)
-        {
-            if (_ic == null || !_ic.Object.HasInputAuthority || _rpc == null || slotUI == null) return;
-            var slot = GetBackendSlotRef(slotUI);
-            if (slot == null || string.IsNullOrEmpty(slot.Id) || slot.Count <= 0) return;
-            var cam = Cam;
-            if (cam == null) return;
-            Vector3 pos;
-            Vector3 forward = cam.transform.forward;
-            var ray = cam.ScreenPointToRay(Input.mousePosition);
-            if (Physics.Raycast(ray, out var hit, _ic.PlaceRange, ~0, QueryTriggerInteraction.Ignore))
-            {
-                pos = hit.point;
-                forward = cam.transform.forward;
-            }
-            else
-            {
-                pos = cam.transform.position + cam.transform.forward * _ic.PlaceRange;
-            }
-            _rpc.RPC_RequestDrop(pos, forward, slot.Id, slot.Count, slot.State?.ammo ?? 0);
-            slot.Id = null;
-            slot.Count = 0;
-            slot.State = null;
-            var parentInv = slotUI.ParentInventory;
-            parentInv.RaiseInventoryChanged();
-            if (parentInv is InventoryService svc)
-                svc.RaiseQuickSlotsChanged();
-        }
+        // public void DropFromSlot(InventorySlotUI slotUI)
+        // {
+        //     if (_ic == null || !_ic.Object.HasInputAuthority || _rpc == null || slotUI == null) return;
+        //     var slot = GetBackendSlotRef(slotUI);
+        //     if (slot == null || string.IsNullOrEmpty(slot.Id) || slot.Count <= 0) return;
+        //     var cam = Cam;
+        //     if (cam == null) return;
+        //     Vector3 pos;
+        //     Vector3 forward = cam.transform.forward;
+        //     var ray = cam.ScreenPointToRay(Input.mousePosition);
+        //     if (Physics.Raycast(ray, out var hit, _ic.PlaceRange, ~0, QueryTriggerInteraction.Ignore))
+        //     {
+        //         pos = hit.point;
+        //         forward = cam.transform.forward;
+        //     }
+        //     else
+        //     {
+        //         pos = cam.transform.position + cam.transform.forward * _ic.PlaceRange;
+        //     }
+        //     _rpc.RPC_RequestDrop(pos, forward, slot.Id, slot.Count, slot.State?.ammo ?? 0);
+        //     slot.Id = null;
+        //     slot.Count = 0;
+        //     slot.State = null;
+        //     var parentInv = slotUI.ParentInventory;
+        //     parentInv.RaiseInventoryChanged();
+        //     if (parentInv is InventoryService svc)
+        //         svc.RaiseQuickSlotsChanged();
+        // }
 
         public void OpenPlayerInventory()
         {

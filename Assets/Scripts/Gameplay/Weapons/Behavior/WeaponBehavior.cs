@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Reflection;
 using Fusion;
 using UnityEngine;
@@ -13,16 +13,20 @@ namespace Game
 
         private string _itemId;
         private int _quickSlotIndex;
-        private bool _isAutomatic = true;
-        private float _fireRate = 8f;
-        private float _spreadDeg = 0f;
+
+        private bool  _isAutomatic   = false;
+        private float _fireRate      = 8f;   // выстр/сек при авто
+        private float _fireRateSingle= 12f;  // выстр/сек при одиночных
+        private float _spreadDeg     = 0f;
 
         private bool _triggerHeld;
         private Transform _cachedMuzzle;
         private int _randSeed;
 
-        private float _shotInterval;
-        private float _nextShotAt;
+        private float _intervalAuto;
+        private float _intervalSingle;
+        private float _nextAutoAt;
+        private float _nextSingleAt;
 
         public void Construct(InteractionController ic, PlayerRpcHandler rpc, ItemDatabaseSO db, string itemId, int quickSlotIndex)
         {
@@ -36,45 +40,55 @@ namespace Game
             _randSeed = Environment.TickCount;
 
             TryReadWeaponParamsFromSO();
-            _shotInterval = _fireRate > 0f ? 1f / _fireRate : 0f;
+
+            _intervalAuto   = _fireRate       > 0f ? 1f / _fireRate       : 0f;
+            _intervalSingle = _fireRateSingle > 0f ? 1f / _fireRateSingle : _intervalAuto;
+
             _cachedMuzzle = null;
-            _nextShotAt = 0f;
+            _nextAutoAt = 0f;
+            _nextSingleAt = 0f;
         }
 
         public void OnEquip()
         {
             _cachedMuzzle = ResolveMuzzle();
-            _nextShotAt = 0f;
-            if (_ic != null && _ic.inventory != null) _quickSlotIndex = _ic.inventory.SelectedQuickSlot; // обновляем индекс слота
+            _nextAutoAt = 0f;
+            _nextSingleAt = 0f;
+            if (_ic != null && _ic.inventory != null)
+                _quickSlotIndex = _ic.inventory.SelectedQuickSlot;
         }
 
         public void OnUnequip()
         {
             _triggerHeld = false;
             _cachedMuzzle = null;
-            _nextShotAt = 0f;
+            _nextAutoAt = 0f;
+            _nextSingleAt = 0f;
         }
 
         public void OnUsePressed()
         {
             _triggerHeld = true;
-            if (_isAutomatic)
+
+            if (Time.time + 0.0001f >= _nextSingleAt)
             {
-                if (Time.time + 0.0001f >= _nextShotAt) FireOnceAndSchedule();
-            }
-            else
-            {
-                FireOnceAndSchedule();
+                FireOnce(isAuto: false);
+                _nextSingleAt = Time.time + _intervalSingle;
+
+                if (_isAutomatic)
+                    _nextAutoAt = Time.time + _intervalAuto;
             }
         }
 
         public void OnUseHeld(float dt)
         {
-            if (!_isAutomatic || !_triggerHeld) return;
-            var now = Time.time;
-            int safety = 4;
-            while (_shotInterval > 0f && now + 0.0001f >= _nextShotAt && safety-- > 0)
-                FireOnceAndSchedule();
+            if (!_triggerHeld || !_isAutomatic) return;
+
+            if (Time.time + 0.0001f >= _nextAutoAt)
+            {
+                FireOnce(isAuto: true);
+                _nextAutoAt = Time.time + _intervalAuto;
+            }
         }
 
         public void OnUseReleased()
@@ -91,63 +105,18 @@ namespace Game
 
         public void ServerReload()
         {
-            if (_ic == null) return;
-            var inv = _ic.inventory;
-            if (inv == null) return;
-
-            int slotIdx = _quickSlotIndex >= 0 ? _quickSlotIndex : inv.SelectedQuickSlot;
-            var qs = inv.GetQuickSlots();
-            if (qs == null || slotIdx < 0 || slotIdx >= qs.Length) return;
-
-            var wSlot = qs[slotIdx];
-            if (wSlot == null || string.IsNullOrEmpty(wSlot.Id)) return;
-            if (wSlot.State == null) wSlot.State = new ItemState();
-
-            int magSize = TryReadIntFromSO("MagazineSize", "MagSize", "ClipSize", "MaxAmmo", "maxAmmo") ?? 30;
-            string ammoId = TryReadStringFromSO("AmmoId", "AmmoItemId", "AmmoType", "Ammo", "ammoId", "ammo");
-
-            if (string.IsNullOrEmpty(ammoId))
-            {
-                var so = _db != null ? _db.Get(_itemId) : null;
-                if (so != null)
-                {
-                    var t = so.GetType();
-                    var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-
-                    object obj = null;
-                    var f = t.GetField("ammoResource", flags) ?? t.GetField("AmmoResource", flags) ?? t.GetField("AmmoSO", flags) ?? t.GetField("AmmoSo", flags);
-                    if (f != null) obj = f.GetValue(so);
-                    if (obj == null)
-                    {
-                        var p = t.GetProperty("ammoResource", flags) ?? t.GetProperty("AmmoResource", flags) ?? t.GetProperty("AmmoSO", flags) ?? t.GetProperty("AmmoSo", flags);
-                        if (p != null && p.CanRead) obj = p.GetValue(so);
-                    }
-
-                    if (obj is ItemSO iso && !string.IsNullOrEmpty(iso.Id))
-                        ammoId = iso.Id;
-                }
-            }
-
-            if (string.IsNullOrEmpty(ammoId)) return;
-
-            int need = Mathf.Max(0, magSize - wSlot.State.ammo);
-            if (need <= 0) return;
-
-            int available = inv.GetResourceCount(ammoId);
-            if (available <= 0) return;
-
-            int take = Mathf.Min(need, available);
-            if (take <= 0) return;
-
-            inv.SpendResource(ammoId, take);
-            wSlot.State.ammo += take;
-
-            inv.RaiseQuickSlotsChanged();
+            int idx = (_ic != null && _ic.inventory != null && _ic.inventory.SelectedQuickSlot >= 0)
+                ? _ic.inventory.SelectedQuickSlot
+                : _quickSlotIndex;
+            _rpc?.RPC_RequestReload(idx);
         }
 
-        private void FireOnceAndSchedule()
+        // WeaponBehavior.cs — внутри класса
+        private void FireOnce(bool isAuto)
         {
-            if (!IsValid() || _shotInterval <= 0f) return;
+            if (!IsValid()) return;
+            if (isAuto && _intervalAuto <= 0f) return;
+            if (!isAuto && _intervalSingle <= 0f) return;
 
             var muzzle = _cachedMuzzle != null ? _cachedMuzzle : ResolveMuzzle();
             if (muzzle == null) muzzle = _ic.handPoint;
@@ -160,52 +129,53 @@ namespace Game
             }
             dir = ApplySpread(dir, _spreadDeg, ref _randSeed);
 
-            int slotIndexToSend = (_ic != null && _ic.inventory != null) ? _ic.inventory.SelectedQuickSlot : _quickSlotIndex; // берём актуальный индекс
-            _rpc.RPC_RequestShoot(_itemId, slotIndexToSend, muzzle.position, dir, _randSeed); // шлём текущий слот
-            _randSeed++;
+            // индекс шлём для совместимости, сервер использует SelectedQuickIndexNet
+            int slotIndexToSend =
+                (_ic != null && _ic.inventory != null && _ic.inventory.SelectedQuickSlot >= 0)
+                ? _ic.inventory.SelectedQuickSlot
+                : _quickSlotIndex;
 
-            _nextShotAt = Time.time + _shotInterval;
+            _rpc.RPC_RequestShoot(_itemId, slotIndexToSend, dir, _randSeed, isAuto);
+            _randSeed++;
         }
+
         private Transform ResolveMuzzle()
         {
-            var netHand = _ic.GetHandModelNetworkInstance();
+            // 1) сначала — сетевой hand-модель
+            var netHand = _ic != null ? _ic.GetHandModelNetworkInstance() : null;
             if (netHand != null)
             {
-                var t = FindChildRecursiveByName(netHand.transform, "MuzzlePoint");
-                if (t != null) return t;
+                var mp = netHand.GetComponentInChildren<MuzzlePoint>(true);
+                if (mp != null) return mp.transform;
             }
-            return _ic.handPoint;
-        }
 
-        private static Transform FindChildRecursiveByName(Transform root, string nameNoCase)
-        {
-            if (root == null) return null;
-            var target = nameNoCase.ToLowerInvariant();
-            return DFS(root, target);
-            Transform DFS(Transform tr, string targetLower)
+            // 2) затем — локальная иерархия контроллера
+            if (_ic != null)
             {
-                if (tr.name.ToLowerInvariant() == targetLower) return tr;
-                for (int i = 0; i < tr.childCount; i++)
-                {
-                    var got = DFS(tr.GetChild(i), targetLower);
-                    if (got != null) return got;
-                }
-                return null;
+                var localMp = _ic.GetComponentInChildren<MuzzlePoint>(true);
+                if (localMp != null) return localMp.transform;
             }
+
+            // 3) фоллбэк
+            return _ic != null ? _ic.handPoint : null;
         }
 
         private static Vector3 ApplySpread(Vector3 dir, float spreadDegrees, ref int seed)
         {
             if (spreadDegrees <= 0f) return dir.normalized;
+
             var rng = new System.Random(seed);
             seed = rng.Next();
+
             float yaw = (float)rng.NextDouble() * 360f;
             float pitch = ((float)rng.NextDouble() * 2f - 1f) * spreadDegrees;
+
             dir.Normalize();
             Vector3 right = Vector3.Cross(dir, Vector3.up);
             if (right.sqrMagnitude < 1e-6f) right = Vector3.Cross(dir, Vector3.forward);
             right.Normalize();
             Vector3 up = Vector3.Cross(right, dir);
+
             Quaternion qYaw = Quaternion.AngleAxis(yaw, dir);
             Quaternion qPitch = Quaternion.AngleAxis(pitch, right);
             Vector3 sp = qYaw * (qPitch * dir);
@@ -216,35 +186,38 @@ namespace Game
         {
             var so = _db != null ? _db.Get(_itemId) : null;
             if (so == null) return;
+
+            // Быстрый путь: явный WeaponSO
+            if (so is WeaponSO w)
+            {
+                _isAutomatic = w.isAutomatic;
+                if (w.fireRate       > 0f) _fireRate       = w.fireRate;
+                if (w.fireRateSingle > 0f) _fireRateSingle = w.fireRateSingle;
+                _spreadDeg = w.spread;
+                return;
+            }
+
+            // Рефлексия на совместимые поля
             var t = so.GetType();
 
-            _isAutomatic = ReadBool(t, so, "IsAutomatic", "Automatic", "isAutomatic") ?? _isAutomatic;
+            var auto = ReadBool(t, so, "IsAutomatic", "Automatic", "isAutomatic");
+            if (auto.HasValue) _isAutomatic = auto.Value;
 
             var fr = ReadFloat(t, so, "FireRate", "fireRate", "RoundsPerSecond", "ShotsPerSecond")
                      ?? ConvertRpmToSps(ReadFloat(t, so, "Rpm", "RPM", "ShotsPerMinute"));
             if (fr.HasValue && fr.Value > 0f) _fireRate = fr.Value;
 
-            _spreadDeg = ReadFloat(t, so, "Spread", "spread", "SpreadDegrees", "SpreadDeg", "MaxSpread") ?? _spreadDeg;
+            var frs = ReadFloat(t, so, "FireRateSingle", "fireRateSingle", "SingleFireRate", "singleFireRate");
+            if (frs.HasValue && frs.Value > 0f) _fireRateSingle = frs.Value;
+
+            var spr = ReadFloat(t, so, "Spread", "spread", "SpreadDegrees", "SpreadDeg", "MaxSpread");
+            if (spr.HasValue) _spreadDeg = spr.Value;
         }
 
         private static float? ConvertRpmToSps(float? rpm)
         {
             if (!rpm.HasValue) return null;
             return Mathf.Max(0.01f, rpm.Value / 60f);
-        }
-
-        private int? TryReadIntFromSO(params string[] names)
-        {
-            var so = _db != null ? _db.Get(_itemId) : null;
-            if (so == null) return null;
-            return ReadInt(so.GetType(), so, names);
-        }
-
-        private string TryReadStringFromSO(params string[] names)
-        {
-            var so = _db != null ? _db.Get(_itemId) : null;
-            if (so == null) return null;
-            return ReadString(so.GetType(), so, names);
         }
 
         private static bool? ReadBool(Type t, object inst, params string[] names)
@@ -267,36 +240,10 @@ namespace Game
             {
                 var f = t.GetField(n, flags);
                 if (f != null && f.FieldType == typeof(float)) return (float)f.GetValue(inst);
-                if (f != null && f.FieldType == typeof(int)) return (int)f.GetValue(inst);
+                if (f != null && f.FieldType == typeof(int))   return (int)f.GetValue(inst);
                 var p = t.GetProperty(n, flags);
                 if (p != null && p.PropertyType == typeof(float) && p.CanRead) return (float)p.GetValue(inst);
-                if (p != null && p.PropertyType == typeof(int) && p.CanRead) return (int)p.GetValue(inst);
-            }
-            return null;
-        }
-
-        private static int? ReadInt(Type t, object inst, params string[] names)
-        {
-            var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-            foreach (var n in names)
-            {
-                var f = t.GetField(n, flags);
-                if (f != null && f.FieldType == typeof(int)) return (int)f.GetValue(inst);
-                var p = t.GetProperty(n, flags);
-                if (p != null && p.PropertyType == typeof(int) && p.CanRead) return (int)p.GetValue(inst);
-            }
-            return null;
-        }
-
-        private static string ReadString(Type t, object inst, params string[] names)
-        {
-            var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-            foreach (var n in names)
-            {
-                var f = t.GetField(n, flags);
-                if (f != null && f.FieldType == typeof(string)) return (string)f.GetValue(inst);
-                var p = t.GetProperty(n, flags);
-                if (p != null && p.PropertyType == typeof(string) && p.CanRead) return (string)p.GetValue(inst);
+                if (p != null && p.PropertyType == typeof(int)   && p.CanRead) return (int)p.GetValue(inst);
             }
             return null;
         }

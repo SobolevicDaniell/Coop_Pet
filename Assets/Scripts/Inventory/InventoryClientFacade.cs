@@ -14,7 +14,8 @@ namespace Game
 
         private InventoryRpcRouter _router;
 
-        [Inject] private ContainerViewSessionClient _view;
+        // УБРАНО: зависимость на ContainerViewSessionClient, она и создавала цикл
+        // [Inject] private ContainerViewSessionClient _view;
 
         public InventoryClientFacade(InventoryClientModel model)
         {
@@ -30,7 +31,7 @@ namespace Game
 
         public void ClearLocal()
         {
-            _router = null;
+            _router    = null;
             localQuick = default;
             localMain  = default;
         }

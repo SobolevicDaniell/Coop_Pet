@@ -8,7 +8,6 @@ namespace Game
         private ItemDatabaseSO _db;
         private InteractionController _ic;
 
-        /// <summary> Вызывается из InteractionController.Spawned(). </summary>
         public void Initialize(HandItemBehaviorFactory factory, ItemDatabaseSO itemDatabase, InteractionController interactionController)
         {
             _factory = factory;
@@ -20,15 +19,14 @@ namespace Game
         {
             if (_ic == null) return;
 
-            // 1) Снять предыдущее поведение (без уничтожения компонента — поведение не MonoBehaviour)
             _ic.ClearBehavior();
 
-            // 2) Не валидный индекс / пусто → снять hand-модель
             if (quickSlots == null || slotIdx < 0 || slotIdx >= quickSlots.Length)
             {
                 _ic.handItemController?.RequestUnEquip();
-                // Обновим репликацию выбранного слота
                 if (_ic.Object.HasInputAuthority) _ic.netSelectedQuickSlot = -1;
+                // Важно: скажем и серверу снять выделение
+                _ic.playerRpcHandler?.RPC_RequestEquipQuickSlot(-1);
                 return;
             }
 
@@ -37,27 +35,27 @@ namespace Game
             {
                 _ic.handItemController?.RequestUnEquip();
                 if (_ic.Object.HasInputAuthority) _ic.netSelectedQuickSlot = -1;
+                _ic.playerRpcHandler?.RPC_RequestEquipQuickSlot(-1);
                 return;
             }
 
             string itemId = slot.Id;
 
-            // 3) Попросим сервер заспавнить hand-модель (по itemId)
+            // Экип модели
             _ic.handItemController?.RequestEquip(itemId);
 
-            // 4) Локально создаём поведение и активируем
+            // Создаём поведение
             var behavior = _factory.Create(_ic, itemId, slotIdx);
             behavior.OnEquip();
             _ic.SetCurrentBehavior(behavior);
 
-            // 5) Для серверной логики (списание патронов и т.п.) публикуем выбранный слот
             if (_ic.Object.HasInputAuthority)
                 _ic.netSelectedQuickSlot = slotIdx;
+
+            // КРИТИЧНО: сразу подтвердим серверу выбранный индекс
+            _ic.playerRpcHandler?.RPC_RequestEquipQuickSlot(slotIdx);
         }
 
-        /// <summary>
-        /// Быстрая валидация: если текущий выбранный слот пуст/невалиден — снимаем предмет.
-        /// </summary>
         public void ValidateEquipped(int selectedQuickSlot, InventorySlot[] quickSlots)
         {
             if (quickSlots == null || selectedQuickSlot < 0 || selectedQuickSlot >= quickSlots.Length)

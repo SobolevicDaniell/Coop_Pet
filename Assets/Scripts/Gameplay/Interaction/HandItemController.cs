@@ -61,7 +61,6 @@ namespace Game
             var handPrefab = ResolveHandPrefab(item);
             if (handPrefab == null)
             {
-                // у предмета нет hand-модели — ничего не спавним
                 NotifyHandModelChanged(null);
                 return;
             }
@@ -131,11 +130,9 @@ namespace Game
 
         private static NetworkObject ResolveHandPrefab(ItemSO item)
         {
-            // 1) Интерфейс — основной путь (любой SO может поддержать руки)
             if (item is IHandModelProvider p && p.HandModelNetwork != null)
                 return p.HandModelNetwork;
 
-            // 2) Фолбэк: рефлексия по типичному имени
             var t = item.GetType();
             var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
@@ -155,7 +152,6 @@ namespace Game
                 if (v is GameObject go2) { var no = go2.GetComponent<NetworkObject>(); if (no != null) return no; }
             }
 
-            // 3) НИКОГДА не используем ItemSO.Prefab как замену
             return null;
         }
     }

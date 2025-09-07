@@ -3,6 +3,7 @@ using UnityEngine.EventSystems;
 using TMPro;
 using UnityEngine.UI;
 using System;
+using Game; // чтобы видеть ItemState
 
 namespace Game.UI
 {
@@ -10,7 +11,7 @@ namespace Game.UI
         IPointerDownHandler, IPointerUpHandler, IPointerEnterHandler, IPointerExitHandler
     {
         [SerializeField] private Image _icon;
-        [SerializeField] private Image _activeIcon;
+        [SerializeField] private Image _activeIcon;        // только подсветка
         [SerializeField] private TextMeshProUGUI _countText;
 
         public int SlotIndex { get; private set; }
@@ -23,32 +24,57 @@ namespace Game.UI
         public event Action<InventorySlotUI> OnEnter;
         public event Action<InventorySlotUI> OnExit;
 
-        public void Set(ItemSO item, int count)
+     
+        public void Set(ItemSO item, int count, ItemState state = null)
         {
             Item = item;
-            if (item != null)
+
+            // ИКОНКА
+            if (item != null && _icon != null)
             {
                 _icon.sprite = item.Icon;
                 _icon.enabled = true;
-                if (item is WeaponSO)
-                    _countText.text = count > 0 ? count.ToString() : "0";
-                else
-                    _countText.text = count > 1 ? count.ToString() : "";
             }
-            else
+            else if (_icon != null)
             {
-                _icon.enabled = false;
-                _countText.text = "";
+                _icon.sprite = null;
+                _icon.enabled = false; // ← прячем только иконку, НЕ слот
+            }
+
+            // ТЕКСТ
+            if (_countText != null)
+            {
+                if (item == null)
+                {
+                    _countText.text = string.Empty; // ← очищаем текст
+                }
+                else if (item is WeaponSO)
+                {
+                    int ammo = state != null ? Mathf.Max(0, state.ammo) : 0;
+                    _countText.text = ammo.ToString(); // оружие — просто число
+                }
+                else
+                {
+                    _countText.text = (count > 0) ? $"x{count}" : string.Empty; // не оружие — xN
+                }
             }
         }
 
-        public void SetActive(bool active) => _activeIcon.enabled = active;
+        // Подсветка выбранного слота (только рамка/акцент)
+        public void SetActive(bool active)
+        {
+            if (_activeIcon != null)
+                _activeIcon.enabled = active;
+        }
 
         public void Init(int index, IInventory inventory, IInventoryPanelUI panel)
         {
-            SlotIndex = index;
+            SlotIndex       = index;
             ParentInventory = inventory;
-            ParentPanel = panel;
+            ParentPanel     = panel;
+
+            // При создании — без подсветки
+            SetActive(false);
         }
 
         public void OnPointerDown(PointerEventData eventData)
@@ -64,6 +90,6 @@ namespace Game.UI
         }
 
         public void OnPointerEnter(PointerEventData eventData) => OnEnter?.Invoke(this);
-        public void OnPointerExit(PointerEventData eventData) => OnExit?.Invoke(this);
+        public void OnPointerExit (PointerEventData eventData) => OnExit?.Invoke(this);
     }
 }

@@ -20,8 +20,10 @@ MonoBehaviour:
   HandModelNetwork: {fileID: 8456801128687615435, guid: ce611743d0654fd4580ed8c14fb78b8a, type: 3}
   maxAmmo: 30
   isAutomatic: 1
-  fireRate: 4
+  fireRate: 15
   bulletPrefab: {fileID: 6867856357713228749, guid: 62d89cc04b19b7348bd19b274080c461, type: 3}
   bulletSpeed: 50
   bulletDamage: 10
+  bulletMass: 0.01
+  spread: 1
   ammoResource: {fileID: 11400000, guid: 7f2f10d6a7959b243be7144945487b88, type: 2}

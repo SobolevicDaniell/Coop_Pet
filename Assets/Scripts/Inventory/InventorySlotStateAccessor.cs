@@ -21,8 +21,9 @@ namespace Game
 
         private static readonly MemberAccessor _state = FindMember(new[]
         {
-            "State","state","Meta","meta","Data","data","payload","Payload"
+            "State","state","itemState","ItemState","Meta","meta","Data","data","payload","Payload"
         });
+
 
         public static bool HasId  => !_id.IsMissing;
         public static bool HasCnt => !_count.IsMissing;
@@ -72,6 +73,14 @@ namespace Game
             }
             return MemberAccessor.Missing;
         }
+        public static bool IsEmpty(InventorySlotState s)
+        {
+            if (s == null) return true;
+            var id = ReadId(s);
+            var cnt = ReadCount(s);
+            return string.IsNullOrEmpty(id) || cnt <= 0;
+        }
+
 
         private readonly struct MemberAccessor
         {

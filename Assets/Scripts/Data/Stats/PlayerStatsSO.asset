@@ -13,5 +13,6 @@ MonoBehaviour:
   m_Name: PlayerStatsSO
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerStatsSO
   health: 100
-  speed: 3
+  speed: 30
   inventorySlotsCount: 24
+  quickSlotsCount: 10

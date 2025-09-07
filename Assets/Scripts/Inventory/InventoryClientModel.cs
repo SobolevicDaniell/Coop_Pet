@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace Game
 {
     public sealed class InventoryClientModel
     {
         private readonly Dictionary<ContainerId, ContainerSnapshot> _snapshots = new();
-        private readonly Dictionary<int, Action<bool,string>> _pending = new();
+        private readonly Dictionary<int, Action<bool, string>> _pending = new();
 
         public event Action<ContainerId> OnContainerChanged;
 
@@ -14,6 +15,17 @@ namespace Game
         {
             _snapshots[snap.id] = snap;
             OnContainerChanged?.Invoke(snap.id);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.Log($"[INV][Client] ApplySnapshot id=({snap.id.type},{snap.id.ownerRef}), ver={snap.version}, slots={snap.slots?.Length ?? 0}, nonEmpty={CountNonEmpty(snap)}");
+#endif
+        }
+        private int CountNonEmpty(ContainerSnapshot snap)
+        {
+            if (snap.slots == null) return 0;
+            int n = 0;
+            for (int i = 0; i < snap.slots.Length; i++)
+                if (InventorySlotStateAccessor.ReadId(snap.slots[i]) != null) n++;
+            return n;
         }
 
         public void ApplyDelta(ContainerDelta delta)
@@ -36,7 +48,7 @@ namespace Game
             return null;
         }
 
-        public void TrackOperation(int clientReqId, Action<bool,string> onAck)
+        public void TrackOperation(int clientReqId, Action<bool, string> onAck)
         {
             _pending[clientReqId] = onAck;
         }

@@ -15,6 +15,7 @@ namespace Game
         // нов: берём количество слотов с сервера (через фасад), без хардкода
         [Inject(Optional = true)] private InventoryClientFacade _inventoryFacade;
         [Inject(Optional = true)] private ContainerViewSessionClient _view;
+        [Inject(Optional = true)] private InventoryService _inventory;
 
         [SerializeField] private float _wheelCooldown = 0.12f;
         [SerializeField] private float _placeMaxDistance = 4f;
@@ -36,6 +37,8 @@ namespace Game
             // нов: открываем локальные контейнеры и фиксируем число слотов один раз
             if (HasInputAuthority && _inventoryFacade != null)
             {
+                _inventoryFacade.SetLocal(Object.InputAuthority, GetComponent<InventoryRpcRouter>());
+
                 _inventoryFacade.OpenLocalQuick();
                 _inventoryFacade.OpenLocalMain();
 
@@ -94,33 +97,59 @@ namespace Game
             HandleNumberKeys();
             HandleMouseWheel();
 
-            if (_isFiring && _ic != null && _ic.currentBehavior is WeaponBehavior wb && wb.IsValid())
-                _ic.currentBehavior.OnUseHeld(Time.deltaTime);
+            var beh = _ic != null ? _ic.currentBehavior : null;
+            var wb = beh as WeaponBehavior;
+
+            bool held = Input.GetMouseButton(0);
+
+            if (held)
+            {
+                if (!_isFiring)
+                {
+                    _isFiring = true;
+                    if (wb != null) wb.OnUsePressed();
+                    else beh?.OnUsePressed();
+                }
+                if (wb != null) wb.OnUseHeld(Time.deltaTime);
+                else beh?.OnUseHeld(Time.deltaTime);
+            }
+            else
+            {
+                if (_isFiring)
+                {
+                    _isFiring = false;
+                    beh?.OnUseReleased();
+                }
+            }
         }
 
         private void HandleNumberKeys()
         {
-            if (_slotCount <= 0) return; // нов: ждём фактическое число слотов
+            // если слотов ещё нет — просто выходим
+            int quickLen = _inventory?.GetQuickSlots()?.Length ?? 0;
+            if (quickLen <= 0) return;
 
-            if ((Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1)) && 0 < _slotCount) { _quick.ChangeSlotAbsolute(0); return; }
-            if ((Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2)) && 1 < _slotCount) { _quick.ChangeSlotAbsolute(1); return; }
-            if ((Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3)) && 2 < _slotCount) { _quick.ChangeSlotAbsolute(2); return; }
-            if ((Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4)) && 3 < _slotCount) { _quick.ChangeSlotAbsolute(3); return; }
-            if ((Input.GetKeyDown(KeyCode.Alpha5) || Input.GetKeyDown(KeyCode.Keypad5)) && 4 < _slotCount) { _quick.ChangeSlotAbsolute(4); return; }
-            if ((Input.GetKeyDown(KeyCode.Alpha6) || Input.GetKeyDown(KeyCode.Keypad6)) && 5 < _slotCount) { _quick.ChangeSlotAbsolute(5); return; }
-            if ((Input.GetKeyDown(KeyCode.Alpha7) || Input.GetKeyDown(KeyCode.Keypad7)) && 6 < _slotCount) { _quick.ChangeSlotAbsolute(6); return; }
-            if ((Input.GetKeyDown(KeyCode.Alpha8) || Input.GetKeyDown(KeyCode.Keypad8)) && 7 < _slotCount) { _quick.ChangeSlotAbsolute(7); return; }
-            if ((Input.GetKeyDown(KeyCode.Alpha9) || Input.GetKeyDown(KeyCode.Keypad9)) && 8 < _slotCount) { _quick.ChangeSlotAbsolute(8); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1)) { _quick.ChangeSlotAbsolute(0); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2)) { _quick.ChangeSlotAbsolute(1); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3)) { _quick.ChangeSlotAbsolute(2); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4)) { _quick.ChangeSlotAbsolute(3); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha5) || Input.GetKeyDown(KeyCode.Keypad5)) { _quick.ChangeSlotAbsolute(4); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha6) || Input.GetKeyDown(KeyCode.Keypad6)) { _quick.ChangeSlotAbsolute(5); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha7) || Input.GetKeyDown(KeyCode.Keypad7)) { _quick.ChangeSlotAbsolute(6); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha8) || Input.GetKeyDown(KeyCode.Keypad8)) { _quick.ChangeSlotAbsolute(7); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha9) || Input.GetKeyDown(KeyCode.Keypad9)) { _quick.ChangeSlotAbsolute(8); return; }
             if (Input.GetKeyDown(KeyCode.Alpha0) || Input.GetKeyDown(KeyCode.Keypad0))
             {
-                var last = Mathf.Clamp(_slotCount - 1, 0, _slotCount - 1);
-                if (last >= 0) _quick.ChangeSlotAbsolute(last);
+                int last = Mathf.Clamp(quickLen - 1, 0, quickLen - 1);
+                _quick.ChangeSlotAbsolute(last);
             }
         }
 
         private void HandleMouseWheel()
         {
-            if (_slotCount <= 0) return; // нов: без слотов — игнор
+            int quickLen = _inventory?.GetQuickSlots()?.Length ?? 0;
+            if (quickLen <= 0) return;
+
             if (Time.unscaledTime < _nextWheelTime) return;
 
             float dy = Input.mouseScrollDelta.y;
@@ -157,7 +186,8 @@ namespace Game
         private void OnReload()
         {
             if (!HasInputAuthority) return;
-            _rpc.RPC_RequestReload();
+            int idx = _inventory != null ? _inventory.SelectedQuickSlot : -1;
+            _rpc.RPC_RequestReload(idx);
         }
 
         private void OnInteract()

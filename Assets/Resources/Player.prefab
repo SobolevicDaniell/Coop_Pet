@@ -217,7 +217,6 @@ GameObject:
   - component: {fileID: 3098677230441079902}
   - component: {fileID: 6153325551596305792}
   - component: {fileID: 7251172290690331865}
-  - component: {fileID: 3269879759306030424}
   - component: {fileID: -6335083702584605143}
   - component: {fileID: -3395697285265996011}
   - component: {fileID: -2158133828490695294}
@@ -226,6 +225,9 @@ GameObject:
   - component: {fileID: 8895098840597039882}
   - component: {fileID: 3471077576768736987}
   - component: {fileID: 790540318843576373}
+  - component: {fileID: 5675536301013715036}
+  - component: {fileID: 3377142800751568103}
+  - component: {fileID: 5643700712207718660}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -277,11 +279,13 @@ MonoBehaviour:
   - {fileID: 536071863030034606}
   - {fileID: 3098677230441079902}
   - {fileID: 6153325551596305792}
-  - {fileID: 3269879759306030424}
   - {fileID: 4709696160151012762}
   - {fileID: 8895098840597039882}
   - {fileID: 3471077576768736987}
   - {fileID: 790540318843576373}
+  - {fileID: 5675536301013715036}
+  - {fileID: 3377142800751568103}
+  - {fileID: 5643700712207718660}
   - {fileID: 2445908070462576243}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &4402347777045086714
@@ -433,7 +437,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9c96045e3e2bbd04c9377a0d4b4d209e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerRpcHandler
-  defaultBulletPrefab: {fileID: -3301543703974256972, guid: 62d89cc04b19b7348bd19b274080c461, type: 3}
 --- !u!114 &536071863030034606
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -454,6 +457,7 @@ MonoBehaviour:
   _netSelectedQuickSlot: -1
   _handModelNetId:
     Raw: 0
+  _SelectedQuickIndexNet: 0
 --- !u!114 &7002019134348824070
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -517,22 +521,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43073b4c1b8ba934581e9df5297195ff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InputHandler
-  keyboardLookSensitivity: 50000
+  keyboardLookSensitivity: 0.001
   mouseLookSensitivity: 60
---- !u!114 &3269879759306030424
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3950158868047817375}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 32e685d9f1fa7b94db180cf5d6c4d53a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Game.HealthComponent
-  _playerStatsSO: {fileID: 11400000, guid: cc20679dc2d8a0340830f3ba31fbbe2f, type: 2}
-  _CurrentHealth: 0
 --- !u!114 &-6335083702584605143
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -609,7 +599,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerInventoryServer
   _kind: 1
-  _capacity: 24
+  _statsSerialized: {fileID: 11400000, guid: cc20679dc2d8a0340830f3ba31fbbe2f, type: 2}
 --- !u!114 &3471077576768736987
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -623,7 +613,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerInventoryServer
   _kind: 0
-  _capacity: 10
+  _statsSerialized: {fileID: 11400000, guid: cc20679dc2d8a0340830f3ba31fbbe2f, type: 2}
 --- !u!114 &790540318843576373
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -636,6 +626,45 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b018b4eb05072ef4c8ca7ad63fe22c31, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.InventoryRpcRouter
+--- !u!114 &5675536301013715036
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3950158868047817375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6627536bfcae0334ca6dbcf8cea4c2ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerHealthServer
+  _statsSerialized: {fileID: 11400000, guid: cc20679dc2d8a0340830f3ba31fbbe2f, type: 2}
+  _Current: 0
+  _Max: 0
+--- !u!114 &3377142800751568103
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3950158868047817375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1dd23019a88d4e84dbe827d6b70eefa6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerHealthClientBridge
+--- !u!114 &5643700712207718660
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3950158868047817375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc4b347c0020b6746946bedfc2fd91b7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerDamageReceiver
 --- !u!1 &5556326248227318228
 GameObject:
   m_ObjectHideFlags: 0
