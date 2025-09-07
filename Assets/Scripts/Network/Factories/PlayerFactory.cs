@@ -4,36 +4,33 @@ using Zenject;
 
 namespace Game.Network
 {
-    public class PlayerFactory : IPlayerFactory
+    public sealed class PlayerFactory : IPlayerFactory
     {
-        private readonly DiContainer _container;
         private readonly NetworkRunner _runner;
         private readonly GameObject _playerPrefab;
 
-        [Inject]
-        public PlayerFactory(
-            DiContainer container,
-            [Inject(Id = "PlayerPrefab")] GameObject playerPrefab,
-            NetworkRunner runner
-        )
+        public PlayerFactory(NetworkRunner runner, [Inject(Id = "PlayerPrefab")] GameObject playerPrefab)
         {
-            _container = container;
-            _playerPrefab = playerPrefab;
             _runner = runner;
+            _playerPrefab = playerPrefab;
         }
 
-        public NetworkObject Spawn(PlayerRef playerRef)
+        public NetworkObject Spawn(PlayerRef player)
         {
-            var prefabNetObj = _playerPrefab.GetComponent<NetworkObject>();
-            var netObj = _runner.Spawn(
-                prefabNetObj,
-                Vector3.zero,
-                Quaternion.identity,
-                playerRef
+            var no = _runner.Spawn(
+                _playerPrefab.GetComponent<NetworkObject>(),
+                Vector3.zero, Quaternion.identity,
+                inputAuthority: player
             );
+            
 
-            _runner.SetPlayerObject(playerRef, netObj);
-            return netObj;
+            // КРИТИЧЕСКО: привязываем PlayerObject → тогда TryGetPlayerObject работает
+            _runner.SetPlayerObject(player, no);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.Log($"[Server] Spawned Player: {player}");
+#endif
+            return no;
         }
     }
 }

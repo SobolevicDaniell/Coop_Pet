@@ -23,6 +23,7 @@ namespace Game.Network
 
         [Header("Config")]
         [SerializeField] private PlayerStatsSO _playerStats;
+        
 
         public override void InstallBindings()
         {
@@ -103,6 +104,10 @@ namespace Game.Network
 
             Container.BindInterfacesAndSelfTo<Game.Network.FusionZenjectInjector>()
                 .AsSingle();
+
+            // Container.Bind<InventoryContainerRegistry>()
+            //     .AsSingle()
+            //     .NonLazy(); 
 
 
             ClientInventoryInstaller.Install(Container);

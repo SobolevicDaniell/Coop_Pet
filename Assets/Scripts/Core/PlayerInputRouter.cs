@@ -97,6 +97,9 @@ namespace Game
             HandleNumberKeys();
             HandleMouseWheel();
 
+              if (Input.GetKeyDown(KeyCode.Q))
+                _pickDrop?.TryDrop();
+
             var beh = _ic != null ? _ic.currentBehavior : null;
             var wb = beh as WeaponBehavior;
 

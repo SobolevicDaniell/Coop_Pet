@@ -113,6 +113,24 @@ namespace Game
                 _playerPanel?.Construct(_inventory);
                 _quickSlot?.EnableForLocal();
                 _quickSlotPanel?.InitializeIfLocal(this);
+                if (Object.HasInputAuthority && _inventoryFacade != null)
+                {
+                    var router = GetComponentInParent<InventoryRpcRouter>();
+                    if (router == null) router = GetComponent<InventoryRpcRouter>();
+                    if (router == null)
+                    {
+                        var all = FindObjectsOfType<InventoryRpcRouter>(true);
+                        for (int i = 0; i < all.Length && router == null; i++)
+                            if (all[i].Object != null && all[i].Object.HasInputAuthority) router = all[i];
+                    }
+                    if (router != null)
+                    {
+                        _inventoryFacade.SetLocal(Object.InputAuthority, router);
+                        _inventoryFacade.OpenLocalQuick();
+                        _inventoryFacade.OpenLocalMain();
+                    }
+                }
+
                 _transfer?.Initialize(_inventory, _playerPanel, _quickSlotPanel, _otherPanel, this, _inventoryFacade);
 
                 var sel = _inventory != null ? _inventory.SelectedQuickSlot : -1;

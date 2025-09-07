@@ -1,4 +1,4 @@
-using UnityEngine;
+// Assets/Scripts/Inventory/ServerInventoryInstaller.cs
 using Zenject;
 
 namespace Game
@@ -7,9 +7,14 @@ namespace Game
     {
         public override void InstallBindings()
         {
-            Container.Bind<InventoryContainerRegistry>().AsSingle();
-            Container.Bind<InventoryValidationService>().AsSingle();
+            // Реестр контейнеров — нужен один раз и заранее
+            Container.Bind<InventoryContainerRegistry>()
+                     .AsSingle()
+                     .NonLazy();
+
+            // Серверные сервисы инвентаря
             Container.Bind<InventoryServerService>().AsSingle();
+            Container.Bind<InventorySnapshotBuilder>().AsSingle();
             Container.Bind<InventorySessionServer>().AsSingle();
         }
     }

@@ -23,8 +23,8 @@ namespace Game.UI
         private bool _initialized;
         private InventorySlotUI _draggingSlot;
         private InventorySlotUI _targetSlot;
-        [Inject(Optional = true)] private InventoryClientFacade _facade;
 
+        [Inject(Optional = true)] private InventoryClientFacade _facade;
 
         [Inject]
         public void Construct(ItemDatabaseSO db, [Inject(Id = "InventorySlotPrefab")] InventorySlotUI slotPrefab)
@@ -52,10 +52,6 @@ namespace Game.UI
 
             _initialized = true;
 
-            _inv.ForceSetQuickSlot(-1);
-
-            CreateSlots();
-
             _inv.OnQuickSlotsChanged += Refresh;
             _inv.OnQuickSlotSelectionChanged += OnQuickSlotChanged;
 
@@ -63,15 +59,31 @@ namespace Game.UI
             OnQuickSlotChanged(_inv.SelectedQuickSlot);
         }
 
-        private void CreateSlots()
+        private void CreateSlots(int cap)
         {
-            int cap = Mathf.Max(1, _inv?.GetQuickSlots()?.Length ?? 10);
+            if (_slots != null)
+            {
+                for (int i = 0; i < _slots.Length; i++)
+                {
+                    var s = _slots[i];
+                    if (s == null) continue;
+
+                    s.OnBeginDrag -= HandleBeginDrag;
+                    s.OnEndDrag   -= HandleEndDrag;
+                    s.OnEnter     -= HandleSlotEnter;
+                    s.OnExit      -= HandleSlotExit;
+
+                    Destroy(s.gameObject);
+                }
+            }
+
+            cap = Mathf.Max(0, cap);
             _slots = new InventorySlotUI[cap];
 
             for (int i = 0; i < cap; i++)
             {
                 var slot = Instantiate(_slotPrefab, _slotsParent);
-                slot.gameObject.SetActive(true); 
+                slot.gameObject.SetActive(true);
                 slot.Init(i, _inv, this);
                 slot.SetActive(false);
 
@@ -93,7 +105,6 @@ namespace Game.UI
         private void HandleEndDrag(InventorySlotUI slot)
         {
             OnSlotEndDrag?.Invoke(slot);
-
             _draggingSlot = null;
             _targetSlot = null;
         }
@@ -114,9 +125,20 @@ namespace Game.UI
 
         private void Refresh()
         {
-            if (!_initialized || _inv == null || _db == null || _slots == null) return;
+            if (!_initialized || _inv == null || _db == null) return;
 
             var data = _inv.GetQuickSlots();
+            int cap = data?.Length ?? 0;
+
+            // 🔧 если клиент ещё не получил снапшот, берём ёмкость из фасада
+            if (cap <= 0 && _facade != null)
+                cap = Mathf.Max(cap, _facade.GetLocalQuickCapacity());
+
+            if (cap <= 0) return;
+
+            if (_slots == null || _slots.Length != cap)
+                CreateSlots(cap);
+
             int selected = _inv.SelectedQuickSlot;
 
             for (int i = 0; i < _slots.Length; i++)
@@ -125,6 +147,7 @@ namespace Game.UI
                 if (ui == null) continue;
 
                 ItemSO item = null; int count = 0; Game.ItemState state = null;
+
                 if (data != null && i < data.Length)
                 {
                     var backend = data[i];
@@ -159,8 +182,7 @@ namespace Game.UI
 
             if (_slots == null) return;
             foreach (var slotUI in _slots)
-                slotUI.Set(null, 0, null);
-
+                if (slotUI != null) slotUI.Set(null, 0, null);
         }
 
         private void OnDestroy()

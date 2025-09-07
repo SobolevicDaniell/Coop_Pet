@@ -21,6 +21,7 @@ MonoBehaviour:
   maxAmmo: 30
   isAutomatic: 1
   fireRate: 15
+  fireRateSingle: 10
   bulletPrefab: {fileID: 6867856357713228749, guid: 62d89cc04b19b7348bd19b274080c461, type: 3}
   bulletSpeed: 50
   bulletDamage: 10

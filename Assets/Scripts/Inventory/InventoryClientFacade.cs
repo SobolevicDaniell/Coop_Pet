@@ -79,7 +79,7 @@ namespace Game
             var reqId = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
             if (onAck != null) _model.TrackOperation(reqId, onAck);
 
-            _router.RPC_RequestTransfer(
+            _router.RPC_RequestTransfer( 
                 (int)from.type, from.ownerRef, from.objectId, fromIdx,
                 (int)to.type,   to.ownerRef,   to.objectId,   toIdx,
                 amount, reqId

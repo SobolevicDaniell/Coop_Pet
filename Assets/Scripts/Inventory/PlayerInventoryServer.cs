@@ -30,12 +30,6 @@ namespace Game
         {
             if (!Object.HasStateAuthority) return;
 
-            if (_kind != ContainerType.PlayerMain && _kind != ContainerType.PlayerQuick)
-            {
-                Debug.LogError($"[PlayerInventoryServer] Unsupported kind '{_kind}'. Use PlayerMain or PlayerQuick.");
-                _kind = ContainerType.PlayerMain;
-            }
-
             var so = _statsSerialized != null ? _statsSerialized : _statsDI;
             var cap = ResolveCapacityFromSO(so, _kind);
             if (cap <= 0) cap = 1;
@@ -49,11 +43,9 @@ namespace Game
             _registry?.Register(this);
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-            var soName = so ? $"{so.name}#{so.GetInstanceID()}" : "null";
-            Debug.Log($"[INV][Server] Spawned {Id.type} for {Id.ownerRef}, capacity={_slots.Length}, SO={soName}");
+            Debug.Log($"[INV][Server] Spawned {Id.type} for {Id.ownerRef}, capacity={_slots.Length}, SO={(so ? so.name : "null")}");
 #endif
         }
-
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
             if (!Object.HasStateAuthority) return;
@@ -66,7 +58,15 @@ namespace Game
             return kind == ContainerType.PlayerQuick ? so.quickSlotsCount : so.inventorySlotsCount;
         }
 
-        public bool CanPlayerAccess(PlayerRef player) => player == Object.InputAuthority;
+        public bool CanPlayerAccess(PlayerRef viewer)
+        {
+            // Владелец всегда имеет доступ к своим контейнерам (без зависимости от watchers/сессии)
+            if (viewer == Id.ownerRef)
+                return true;
+
+            // Всё остальное — по вашей текущей логике (сундуки/чужие контейнеры и т.п.)
+            return false;
+        }
         public bool CanAccept(int slotIndex, InventorySlotState incoming) => true;
 
         public void SetSlot(int index, InventorySlotState state)

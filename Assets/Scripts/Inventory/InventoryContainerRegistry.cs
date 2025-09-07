@@ -1,3 +1,4 @@
+// Inventory/InventoryContainerRegistry.cs
 using System.Collections.Generic;
 using Fusion;
 
@@ -5,8 +6,11 @@ namespace Game
 {
     public sealed class InventoryContainerRegistry
     {
-        private readonly Dictionary<ContainerId, IInventoryContainer> _containers = new();
-        private readonly Dictionary<ContainerId, HashSet<PlayerRef>> _watchers = new();
+        private readonly Dictionary<ContainerId, IInventoryContainer> _containers
+            = new Dictionary<ContainerId, IInventoryContainer>(new ContainerIdEqualityComparer());
+
+        private readonly Dictionary<ContainerId, HashSet<PlayerRef>> _watchers
+            = new Dictionary<ContainerId, HashSet<PlayerRef>>(new ContainerIdEqualityComparer());
 
         public void Register(IInventoryContainer container)
         {
@@ -20,23 +24,20 @@ namespace Game
             _watchers.Remove(id);
         }
 
-        public bool TryGet(ContainerId id, out IInventoryContainer container) => _containers.TryGetValue(id, out container);
+        public bool TryGet(ContainerId id, out IInventoryContainer container)
+            => _containers.TryGetValue(id, out container);
 
         public void AddWatcher(ContainerId id, PlayerRef viewer)
         {
-            if (!_watchers.TryGetValue(id, out var set)) { set = new HashSet<PlayerRef>(); _watchers[id] = set; }
+            if (!_watchers.TryGetValue(id, out var set))
+            {
+                set = new HashSet<PlayerRef>();
+                _watchers[id] = set;
+            }
             set.Add(viewer);
         }
 
-        public void RemoveWatcher(ContainerId id, PlayerRef viewer)
-        {
-            if (_watchers.TryGetValue(id, out var set)) set.Remove(viewer);
-        }
-
-        public IEnumerable<PlayerRef> GetWatchers(ContainerId id)
-        {
-            if (_watchers.TryGetValue(id, out var set)) return set;
-            return System.Array.Empty<PlayerRef>();
-        }
+        public IEnumerable<PlayerRef> Watchers(ContainerId id)
+            => _watchers.TryGetValue(id, out var set) ? set : System.Array.Empty<PlayerRef>();
     }
 }
