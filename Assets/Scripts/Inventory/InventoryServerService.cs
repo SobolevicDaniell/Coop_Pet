@@ -23,25 +23,38 @@ namespace Game
         public InventoryServerService(ItemDatabaseSO db) { _db = db; }
 
 
-        public bool TryOpenContainer(PlayerRef requester, ContainerId id, out ContainerSnapshot snap, out string reason)
+        public bool TryOpenContainer(PlayerRef requester, ContainerId id,
+                             out ContainerSnapshot snap, out string reason)
         {
             snap = default; reason = null;
 
-            if (!TryResolveContainer(id, out var container)) { reason = "Container not found"; return false; }
-            if (!container.CanPlayerAccess(requester)) { reason = "Access denied"; return false; }
-            if (_snapshots == null) { reason = "SnapshotBuilder missing"; return false; }
+            if (!TryResolveContainer(id, out var container))
+            { reason = "Container not found"; return false; }
 
-            AddWatcher(id, requester);
-            snap = _snapshots.Build(id);
+            if (!container.CanPlayerAccess(requester))
+            { reason = "Access denied"; return false; }
+
+            if (_snapshots == null)
+            { reason = "SnapshotBuilder missing"; return false; }
+
+            // ВАЖНО: работаем с реальным ID контейнера
+            var realId = container.Id;
+
+            AddWatcher(realId, requester);
+            snap = _snapshots.Build(realId); // ← не по исходному id
             return true;
         }
 
         public bool TryCloseContainer(PlayerRef requester, ContainerId id, out string reason)
         {
             reason = null;
-            if (!TryResolveContainer(id, out var container)) { reason = "Container not found"; return false; }
-            if (!container.CanPlayerAccess(requester)) { reason = "Access denied"; return false; }
-            RemoveWatcher(id, requester);
+            if (!TryResolveContainer(id, out var container))
+            { reason = "Container not found"; return false; }
+
+            if (!container.CanPlayerAccess(requester))
+            { reason = "Access denied"; return false; }
+
+            RemoveWatcher(container.Id, requester); // ← тоже реальный ID
             return true;
         }
 

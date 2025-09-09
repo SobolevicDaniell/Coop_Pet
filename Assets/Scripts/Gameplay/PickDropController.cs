@@ -47,8 +47,10 @@ namespace Game
             if (cam == null) { _prompt?.Hide(); return; }
             var center = new Vector3(Screen.width * 0.5f, Screen.height * 0.5f);
             var ray = cam.ScreenPointToRay(center);
-            if (Physics.Raycast(ray, out var hit, _ic.range, ~0, QueryTriggerInteraction.Ignore)) { }
+            if (Physics.Raycast(ray, out var hit, _ic.range, ~0, QueryTriggerInteraction.Collide)) { }
             else { _prompt?.Hide(); }
+
+
         }
 
         public void TryPickAtCrosshair()
@@ -56,12 +58,22 @@ namespace Game
             if (_ic == null || !_ic.Object.HasInputAuthority || _rpc == null) return;
             var cam = Cam;
             if (cam == null) return;
-            var center = new Vector3(Screen.width * 0.5f, Screen.height * 0.5f);
-            var ray = cam.ScreenPointToRay(center);
-            if (!Physics.Raycast(ray, out var hit, _ic.range, ~0, QueryTriggerInteraction.Ignore)) return;
-            var netObj = hit.collider.GetComponentInParent<NetworkObject>();
-            if (netObj == null) return;
-            _rpc.RPC_RequestPick(netObj);
+
+            var origin = cam.transform.position;
+            var dir = cam.transform.forward;
+            var range = _ic.range;
+
+            _rpc.RPC_RequestPickAtRay(origin, dir, range);
+        }
+
+        private System.Collections.IEnumerator CoPickWhenIdReady(NetworkObject no)
+        {
+            float end = Time.time + 0.5f; // небольшой таймаут, обычно хватает 1-2 кадров
+            while (no != null && !no.Id.IsValid && Time.time < end)
+                yield return null;
+
+            if (no != null && no.Id.IsValid && _ic != null && _ic.Object != null && _ic.Object.HasInputAuthority && _rpc != null)
+                _rpc.RPC_RequestPickById(no.Id);
         }
 
         public void TryPick()
@@ -130,34 +142,6 @@ namespace Game
             _rpc.RPC_RequestPlaceObject(slot.Id, pos, rot);
         }
 
-        // public void DropFromSlot(InventorySlotUI slotUI)
-        // {
-        //     if (_ic == null || !_ic.Object.HasInputAuthority || _rpc == null || slotUI == null) return;
-        //     var slot = GetBackendSlotRef(slotUI);
-        //     if (slot == null || string.IsNullOrEmpty(slot.Id) || slot.Count <= 0) return;
-        //     var cam = Cam;
-        //     if (cam == null) return;
-        //     Vector3 pos;
-        //     Vector3 forward = cam.transform.forward;
-        //     var ray = cam.ScreenPointToRay(Input.mousePosition);
-        //     if (Physics.Raycast(ray, out var hit, _ic.PlaceRange, ~0, QueryTriggerInteraction.Ignore))
-        //     {
-        //         pos = hit.point;
-        //         forward = cam.transform.forward;
-        //     }
-        //     else
-        //     {
-        //         pos = cam.transform.position + cam.transform.forward * _ic.PlaceRange;
-        //     }
-        //     _rpc.RPC_RequestDrop(pos, forward, slot.Id, slot.Count, slot.State?.ammo ?? 0);
-        //     slot.Id = null;
-        //     slot.Count = 0;
-        //     slot.State = null;
-        //     var parentInv = slotUI.ParentInventory;
-        //     parentInv.RaiseInventoryChanged();
-        //     if (parentInv is InventoryService svc)
-        //         svc.RaiseQuickSlotsChanged();
-        // }
 
         public void OpenPlayerInventory()
         {

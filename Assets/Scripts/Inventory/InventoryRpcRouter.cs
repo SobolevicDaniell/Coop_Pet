@@ -30,61 +30,79 @@ namespace Game
             _byPlayer.Remove(Object.InputAuthority);
         }
 
-        // RPC_RequestOpenContainer
-[Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-public void RPC_RequestOpenContainer(int type, PlayerRef owner, NetworkId objectId, RpcInfo info = default)
-{
-    if (_server == null) return;
-
-    var id = DecodeId(type, owner, objectId);
-
-    // 👇 берём viewer с фолбэком на InputAuthority (важно для Host)
-    var viewer = info.Source;
-    if (viewer == PlayerRef.None)
-        viewer = Object.InputAuthority;
-
-    id = NormalizeOwnedId(id, viewer);
-
-    if (_server.TryOpenContainer(viewer, id, out var snapshot, out var reason))
-    {
-        BuildSnapshotArrays(snapshot, out var capacity, out var itemIds, out var counts, out var ammo, out var durability);
-        RPC_PushSnapshot(type, id.ownerRef, objectId, snapshot.version, capacity, itemIds, counts, ammo, durability);
-        return;
-    }
-
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-    Debug.LogWarning($"[INV] OpenContainer pending, will retry: reason='{reason}', type={id.type}, owner={id.ownerRef}");
-#endif
-
-    // 👇 передаём в ретрай именно viewer, а не owner из параметров
-    StartCoroutine(RetryOpenContainer(type, id.ownerRef, objectId, viewer));
-}
-
-private IEnumerator RetryOpenContainer(int type, PlayerRef owner, NetworkId objectId, PlayerRef viewer, int attempts = 20, float delay = 0.05f)
-{
-    for (int i = 0; i < attempts; i++)
-    {
-        yield return new WaitForSeconds(delay);
-
-        if (_server != null)
+        // ─────────────────────────────────────────────────────────────────────────────
+        // Открытие контейнера: отправляем снапшот с РЕАЛЬНЫМ ID из snapshot.id
+        // ─────────────────────────────────────────────────────────────────────────────
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void RPC_RequestOpenContainer(int type, PlayerRef owner, NetworkId objectId, RpcInfo info = default)
         {
+            if (_server == null) return;
+
             var id = DecodeId(type, owner, objectId);
+
+            // viewer с фолбэком (важно для Host)
+            var viewer = info.Source;
+            if (viewer == PlayerRef.None)
+                viewer = Object.InputAuthority;
+
+            // нормализуем владельца для "игроковских" контейнеров
             id = NormalizeOwnedId(id, viewer);
 
-            if (_server.TryOpenContainer(viewer, id, out var snapshot, out var _))
+            if (_server.TryOpenContainer(viewer, id, out var snapshot, out var reason))
             {
-                BuildSnapshotArrays(snapshot, out var capacity, out var itemIds, out var counts, out var ammo, out var durability);
-                RPC_PushSnapshot(type, id.ownerRef, objectId, snapshot.version, capacity, itemIds, counts, ammo, durability);
-                yield break;
-            }
-        }
-    }
+                BuildSnapshotArrays(snapshot,
+                    out var capacity, out var itemIds, out var counts, out var ammo, out var durability);
+
+                // ВАЖНО: кодируем ID из snapshot.id
+                var (t, o, n) = EncodeId(snapshot.id);
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-    Debug.LogWarning($"[INV] RetryOpenContainer timeout: type={(ContainerType)type}, owner={owner}, viewer={viewer}");
+                Debug.Log($"[INV] OpenContainer OK req=({(ContainerType)type},{owner}) -> real=({snapshot.id.type},{snapshot.id.ownerRef}) ver={snapshot.version}");
 #endif
-}
+                RPC_PushSnapshot(t, o, n, snapshot.version, capacity, itemIds, counts, ammo, durability);
+                return;
+            }
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.LogWarning($"[INV] OpenContainer pending, will retry: reason='{reason}', req=({(ContainerType)type},{owner}), viewer={viewer}");
+#endif
+
+            // Ретраим именно для viewer
+            StartCoroutine(RetryOpenContainer(type, id.ownerRef, objectId, viewer));
+        }
+
+        private IEnumerator RetryOpenContainer(int type, PlayerRef owner, NetworkId objectId, PlayerRef viewer, int attempts = 20, float delay = 0.05f)
+        {
+            for (int i = 0; i < attempts; i++)
+            {
+                yield return new WaitForSeconds(delay);
+
+                if (_server != null)
+                {
+                    var id = DecodeId(type, owner, objectId);
+                    id = NormalizeOwnedId(id, viewer);
+
+                    if (_server.TryOpenContainer(viewer, id, out var snapshot, out var _))
+                    {
+                        BuildSnapshotArrays(snapshot,
+                            out var capacity, out var itemIds, out var counts, out var ammo, out var durability);
+
+                        // ВАЖНО: кодируем ID из snapshot.id
+                        var (t, o, n) = EncodeId(snapshot.id);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                        Debug.Log($"[INV] RetryOpenContainer OK real=({snapshot.id.type},{snapshot.id.ownerRef}) ver={snapshot.version}");
+#endif
+                        RPC_PushSnapshot(t, o, n, snapshot.version, capacity, itemIds, counts, ammo, durability);
+                        yield break;
+                    }
+                }
+            }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.LogWarning($"[INV] RetryOpenContainer timeout: type={(ContainerType)type}, owner={owner}, viewer={viewer}");
+#endif
+        }
 
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]

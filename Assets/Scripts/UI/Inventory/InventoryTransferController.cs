@@ -20,6 +20,7 @@ namespace Game.UI
         [Inject] private InventoryService _inv;
         [Inject] private ItemDatabaseSO _db;
         [Inject(Optional = true)] private InventoryClientFacade _facade;
+        [Inject(Optional = true)] private PlayerStatsSO _stats;
 
 
         private Game.InteractionController _ic;
@@ -250,7 +251,6 @@ namespace Game.UI
         }
 
 
-        // Scripts/UI/Inventory/InventoryTransferController.cs
         void TryWorldDropFromSource()
         {
             if (_ic == null || _rpc == null || _inv == null) return;
@@ -261,20 +261,31 @@ namespace Game.UI
                 _facade.localMain.ownerRef == PlayerRef.None)
                 return;
 
-            if (!TryCalcGlobalIndex(_srcPanel, _srcSlot.SlotIndex, out int fromG)) return;
+            int localIdx = _srcSlot.SlotIndex;
 
-            var itemId = GetItemIdByGlobalIndex(fromG);
-            if (string.IsNullOrEmpty(itemId)) return;
+            Game.InventorySlot slotRef = null;
+            if (_srcPanel.Kind == PanelKind.Quick)
+            {
+                var qs = _inv.GetQuickSlots();
+                if (qs != null && localIdx >= 0 && localIdx < qs.Length)
+                    slotRef = qs[localIdx];
+            }
+            else if (_srcPanel.Kind == PanelKind.Player)
+            {
+                var inv = _inv.GetInventorySlots();
+                if (inv != null && localIdx >= 0 && localIdx < inv.Length)
+                    slotRef = inv[localIdx];
+            }
 
-            int count = GetCountByGlobalIndex(fromG);
-            if (count <= 0) return;
+            if (slotRef == null || string.IsNullOrEmpty(slotRef.Id) || slotRef.Count <= 0)
+                return; 
+
+            int quickCap = GetQuickLen();
+            int fromG = (_srcPanel.Kind == PanelKind.Quick) ? localIdx : quickCap + localIdx;
 
             GetDropPoint(out var pos, out var fwd);
 
-            // сервер ждёт глобальный индекс (0..quick-1, затем main с оффсетом)
-            _rpc.RPC_RequestDrop(pos, fwd, fromG, count);
-
-            // локально ничего не трогаем — ждём дельту
+            _rpc.RPC_RequestDrop(pos, fwd, fromG, slotRef.Count);
         }
 
         private void GetDropPoint(out Vector3 pos, out Vector3 fwd)
@@ -478,7 +489,9 @@ namespace Game.UI
                 if (cap > 0) return cap;
             }
             var qs = _inv?.GetQuickSlots();
-            return qs?.Length ?? 0;
+            if (qs != null && qs.Length > 0) return qs.Length;
+
+            return _stats != null ? Mathf.Max(0, _stats.quickSlotsCount) : 0;
         }
 
         private int GetMainLen()
@@ -489,7 +502,9 @@ namespace Game.UI
                 if (cap > 0) return cap;
             }
             var inv = _inv?.GetInventorySlots();
-            return inv?.Length ?? 0;
+            if (inv != null && inv.Length > 0) return inv.Length;
+
+            return _stats != null ? Mathf.Max(0, _stats.inventorySlotsCount) : 0;
         }
 
 

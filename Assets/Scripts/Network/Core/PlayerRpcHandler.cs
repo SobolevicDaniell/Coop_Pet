@@ -104,44 +104,54 @@ namespace Game
             Runner.Spawn(placeablePrefab, position, rotation, Object.InputAuthority);
         }
 
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        // В PlayerRpcHandler.cs
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
         public void RPC_RequestDrop(Vector3 pos, Vector3 fwd, int fromGlobalIndex, int count, RpcInfo info = default)
         {
-            if (Object.InputAuthority != info.Source) return;
-            if (!Object.HasStateAuthority || Runner == null || _invServer == null || _db == null) return;
+            // Нормализуем актёра (важно для Host)
+            var actor = info.Source;
+            if (actor == PlayerRef.None)
+                actor = Object.InputAuthority;
 
-            var player = Object.InputAuthority;
+            // Доп. страховка: RPC должно приходить от своего владельца
+            if (actor != Object.InputAuthority)
+                return;
 
-            // 1) Разрешаем глобальный индекс в контейнер и слот
-            if (!_invServer.TryResolveGlobalIndex(player, fromGlobalIndex, out var container, out int slotIndex))
+            if (!Object.HasStateAuthority || Runner == null || _invServer == null || _db == null)
+                return;
+
+            // Разрешаем глобальный индекс в контейнер и локальный индекс
+            if (!_invServer.TryResolveGlobalIndex(actor, fromGlobalIndex, out var container, out int slotIndex))
                 return;
 
             var slot = container.Slots[slotIndex];
             var itemId = InventorySlotStateAccessor.ReadId(slot);
-            if (string.IsNullOrEmpty(itemId)) return;
+            if (string.IsNullOrEmpty(itemId))
+                return;
 
             var so = _db.Get(itemId);
-            if (so == null) return;
+            if (so == null)
+                return;
 
-            // 2) Снимем снапшот состояния ДО удаления
+            // Снимем состояние ДО удаления (для ammo и т.п.)
             var st = InventorySlotStateAccessor.ReadState(slot);
             int ammo = st?.ammo ?? 0;
 
             int currentCount = InventorySlotStateAccessor.ReadCount(slot);
             int dropCount = Mathf.Clamp(count, 1, currentCount);
 
-            // 3) Удаляем предмет из инвентаря на сервере
-            if (!_invServer.TryRemove(player, container.Id, slotIndex, dropCount, out var deltas))
+            // Удаляем из инвентаря на сервере
+            if (!_invServer.TryRemove(actor, container.Id, slotIndex, dropCount, out var deltas))
                 return;
 
+            // Рассылаем дельты наблюдателям
             if (_invRouter != null && deltas != null)
             {
                 foreach (var d in deltas)
                     _invRouter.BroadcastDeltaFromServer(d);
             }
 
-
-            // 4) Спавним предмет в мире
+            // Спавним предмет в мире
             if (!TryGetNetworkPrefab(so, out var pickablePrefab,
                 "PickableNetwork", "PickupNetwork", "WorldDrop", "WorldPrefab",
                 "PickablePrefab", "PickupPrefab", "WorldPickable", "Prefab"))
@@ -151,13 +161,19 @@ namespace Game
             var rot = Quaternion.LookRotation(dir);
 
             var spawned = Runner.Spawn(
-                pickablePrefab, pos, rot, player,
+                pickablePrefab, pos, rot, PlayerRef.None,
                 onBeforeSpawned: (runner, netObj) =>
                 {
-                    if (netObj.TryGetComponent<PickableItem>(out var pick))
+                    var pick = netObj.GetComponentInChildren<PickableItem>(true);
+                    if (pick != null)
+                    {
                         pick.ServerInit(itemId, dropCount, ammo);
+                    }
                     else
-                        TryInitWorldItem(netObj, itemId, dropCount, ammo);
+                    {
+                        // 2) Фолбэк: проставим поля по всей иерархии (дети тоже)
+                        TryInitWorldItemDeep(netObj.gameObject, itemId, dropCount, ammo);
+                    }
                 });
 
             if (spawned != null && spawned.TryGetComponent<Rigidbody>(out var rb))
@@ -166,12 +182,61 @@ namespace Game
                 rb.AddForce(dir * force, ForceMode.VelocityChange);
             }
         }
-     
+        private void TryInitWorldItemDeep(GameObject root, string itemId, int count, int ammo)
+        {
+            // Если вдруг PickableItem есть где-то в детях — используем его
+            var pick = root.GetComponentInChildren<PickableItem>(true);
+            if (pick != null)
+            {
+                if (Runner != null && HasStateAuthority) pick.ServerInit(itemId, count, ammo);
+                else pick.Initialize(itemId, count, ammo);
+                return;
+            }
+
+            // Иначе — проставим совместимые поля любому MonoBehaviour в иерархии
+            var comps = root.GetComponentsInChildren<MonoBehaviour>(true);
+            for (int i = 0; i < comps.Length; i++)
+            {
+                var c = comps[i]; if (c == null) continue;
+                var t = c.GetType();
+                WriteString(t, c, itemId, "ItemId", "itemId", "Id", "id");
+                WriteInt(t, c, count, "Count", "count", "Stack", "stack");
+                WriteInt(t, c, ammo, "Ammo", "ammo", "Bullets", "bullets");
+            }
+        }
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestPick(NetworkObject target, RpcInfo info = default)
         {
             if (!Object.HasStateAuthority || _invServer == null || target == null) return;
+
+            // safety: работаем с корневым NO
+            var root = target.transform.root != null
+                ? target.transform.root.GetComponent<NetworkObject>()
+                : target;
+            target = root != null ? root : target;
+
+            if (!TryReadWorldItem(target, out var itemId, out var amount, out var ammoFromPickup))
+                return;
+
+            if (_invServer.TryAddItemToPlayer(
+                    Object.InputAuthority, itemId, amount, ammoFromPickup,
+                    out var left, out var deltas, out var reason))
+            {
+                if (deltas != null && _invRouter != null)
+                    for (int i = 0; i < deltas.Count; i++)
+                        _invRouter.BroadcastDeltaFromServer(deltas[i]);
+
+                Runner.Despawn(target);
+            }
+        }
+        // using Fusion;  // уже есть
+
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void RPC_RequestPickById(NetworkId targetId, RpcInfo info = default)
+        {
+            if (!Object.HasStateAuthority || _invServer == null) return;
+            if (!Runner.TryFindObject(targetId, out var target) || target == null) return;
 
             if (!TryReadWorldItem(target, out var itemId, out var amount, out var ammoFromPickup))
                 return;
@@ -190,10 +255,53 @@ namespace Game
                     for (int i = 0; i < deltas.Count; i++)
                         _invRouter.BroadcastDeltaFromServer(deltas[i]);
                 }
-
                 Runner.Despawn(target);
             }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            else
+            {
+                Debug.Log($"[PICK] denied: {reason}");
+            }
+#endif
         }
+        
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void RPC_RequestPickAtRay(Vector3 origin, Vector3 dir, float maxDist, RpcInfo info = default)
+        {
+            if (!Object.HasStateAuthority || _invServer == null) return;
+
+            // Серверный рейкаст в authoritative-физике
+            if (!Physics.Raycast(origin, dir, out var hit, maxDist, ~0, QueryTriggerInteraction.Collide))
+                return;
+
+            // Берём то, что реально под прицелом
+            var pick = hit.collider.GetComponentInParent<PickableItem>();
+            if (pick == null) return;
+
+            var no = pick.GetComponentInParent<NetworkObject>();
+            if (no == null) return;
+
+            if (!TryReadWorldItem(no, out var itemId, out var amount, out var ammo))
+                return;
+
+            if (_invServer.TryAddItemToPlayer(
+                    Object.InputAuthority, itemId, amount, ammo,
+                    out var left, out var deltas, out var reason))
+            {
+                if (deltas != null && _invRouter != null)
+                    for (int i = 0; i < deltas.Count; i++)
+                        _invRouter.BroadcastDeltaFromServer(deltas[i]);
+
+                Runner.Despawn(no);
+            }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            else
+            {
+                Debug.Log($"[PICK] denied: {reason}");
+            }
+#endif
+        }
+
 
 
         private void GetDropPoint(out Vector3 pos, out Vector3 fwd)
@@ -445,25 +553,42 @@ namespace Game
             itemId = null; count = 0; ammo = 0;
             if (obj == null) return false;
 
-            var pickable = obj.GetComponent<PickableItem>();
-            if (pickable != null)
+            // Ищем в обе стороны: вверх и вниз
+            var pick = obj.GetComponentInParent<PickableItem>()
+                       ?? obj.GetComponentInChildren<PickableItem>(true);
+            if (pick != null)
             {
-                itemId = pickable.GetItemId();
-                count = pickable.GetCount();
-                ammo = pickable.GetAmmo();
+                itemId = pick.GetItemId();
+                count = pick.GetCount();
+                ammo = pick.GetAmmo();
                 return !string.IsNullOrEmpty(itemId) && count > 0;
             }
 
-            var comps = obj.GetComponents<MonoBehaviour>();
-            foreach (var c in comps)
+            // Глубокий фолбэк: сначала вниз (дети), потом вверх (родители)
+            foreach (var c in obj.GetComponentsInChildren<MonoBehaviour>(true))
             {
                 if (c == null) continue;
-                var t = c.GetType();
-                itemId = ReadString(t, c, "ItemId", "itemId", "Id", "id");
-                count = ReadInt(t, c, "Count", "count", "Stack", "stack");
-                ammo = ReadInt(t, c, "Ammo", "ammo", "Bullets", "bullets");
-                if (!string.IsNullOrEmpty(itemId) && count > 0)
-                    return true;
+                var tt = c.GetType();
+                itemId = ReadString(tt, c, "ItemId", "itemId", "Id", "id");
+                count = ReadInt(tt, c, "Count", "count", "Stack", "stack");
+                ammo = ReadInt(tt, c, "Ammo", "ammo", "Bullets", "bullets");
+                if (!string.IsNullOrEmpty(itemId) && count > 0) return true;
+            }
+
+            var t = obj.transform.parent;
+            while (t != null)
+            {
+                var comps = t.GetComponents<MonoBehaviour>();
+                foreach (var c in comps)
+                {
+                    if (c == null) continue;
+                    var tt = c.GetType();
+                    itemId = ReadString(tt, c, "ItemId", "itemId", "Id", "id");
+                    count = ReadInt(tt, c, "Count", "count", "Stack", "stack");
+                    ammo = ReadInt(tt, c, "Ammo", "ammo", "Bullets", "bullets");
+                    if (!string.IsNullOrEmpty(itemId) && count > 0) return true;
+                }
+                t = t.parent;
             }
 
             return false;
