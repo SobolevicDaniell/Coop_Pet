@@ -34,7 +34,7 @@ namespace Game
 
         private void HitAndDespawn(Collider other, Vector3 point, Vector3 dir)
         {
-            if (!Object.HasStateAuthority) return; // только авторитетная пуля наносит урон/деспавнит
+            if (!Object.HasStateAuthority) return;
 
             if (IsTarget(other) && other.TryGetComponent<IDamageable>(out var dmg))
             {

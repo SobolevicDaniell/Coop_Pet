@@ -9,9 +9,9 @@ namespace Game
     {
         public int        amount;
         public DamageKind kind;
-        public Vector3    point;      // где попали
-        public Vector3    direction;  // откуда летело
-        public PlayerRef  source;     // кто нанёс (если есть)
+        public Vector3    point;
+        public Vector3    direction;
+        public PlayerRef  source;
 
         public DamageInfo(int amount, DamageKind kind, Vector3 point, Vector3 direction, PlayerRef source)
         {

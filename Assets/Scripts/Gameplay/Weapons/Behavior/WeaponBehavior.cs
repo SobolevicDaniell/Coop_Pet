@@ -105,10 +105,7 @@ namespace Game
 
         public void ServerReload()
         {
-            int idx = (_ic != null && _ic.inventory != null && _ic.inventory.SelectedQuickSlot >= 0)
-                ? _ic.inventory.SelectedQuickSlot
-                : _quickSlotIndex;
-            _rpc?.RPC_RequestReload(idx);
+            _rpc?.RPC_RequestReload(-1);
         }
 
         // WeaponBehavior.cs — внутри класса

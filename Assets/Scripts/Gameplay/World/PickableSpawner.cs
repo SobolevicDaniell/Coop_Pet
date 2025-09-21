@@ -8,8 +8,8 @@ namespace Game.Gameplay
 {
     public class PickableSpawner : MonoBehaviour
     {
-        [Inject] private NetworkRunner _runner;
-        [Inject] private ItemDatabaseSO _database;
+        [Inject(Optional = true)] private NetworkRunner _runner;
+        [Inject(Optional = true)] private ItemDatabaseSO _database;
 
         [Header("Какой предмет спавним")]
         [SerializeField] private string _itemId;
@@ -35,21 +35,11 @@ namespace Game.Gameplay
 
         private IEnumerator CoSpawnWhenReady()
         {
-            while (_runner == null)
-            {
-                _runner = FindObjectOfType<NetworkRunner>();
-                yield return null;
-            }
-
-            while (!_runner.IsRunning)
-                yield return null;
-
-            if (!HasAuthority(_runner))
-                yield break;
-
-            if (_spawned)
-                yield break;
-
+            while (_runner == null) { _runner = FindObjectOfType<NetworkRunner>(true); yield return null; }
+            while (!_runner.IsRunning) yield return null;
+            while (_database == null) yield return null;
+            if (!HasAuthority(_runner)) yield break;
+            if (_spawned) yield break;
             SpawnPickable();
             _spawned = true;
         }
@@ -67,28 +57,32 @@ namespace Game.Gameplay
                 names[i] = _database.Items[i].Id;
             if (!names.Contains(_itemId) && names.Length > 0)
                 _itemId = names[0];
+            if (_requestedCount < 1) _requestedCount = 1;
         }
 
         private void SpawnPickable()
         {
+            if (_database == null) return;
             var itemDef = _database.Get(_itemId);
             if (itemDef == null) return;
 
-            int count = Mathf.Clamp(_requestedCount, 1, itemDef.MaxStack);
+            var prefab = itemDef.Prefab;
+            if (prefab == null) return;
 
-            var prefabNetObj = itemDef.Prefab.GetComponent<NetworkObject>();
-            if (prefabNetObj == null) return;
+            var netObj = prefab.GetComponent<NetworkObject>();
+            if (netObj == null) return;
+
+            var count = Mathf.Clamp(_requestedCount, 1, itemDef.MaxStack);
 
             _runner.Spawn(
-                prefabNetObj,
+                netObj,
                 transform.position,
                 transform.rotation,
                 PlayerRef.None,
                 onBeforeSpawned: (runner, spawnedObj) =>
                 {
                     var pickable = spawnedObj.GetComponent<PickableItem>();
-                    if (pickable != null)
-                        pickable.ServerInit(_itemId, count, 0);
+                    if (pickable != null) pickable.ServerInit(_itemId, count, 0);
                 }
             );
         }

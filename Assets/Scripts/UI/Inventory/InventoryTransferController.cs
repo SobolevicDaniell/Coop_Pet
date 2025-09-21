@@ -179,22 +179,21 @@ namespace Game.UI
             if (_dragIcon != null) _dragIcon.enabled = false;
             if (_srcSlot == null || _srcSlot.Item == null) { ResetDrag(); return; }
 
-            EnsureFacadeReady();
-            if (_facade == null ||
-                _facade.localQuick.ownerRef == PlayerRef.None ||
-                _facade.localMain.ownerRef == PlayerRef.None)
-            { ResetDrag(); return; }
-
             if (_hoverSlot == null || _hoverPanel == null)
                 TryPickSlotUnderPointer(out _hoverSlot, out _hoverPanel);
 
-            // дроп в мир — курсор вне UI
             if (!IsPointerOverUILayer())
             {
                 TryWorldDropFromSource();
                 ResetDrag();
                 return;
             }
+
+            EnsureFacadeReady();
+            if (_facade == null ||
+                _facade.localQuick.ownerRef == PlayerRef.None ||
+                _facade.localMain.ownerRef == PlayerRef.None)
+            { ResetDrag(); return; }
 
             if (_hoverSlot == null || _hoverPanel == null) { ResetDrag(); return; }
 
@@ -210,18 +209,15 @@ namespace Game.UI
             int fromIdx = _srcSlot.SlotIndex;
             int toIdx = _hoverSlot.SlotIndex;
 
-            // проверяем индексы против фактических размеров
             if (!IsIndexValid(_srcPanel.Kind, fromIdx) || !IsIndexValid(_hoverPanel.Kind, toIdx))
             {
-                Debug.LogWarning($"[DnD] invalid index: from {fromId.type}:{fromIdx}, to {toId.type}:{toIdx}. " +
-                                 $"caps quick={GetQuickLen()}, main={GetMainLen()}");
+                Debug.LogWarning($"[DnD] invalid index: from {fromId.type}:{fromIdx}, to {toId.type}:{toIdx}. caps quick={GetQuickLen()}, main={GetMainLen()}");
                 ResetDrag();
                 return;
             }
 
             if (fromIdx == toIdx && fromId.Equals(toId)) { ResetDrag(); return; }
 
-            // переносим всё, что в источнике (сервер сам ограничит по стэку)
             int amount;
             if (_srcPanel.Kind == PanelKind.Quick)
             {
@@ -255,12 +251,6 @@ namespace Game.UI
         {
             if (_ic == null || _rpc == null || _inv == null) return;
 
-            EnsureFacadeReady();
-            if (_facade == null ||
-                _facade.localQuick.ownerRef == PlayerRef.None ||
-                _facade.localMain.ownerRef == PlayerRef.None)
-                return;
-
             int localIdx = _srcSlot.SlotIndex;
 
             Game.InventorySlot slotRef = null;
@@ -278,7 +268,7 @@ namespace Game.UI
             }
 
             if (slotRef == null || string.IsNullOrEmpty(slotRef.Id) || slotRef.Count <= 0)
-                return; 
+                return;
 
             int quickCap = GetQuickLen();
             int fromG = (_srcPanel.Kind == PanelKind.Quick) ? localIdx : quickCap + localIdx;
@@ -462,7 +452,14 @@ namespace Game.UI
                 {
                     router = _ic.GetComponent<InventoryRpcRouter>();
                     if (router == null) router = _ic.GetComponentInParent<InventoryRpcRouter>();
+
+                    if (router == null && _ic.Runner != null && _ic.Object != null)
+                    {
+                        if (_ic.Runner.TryGetPlayerObject(_ic.Object.InputAuthority, out var po) && po != null)
+                            router = po.GetComponentInChildren<InventoryRpcRouter>(true);
+                    }
                 }
+
                 if (router == null)
                 {
                     var all = FindObjectsOfType<InventoryRpcRouter>(true);
@@ -473,14 +470,8 @@ namespace Game.UI
                 if (router != null && _ic != null && _ic.Object != null)
                     _facade.SetLocal(_ic.Object.InputAuthority, router);
             }
-
-            _facade.OpenLocalQuick();
-            _facade.OpenLocalMain();
         }
 
-        // InventoryTransferController.cs
-
-        // InventoryTransferController.cs
         private int GetQuickLen()
         {
             if (_facade != null)

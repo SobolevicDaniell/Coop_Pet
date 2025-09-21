@@ -35,30 +35,26 @@ namespace Game
             container = null;
 
             var runner = ResolveRunner();
-            if (runner == null) return false;
-
-            if (!runner.TryGetPlayerObject(id.ownerRef, out var ownerNO) || ownerNO == null)
-                return false;
-
-            var all = ownerNO.GetComponentsInChildren<PlayerInventoryServer>(true);
-            for (int i = 0; i < all.Length; i++)
+            if (runner != null && runner.TryGetPlayerObject(id.ownerRef, out var ownerNO) && ownerNO != null)
             {
-                var c = all[i];
-                if (c != null && c.Id.Equals(id))
+                var underPlayerObject = ownerNO.GetComponentsInChildren<PlayerInventoryServer>(true);
+                for (int i = 0; i < underPlayerObject.Length; i++)
                 {
-                    container = c;
-                    return true;
+                    var c = underPlayerObject[i];
+                    if (c != null && c.Id.Equals(id)) { container = c; return true; }
+                }
+                for (int i = 0; i < underPlayerObject.Length; i++)
+                {
+                    var c = underPlayerObject[i];
+                    if (c != null && c.Id.type == id.type && c.Id.ownerRef == id.ownerRef) { container = c; return true; }
                 }
             }
 
+            var all = UnityEngine.Object.FindObjectsOfType<PlayerInventoryServer>(true);
             for (int i = 0; i < all.Length; i++)
             {
                 var c = all[i];
-                if (c != null && c.Id.type == id.type)
-                {
-                    container = c;
-                    return true;
-                }
+                if (c != null && c.Id.ownerRef == id.ownerRef && c.Id.type == id.type) { container = c; return true; }
             }
 
             return false;

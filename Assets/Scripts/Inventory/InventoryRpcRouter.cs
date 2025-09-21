@@ -20,6 +20,9 @@ namespace Game
         [Inject(Optional = true)] private InventoryClientModel _clientModel;
         [Inject(Optional = true)] private InventoryService _clientService;
 
+        private bool _lastOk;
+
+
         public override void Spawned()
         {
             _byPlayer[Object.InputAuthority] = this;
@@ -30,79 +33,43 @@ namespace Game
             _byPlayer.Remove(Object.InputAuthority);
         }
 
-        // ─────────────────────────────────────────────────────────────────────────────
-        // Открытие контейнера: отправляем снапшот с РЕАЛЬНЫМ ID из snapshot.id
-        // ─────────────────────────────────────────────────────────────────────────────
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestOpenContainer(int type, PlayerRef owner, NetworkId objectId, RpcInfo info = default)
         {
-            if (_server == null) return;
-
+            var viewer = info.Source != PlayerRef.None ? info.Source : Object.InputAuthority;
             var id = DecodeId(type, owner, objectId);
-
-            // viewer с фолбэком (важно для Host)
-            var viewer = info.Source;
-            if (viewer == PlayerRef.None)
-                viewer = Object.InputAuthority;
-
-            // нормализуем владельца для "игроковских" контейнеров
             id = NormalizeOwnedId(id, viewer);
 
-            if (_server.TryOpenContainer(viewer, id, out var snapshot, out var reason))
+            if (_server != null && _server.TryOpenContainer(viewer, id, out var snap, out var reason))
             {
-                BuildSnapshotArrays(snapshot,
-                    out var capacity, out var itemIds, out var counts, out var ammo, out var durability);
-
-                // ВАЖНО: кодируем ID из snapshot.id
-                var (t, o, n) = EncodeId(snapshot.id);
-
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-                Debug.Log($"[INV] OpenContainer OK req=({(ContainerType)type},{owner}) -> real=({snapshot.id.type},{snapshot.id.ownerRef}) ver={snapshot.version}");
-#endif
-                RPC_PushSnapshot(t, o, n, snapshot.version, capacity, itemIds, counts, ammo, durability);
+                BuildSnapshotArrays(snap, out var capacity, out var itemIds, out var counts, out var ammo, out var durability);
+                var (t, o, n) = EncodeId(snap.id);
+                RPC_PushSnapshot(t, o, n, snap.version, capacity, itemIds, counts, ammo, durability);
+                RPC_ContainerReply(true, viewer);
                 return;
             }
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            Debug.LogWarning($"[INV] OpenContainer pending, will retry: reason='{reason}', req=({(ContainerType)type},{owner}), viewer={viewer}");
-#endif
-
-            // Ретраим именно для viewer
-            StartCoroutine(RetryOpenContainer(type, id.ownerRef, objectId, viewer));
+            RPC_ContainerReply(false, viewer);
         }
 
-        private IEnumerator RetryOpenContainer(int type, PlayerRef owner, NetworkId objectId, PlayerRef viewer, int attempts = 20, float delay = 0.05f)
+        [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
+        private void RPC_ContainerReply(bool ok, PlayerRef viewer, RpcInfo info = default)
         {
+            if (Object == null || !Object.HasInputAuthority) return;
+            _lastOk = ok;
+        }
+
+        public IEnumerator RetryOpenContainer(int type, PlayerRef owner, NetworkId objectId, int attempts = 30, float delay = 0.1f)
+        {
+            _lastOk = false;
             for (int i = 0; i < attempts; i++)
             {
-                yield return new WaitForSeconds(delay);
-
-                if (_server != null)
-                {
-                    var id = DecodeId(type, owner, objectId);
-                    id = NormalizeOwnedId(id, viewer);
-
-                    if (_server.TryOpenContainer(viewer, id, out var snapshot, out var _))
-                    {
-                        BuildSnapshotArrays(snapshot,
-                            out var capacity, out var itemIds, out var counts, out var ammo, out var durability);
-
-                        // ВАЖНО: кодируем ID из snapshot.id
-                        var (t, o, n) = EncodeId(snapshot.id);
-
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-                        Debug.Log($"[INV] RetryOpenContainer OK real=({snapshot.id.type},{snapshot.id.ownerRef}) ver={snapshot.version}");
-#endif
-                        RPC_PushSnapshot(t, o, n, snapshot.version, capacity, itemIds, counts, ammo, durability);
-                        yield break;
-                    }
-                }
+                RPC_RequestOpenContainer(type, owner, objectId);
+                yield return new UnityEngine.WaitForSeconds(delay);
+                if (_lastOk) yield break;
             }
-
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            Debug.LogWarning($"[INV] RetryOpenContainer timeout: type={(ContainerType)type}, owner={owner}, viewer={viewer}");
-#endif
         }
+
 
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
@@ -112,52 +79,55 @@ namespace Game
             _session?.Close(info.Source, id);
         }
 
-      [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-public void RPC_RequestTransfer(
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void RPC_RequestTransfer(
     int fromType, PlayerRef fromOwner, NetworkId fromObjectId, int fromIdx,
-    int toType,   PlayerRef toOwner,   NetworkId toObjectId,   int toIdx,
-    int amount,   int clientReqId, RpcInfo info = default)
-{
-    if (_server == null) { RPC_OpAck(clientReqId, false, "no_server"); return; }
+    int toType, PlayerRef toOwner, NetworkId toObjectId, int toIdx,
+    int amount, int clientReqId, RpcInfo info = default)
+        {
+            if (_server == null) { RPC_OpAck(clientReqId, false, "no_server"); return; }
 
-    // 👇 безопасно определяем актёра
-    var actor = info.Source;
-    if (actor == PlayerRef.None)
-        actor = Object.InputAuthority;
+            var actor = info.Source;
+            if (actor == PlayerRef.None)
+                actor = Object.InputAuthority;
 
-    var fromId = NormalizeOwnedId(DecodeId(fromType, fromOwner, fromObjectId), actor);
-    var toId   = NormalizeOwnedId(DecodeId(toType,   toOwner,   toObjectId),   actor);
+            var fromId = NormalizeOwnedId(DecodeId(fromType, fromOwner, fromObjectId), actor);
+            var toId = NormalizeOwnedId(DecodeId(toType, toOwner, toObjectId), actor);
 
-    if (!_server.TryTransfer(actor, fromId, fromIdx, toId, toIdx, amount,
-                             out var fromDelta, out var toDelta, out var swapped, out var reason))
-    {
-        RPC_OpAck(clientReqId, false, reason ?? "denied");
-        return;
-    }
+            if (!_server.TryTransfer(actor, fromId, fromIdx, toId, toIdx, amount,
+                                     out var fromDelta, out var toDelta, out var swapped, out var reason))
+            {
+                RPC_OpAck(clientReqId, false, reason ?? "denied");
+                return;
+            }
 
-    if (fromDelta != null) BroadcastDeltaFromServer(fromDelta);
-    if (toDelta   != null) BroadcastDeltaFromServer(toDelta);
-    RPC_OpAck(clientReqId, true, "ok");
-}
+            if (fromDelta != null) BroadcastDeltaFromServer(fromDelta);
+            if (toDelta != null) BroadcastDeltaFromServer(toDelta);
+
+            RPC_OpAck(clientReqId, true, "ok");
+
+            var rpc = GetComponent<PlayerRpcHandler>();
+            if (rpc != null) rpc.ServerRefreshHandsFromSelectedQuick(actor);
+        }
+
+
         private ContainerId NormalizeOwnedId(ContainerId id, PlayerRef actor)
         {
             if (id.type == ContainerType.PlayerQuick || id.type == ContainerType.PlayerMain)
                 id.ownerRef = actor;
             return id;
         }
-        
-
-        
-
-       
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestPickup(string itemId, int amount, int ammo, int clientReqId, RpcInfo info = default)
         {
             if (_server == null) return;
 
+            var actor = info.Source;
+            if (actor == PlayerRef.None) actor = Object.InputAuthority;
+
             var ok = _server.TryAddItemToPlayer(
-                info.Source, itemId, amount, ammo,
+                actor, itemId, amount, ammo,
                 out var left,
                 out var deltas,
                 out var reason);
@@ -168,7 +138,17 @@ public void RPC_RequestTransfer(
                     BroadcastDeltaFromServer(d);
             }
 
+            var rpc = GetComponent<PlayerRpcHandler>();
+            if (rpc != null) rpc.ServerRefreshHandsFromSelectedQuick(actor);
+
+            if (left > 0)
+            {
+                if (rpc != null) rpc.ServerDropOverflow(itemId, left, ammo);
+            }
+
             RPC_OpAck(clientReqId, ok && left == 0, reason ?? ((ok && left == 0) ? "ok" : "not_enough_space"));
+
+
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
@@ -242,7 +222,8 @@ public void RPC_RequestTransfer(
         private void RPC_OpAck(int clientReqId, bool ok, string message, RpcInfo info = default)
         {
             _clientModel?.AckOperation(clientReqId, ok, message);
-        }        private bool BroadcastDelta(ContainerDelta delta)
+        }
+        private bool BroadcastDelta(ContainerDelta delta)
         {
             if (delta == null || _server == null) return false;
 
@@ -291,10 +272,19 @@ public void RPC_RequestTransfer(
         }
 
         private static void BuildSnapshotArrays(ContainerSnapshot snap,
-                                                out int capacity, out string[] itemIds, out int[] counts, out int[] ammo, out int[] durability)
+                                        out int capacity, out string[] itemIds, out int[] counts, out int[] ammo, out int[] durability)
         {
             var slots = snap.slots ?? System.Array.Empty<InventorySlotState>();
             capacity = slots.Length;
+
+            if (capacity == 0)
+            {
+                itemIds = System.Array.Empty<string>();
+                counts = System.Array.Empty<int>();
+                ammo = System.Array.Empty<int>();
+                durability = System.Array.Empty<int>();
+                return;
+            }
 
             itemIds = new string[capacity];
             counts = new int[capacity];
@@ -304,20 +294,20 @@ public void RPC_RequestTransfer(
             for (int i = 0; i < capacity; i++)
             {
                 var s = slots[i];
-                if (s == null || s.IsEmpty)
+                if (s == null)
                 {
                     itemIds[i] = string.Empty;
                     counts[i] = 0;
                     ammo[i] = 0;
                     durability[i] = 0;
+                    continue;
                 }
-                else
-                {
-                    itemIds[i] = s.itemId ?? string.Empty;
-                    counts[i] = s.count;
-                    ammo[i] = s.itemState != null ? s.itemState.ammo : 0;
-                    durability[i] = s.itemState != null ? s.itemState.durability : 0;
-                }
+
+                itemIds[i] = s.itemId ?? string.Empty;
+                counts[i] = s.count;
+                var st = s.itemState;
+                ammo[i] = st != null ? st.ammo : 0;
+                durability[i] = st != null ? st.durability : 0;
             }
         }
 

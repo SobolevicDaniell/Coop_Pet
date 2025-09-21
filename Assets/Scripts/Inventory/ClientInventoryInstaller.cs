@@ -11,6 +11,8 @@ namespace Game
             Container.Bind<ContainerViewSessionClient>().AsSingle();
             Container.BindInterfacesAndSelfTo<InventoryService>().AsSingle();
 
+
+
         }
     }
 }

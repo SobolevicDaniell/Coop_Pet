@@ -3,10 +3,6 @@ using UnityEngine;
 
 namespace Game
 {
-    /// <summary>
-    /// Фабрика поведения предметов в руках.
-    /// Создаёт IHandItemBehavior на основе типа ScriptableObject'а из базы.
-    /// </summary>
     public sealed class HandItemBehaviorFactory
     {
         public IHandItemBehavior Create(InteractionController ic, string itemId, int quickSlotIndex)
@@ -70,7 +66,6 @@ namespace Game
 
             public void OnMuzzleFlash()
             {
-                throw new NotImplementedException();
             }
         }
     }

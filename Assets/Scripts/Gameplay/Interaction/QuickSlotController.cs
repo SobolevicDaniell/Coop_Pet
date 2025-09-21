@@ -1,6 +1,5 @@
 ﻿using Fusion;
 using UnityEngine;
-using Zenject;
 
 namespace Game
 {
@@ -24,11 +23,9 @@ namespace Game
         public void ChangeSlotAbsolute(int slot)
         {
             if (!_constructed || !_enabledForLocal) return;
-            if (_ic == null || !_ic.Object.HasInputAuthority || _inventory == null) return;
+            if (_ic == null || !_ic.Object.HasInputAuthority) return;
 
-            _inventory.ToggleQuickSlot(slot);
             _ic.playerRpcHandler?.RPC_RequestEquipQuickSlot(slot);
-            _ic.InvokeOnQuickSlotsChanged();
         }
 
         public void ChangeSlotRelative(int delta)

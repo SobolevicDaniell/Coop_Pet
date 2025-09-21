@@ -18,7 +18,6 @@ namespace Game
         [SerializeField] private float _rangePlace = 8f;
         [SerializeField] private float _throwForce = 5f;
 
-        // сценовые сервисы / данные
         [Inject(Optional = true)] private InputHandler _input;
         [Inject] private InteractionPromptView _prompt;
         [Inject] private InventoryService _inventory;
@@ -31,35 +30,32 @@ namespace Game
         [Inject(Optional = true)] private QuickSlotPanel _quickSlotPanel;
         [Inject(Optional = true)] private PlayerCameraController _playerCam;
         [Inject(Optional = true)] private InventoryClientFacade _inventoryFacade;
-
-
-        // компоненты на игроке
-        [Inject] private PlayerRpcHandler _playerRpc;
-        [Inject] private HandItemController _handItemController;
-        [Inject] private ItemEquipController _itemEquip;
-        [Inject] private PickDropController _pickDrop;
-        [Inject] private PlaceItemController _placeItem;
-        [Inject] private QuickSlotController _quickSlot;
-        // [Inject] private HealthComponent _health;
         [Inject(Optional = true)] private InventoryTransferController _transfer;
 
-        // текущее поведение
+        private PlayerRpcHandler _playerRpc;
+        private HandItemController _handItemController;
+        private ItemEquipController _itemEquip;
+        private PickDropController _pickDrop;
+        private PlaceItemController _placeItem;
+        private QuickSlotController _quickSlot;
+
         public IHandItemBehavior currentBehavior { get; private set; }
 
         [Networked] public int netSelectedQuickSlot { get; set; } = -1;
-
         [Networked] public NetworkId handModelNetId { get; set; }
         [Networked] public int SelectedQuickIndexNet { get; private set; }
 
         private int _lastSelectedQuickIndexNet = int.MinValue;
         private NetworkObject _handModelNetObj;
 
-        // API доступа
         public Transform handPoint => _handPoint;
         public Transform dropPoint => _dropPoint;
         public float range => _rangePick;
         public float PlaceRange => _rangePlace;
         public float ThrowForce => _throwForce;
+
+        private InventoryRpcRouter _router;
+        private bool _routerBound;
 
         public Camera camera
         {
@@ -84,9 +80,18 @@ namespace Game
         public PlaceItemController placeItem => _placeItem;
         public ItemEquipController itemEquip => _itemEquip;
 
-        // lifecycle
         private bool _localInitialized;
-        private string _lastEquipKey; // index:itemId:stateHash
+        private string _lastEquipKey;
+
+        public Vector3 GetDropPointPosition()
+        {
+            return _dropPoint != null ? _dropPoint.position : transform.position + transform.forward;
+        }
+
+        public Vector3 GetDropForward()
+        {
+            return _dropPoint != null ? _dropPoint.forward : transform.forward;
+        }
 
         public override void Spawned()
         {
@@ -97,67 +102,79 @@ namespace Game
             _placeItem ??= GetComponent<PlaceItemController>();
             _quickSlot ??= GetComponent<QuickSlotController>();
 
+            _playerRpc?.Construct(_db, this, _inventory);
+
             _quickSlot?.Construct(this, _inventory);
             _handItemController?.Construct(_db, _playerRpc, this);
             _placeItem?.Construct(this);
             _itemEquip?.Initialize(_factory, _db, this);
             _pickDrop?.Construct(this, _playerRpc, _inventory, _playerPanel, _otherPanel, _db, _uiController, _prompt, null);
 
-            var inputHandler = GetComponent<InteractionInputHandler>();
-            inputHandler?.Construct(this, _input, _inventory, _prompt);
+            if (Object.HasInputAuthority && _inventory != null)
+                _inventory.OnQuickSlotsChanged += OnQuickSlotsChanged;
 
-            _playerRpc?.Construct(_db, this, _inventory);
-
-            if (Object.HasInputAuthority)
+            if (_input != null && !_localInitialized)
             {
-                _playerPanel?.Construct(_inventory);
-                _quickSlot?.EnableForLocal();
-                _quickSlotPanel?.InitializeIfLocal(this);
-                if (Object.HasInputAuthority && _inventoryFacade != null)
-                {
-                    var router = GetComponentInParent<InventoryRpcRouter>();
-                    if (router == null) router = GetComponent<InventoryRpcRouter>();
-                    if (router == null)
-                    {
-                        var all = FindObjectsOfType<InventoryRpcRouter>(true);
-                        for (int i = 0; i < all.Length && router == null; i++)
-                            if (all[i].Object != null && all[i].Object.HasInputAuthority) router = all[i];
-                    }
-                    if (router != null)
-                    {
-                        _inventoryFacade.SetLocal(Object.InputAuthority, router);
-                        _inventoryFacade.OpenLocalQuick();
-                        _inventoryFacade.OpenLocalMain();
-                    }
-                }
-
-                _transfer?.Initialize(_inventory, _playerPanel, _quickSlotPanel, _otherPanel, this, _inventoryFacade);
-
-                var sel = _inventory != null ? _inventory.SelectedQuickSlot : -1;
-                if (sel >= 0)
-                    _playerRpc?.RPC_RequestEquipQuickSlot(sel);
-
-                if (_input != null)
-                {
-                    _input.OnInventoryToggle += ToggleInventory;
-                    _input.OnGlobalUiCloseRequested += CloseInventory;
-                }
-
-                if (_inventory != null)
-                {
-                    _inventory.OnQuickSlotsChanged += OnQuickSlotsChanged;
-                    OnQuickSlotsChanged();
-                }
-
+                _input.OnInventoryToggle += ToggleInventory;
+                _input.OnGlobalUiCloseRequested += CloseInventory;
                 _localInitialized = true;
             }
 
+            _transfer?.Initialize(_inventory, _playerPanel, _quickSlotPanel, _otherPanel, this, _inventoryFacade);
+
+            if (Object.HasInputAuthority)
+            {
+                _quickSlot?.EnableForLocal();
+                TryBindRouter();
+            }
+            else
+            {
+                _quickSlot?.DisableForLocal();
+            }
+
+            var sel = _inventory != null ? _inventory.SelectedQuickSlot : -1;
+            if (sel >= 0)
+                _playerRpc?.RPC_RequestEquipQuickSlot(sel);
+        }
+
+        private InventoryRpcRouter ResolveRouter()
+        {
+            if (Runner == null) return null;
+            if (!Runner.TryGetPlayerObject(Object.InputAuthority, out var po) || po == null) return null;
+            var r = po.GetComponent<InventoryRpcRouter>();
+            if (r != null) return r;
+            r = po.GetComponentInChildren<InventoryRpcRouter>(true);
+            return r;
         }
 
         private void Update()
         {
             if (Object.HasInputAuthority)
+            {
                 _pickDrop?.UpdateRaycast();
+                if (!_routerBound)
+                    TryBindRouter();
+            }
+        }
+
+        private void TryBindRouter()
+        {
+            if (!Object.HasInputAuthority) return;
+            if (_routerBound) return;
+
+            _router ??= ResolveRouter();
+            if (_router == null) return;
+
+            var poId = default(NetworkId);
+            if (Runner != null && Runner.TryGetPlayerObject(Object.InputAuthority, out var po) && po != null)
+                poId = po.Id;
+
+            _inventoryFacade?.SetLocal(Object.InputAuthority, _router);
+
+            StartCoroutine(_router.RetryOpenContainer((int)ContainerType.PlayerQuick, Object.InputAuthority, poId));
+            StartCoroutine(_router.RetryOpenContainer((int)ContainerType.PlayerMain, Object.InputAuthority, poId));
+
+            _routerBound = true;
         }
 
         private void OnDestroy()
@@ -170,8 +187,10 @@ namespace Game
                 _input.OnInventoryToggle -= ToggleInventory;
                 _input.OnGlobalUiCloseRequested -= CloseInventory;
             }
+
             _quickSlot?.DisableForLocal();
         }
+
         public override void Render()
         {
             if (!HasInputAuthority) return;
@@ -179,16 +198,11 @@ namespace Game
             if (_lastSelectedQuickIndexNet != SelectedQuickIndexNet)
             {
                 _lastSelectedQuickIndexNet = SelectedQuickIndexNet;
-
-                // важное дополнение: локальная модель получает подтверждённый индекс сервера
                 _inventory?.ForceSetQuickSlot(SelectedQuickIndexNet);
-
-                // а дальше — ваш прежний путь экипа (IC сам решает, что экипировать)
-                InvokeOnQuickSlotsChanged();
+                // InvokeOnQuickSlotsChanged();
             }
         }
 
-        // API для поведения в руках
         public void SetCurrentBehavior(IHandItemBehavior behavior)
         {
             currentBehavior = behavior;
@@ -216,19 +230,19 @@ namespace Game
 
         public void InvokeOnQuickSlotsChanged() => OnQuickSlotsChanged();
 
-        // UI
         private void ToggleInventory()
         {
             if (!Object.HasInputAuthority) return;
+            if (_uiController.Phase == UiPhase.Death || _uiController.Phase == UiPhase.Loading || _uiController.Phase == UiPhase.Hidden) return;
 
             if (_uiController.InventoryOpened)
             {
-                _uiController.ShowGameHUD();
+                _uiController.SetPhase(UiPhase.Gameplay);
                 _pickDrop.CloseOpenedInventories();
             }
             else
             {
-                _uiController.ShowInventory();
+                _uiController.SetPhase(UiPhase.Inventory);
                 _pickDrop.OpenPlayerInventory();
             }
         }
@@ -236,12 +250,12 @@ namespace Game
         private void CloseInventory()
         {
             if (!Object.HasInputAuthority) return;
+            if (_uiController.Phase == UiPhase.Death || _uiController.Phase == UiPhase.Loading || _uiController.Phase == UiPhase.Hidden) return;
 
-            _uiController.ShowGameHUD();
+            _uiController.SetPhase(UiPhase.Gameplay);
             _pickDrop.CloseOpenedInventories();
         }
 
-        // InteractionController.cs
         private void OnQuickSlotsChanged()
         {
             if (_itemEquip == null || _inventory == null)
@@ -250,7 +264,6 @@ namespace Game
             int idx = _inventory.SelectedQuickSlot;
             var slots = _inventory.GetQuickSlots();
 
-            // Если выбран невалидный слот — ключ для "ничего не экипано"
             if (slots == null || idx < 0 || idx >= slots.Length)
             {
                 const string noneKey = "-1:null";
@@ -264,25 +277,15 @@ namespace Game
 
             var slot = slots[idx];
             var id = slot?.Id;
-
-            // ВНИМАНИЕ: ключ экипа зависит ТОЛЬКО от индекса и itemId
-            // Никаких ammo/прочности здесь быть не должно
             string newKey = $"{idx}:{(string.IsNullOrEmpty(id) ? "null" : id)}";
 
             if (_lastEquipKey == newKey)
-            {
-                // Экип уже соответствует — пусть UI сам обновится на событии,
-                // но поведение оружия не пересоздаём
                 return;
-            }
 
-            if (string.IsNullOrEmpty(id))
-                _itemEquip.Equip(-1, slots);
-            else
-                _itemEquip.Equip(idx, slots);
-
+            _itemEquip.Equip(idx, slots);
             _lastEquipKey = newKey;
         }
+
         public void ServerSetSelectedQuickIndex(int idx)
         {
             if (!Object.HasStateAuthority) return;

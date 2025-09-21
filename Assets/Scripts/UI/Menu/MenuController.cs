@@ -1,8 +1,8 @@
 using System.Threading.Tasks;
 using Fusion;
-using Game.UI;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Zenject;
 
@@ -10,159 +10,198 @@ namespace Game.Network
 {
     public sealed class MenuController : MonoBehaviour
     {
-        [Inject] private Startup _startup;
-        [Inject(Optional = true)] private UIController _ui;
-
         [Header("UI")]
-         [SerializeField] private TMP_InputField _sessionInput;
+        [SerializeField] private TMP_InputField _sessionInput;
         [SerializeField] private Button _connectButton;
-        [SerializeField] private GameObject _gameHud;
-        [SerializeField] private GameObject _menuHud;
-        [SerializeField] private GameObject _deathScreen;
-
-        [Header("Confirm If Session Exists")]
         [SerializeField] private GameObject _confirmPanel;
         [SerializeField] private TMP_Text _confirmText;
         [SerializeField] private Button _yesButton;
         [SerializeField] private Button _noButton;
 
-        [Header("Defaults")]
-        [SerializeField] private string _defaultSessionName = "Session_1";
+        [Header("Config")]
+        [SerializeField] private string _levelSceneName = "Level 1";
+        [SerializeField] private string _defaultSessionName = "MySession";
 
-        private string _pendingSessionName;
+        [Inject(Optional = true)] private MenuSessionService _sessions;
+        [Inject(Optional = true)] private LaunchRequestStore _store;
+
+        private bool _busy;
+        private string _pendingName;
+
+        private enum PendingAction
+        {
+            None,
+            JoinClient,
+            StartHost,
+            ShutdownThenJoinClient
+        }
+
+        private PendingAction _pendingAction = PendingAction.None;
 
         private void Awake()
         {
-            if (_sessionInput == null) _sessionInput = GetComponentInChildren<TMP_InputField>(true);
-            if (_connectButton == null) _connectButton = GetComponentInChildren<Button>(true);
+            if (_connectButton) _connectButton.onClick.AddListener(OnConnectPressed);
+            if (_yesButton) _yesButton.onClick.AddListener(OnYes);
+            if (_noButton) _noButton.onClick.AddListener(OnNo);
 
-            if (_connectButton != null) _connectButton.onClick.AddListener(OnConnectPressed);
-            if (_yesButton != null) _yesButton.onClick.AddListener(OnYesPressed);
-            if (_noButton != null) _noButton.onClick.AddListener(OnNoPressed);
+            if (_confirmPanel) _confirmPanel.SetActive(false);
+            if (_sessionInput && string.IsNullOrWhiteSpace(_sessionInput.text))
+                _sessionInput.text = _defaultSessionName;
 
-            if (_confirmPanel != null) _confirmPanel.SetActive(false);
-
-            _gameHud.SetActive(false);
-            _menuHud.SetActive(true);
-            _deathScreen.SetActive(false);
+            EnsureStore();
+            EnsureSessionService();
         }
 
-        private void Start() => EnsureDefaultSessionName();
-        private void OnEnable() => EnsureDefaultSessionName();
-
-        private void OnDestroy()
+        private void EnsureStore()
         {
-            if (_connectButton != null) _connectButton.onClick.RemoveListener(OnConnectPressed);
-            if (_yesButton != null) _yesButton.onClick.RemoveListener(OnYesPressed);
-            if (_noButton != null) _noButton.onClick.RemoveListener(OnNoPressed);
+            if (_store == null)
+                _store = FindAnyObjectByType<LaunchRequestStore>(FindObjectsInactive.Include);
         }
 
-        private void EnsureDefaultSessionName()
+        private void EnsureSessionService()
         {
-            if (_sessionInput == null) return;
-            var last = PlayerPrefs.GetString("LastSessionName", _defaultSessionName);
-            if (string.IsNullOrWhiteSpace(_sessionInput.text))
-                _sessionInput.text = string.IsNullOrWhiteSpace(last) ? _defaultSessionName : last;
+            if (_sessions == null)
+                _sessions = new MenuSessionService();
         }
 
-        private void SaveLastSessionName(string name)
+        private static bool HasActiveRunner()
         {
-            PlayerPrefs.SetString("LastSessionName", name);
-            PlayerPrefs.Save();
-        }
-
-        private void SetInteractable(bool value)
-        {
-            if (_connectButton != null) _connectButton.interactable = value;
-        }
-
-        private void OnConnectPressed() => _ = OnConnectPressedAsync();
-
-        private async Task OnConnectPressedAsync()
-        {
-            if (_startup == null)
+            var runners = Object.FindObjectsByType<NetworkRunner>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var r in runners)
             {
-                Debug.LogError("[Menu] Startup is null. Проверьте SceneContext/NetworkInstaller и наличие Startup в сцене.");
+                if (r == null) continue;
+                try { if (r.IsRunning) return true; }
+                catch { return true; } // на старых версиях — перестраховка
+            }
+            return false;
+        }
+
+        private async void OnConnectPressed()
+        {
+            if (_busy) return;
+            _busy = true;
+            if (_connectButton) _connectButton.interactable = false;
+
+            try
+            {
+                EnsureStore();
+                EnsureSessionService();
+
+                var name = !string.IsNullOrWhiteSpace(_sessionInput?.text)
+                    ? _sessionInput.text.Trim()
+                    : _defaultSessionName;
+
+                // SINGLE: если уже есть активный Runner в процессе — не лезем в лобби,
+                // сначала спросим, нужно ли остановить текущую сессию и подключиться как клиент.
+                if (HasActiveRunner())
+                {
+                    _pendingName = name;
+                    _pendingAction = PendingAction.ShutdownThenJoinClient;
+                    ShowConfirm($"В этом процессе уже запущена сессия.\nОстановить её и подключиться к «{name}» как клиент?");
+                    return;
+                }
+
+                // Нет активного Runner — можно безопасно проверить лобби
+                var check = await _sessions.Check(name);
+
+                if (check == SessionCheck.Exists)
+                {
+                    _pendingName = name;
+                    _pendingAction = PendingAction.JoinClient;
+                    ShowConfirm($"Сессия «{name}» найдена. Подключиться как клиент?");
+                    return;
+                }
+
+                if (check == SessionCheck.Unknown)
+                {
+                    // Листинг недоступен (или Single-защита сработала) — не блокируем UX
+                    _pendingName = name;
+                    _pendingAction = PendingAction.JoinClient;
+                    ShowConfirm($"Не удалось проверить наличие «{name}». Подключиться как клиент?");
+                    return;
+                }
+
+                // NotFound → создаём как Host
+                _pendingAction = PendingAction.StartHost;
+                await LoadGameAs(GameMode.Host, name);
+            }
+            finally
+            {
+                if (_connectButton) _connectButton.interactable = true;
+                _busy = false;
+            }
+        }
+
+        private async void OnYes()
+        {
+            if (_confirmPanel) _confirmPanel.SetActive(false);
+
+            var name = !string.IsNullOrWhiteSpace(_pendingName)
+                ? _pendingName
+                : (!string.IsNullOrWhiteSpace(_sessionInput?.text) ? _sessionInput.text.Trim() : _defaultSessionName);
+
+            var act = _pendingAction;
+            _pendingName = null;
+            _pendingAction = PendingAction.None;
+
+            switch (act)
+            {
+                case PendingAction.ShutdownThenJoinClient:
+                    // Полностью очищаем процесс от других Runner-ов перед заходом клиента
+                    await RunnerGuard.KillAllExcept(null);
+                    await LoadGameAs(GameMode.Client, name);
+                    break;
+
+                case PendingAction.JoinClient:
+                    await LoadGameAs(GameMode.Client, name);
+                    break;
+
+                case PendingAction.StartHost:
+                    await LoadGameAs(GameMode.Host, name);
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        private void OnNo()
+        {
+            if (_confirmPanel) _confirmPanel.SetActive(false);
+            _pendingName = null;
+            _pendingAction = PendingAction.None;
+        }
+
+        private void ShowConfirm(string message)
+        {
+            if (_confirmPanel)
+            {
+                if (_confirmText) _confirmText.text = message;
+                _confirmPanel.SetActive(true);
+            }
+            else
+            {
+                // Если панель не настроена — сразу выполняем действие
+                OnYes();
+            }
+        }
+
+        private async Task LoadGameAs(GameMode mode, string sessionName)
+        {
+            EnsureStore();
+            if (_store == null)
+            {
+                Debug.LogError("[MenuController] LaunchRequestStore not found — не могу продолжить.");
                 return;
             }
 
-            var name = string.IsNullOrWhiteSpace(_sessionInput?.text) ? _defaultSessionName : _sessionInput.text.Trim();
-            SaveLastSessionName(name);
+            _store.Set(mode, string.IsNullOrWhiteSpace(sessionName) ? _defaultSessionName : sessionName);
 
-            SetInteractable(false);
-            try
-            {
-                var exists = await _startup.CheckSessionExists(name);
+            // На всякий случай — зачистим любые живые Runner-ы
+            await RunnerGuard.KillAllExcept(null);
+            RunnerGuard.DumpRunners("Menu before load Level1");
 
-                if (!exists)
-                {
-                    await Launch(GameMode.Host, name);
-                }
-                else
-                {
-                    _pendingSessionName = name;
-                    if (_confirmPanel != null)
-                    {
-                        if (_confirmText != null)
-                            _confirmText.text = $"Сессия \"{name}\" уже существует. Подключиться как клиент?";
-                        _confirmPanel.SetActive(true);
-                    }
-                    else
-                    {
-                        await Launch(GameMode.Client, name);
-                    }
-                }
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogException(e);
-                gameObject.SetActive(true);
-            }
-            finally
-            {
-                SetInteractable(true);
-            }
-        }
-
-        public void OnNoPressed()
-        {
-            if (_confirmPanel != null) _confirmPanel.SetActive(false);
-            _pendingSessionName = null;
-        }
-
-        public void OnYesPressed() => _ = OnYesPressedAsync();
-
-        private async Task OnYesPressedAsync()
-        {
-            if (_confirmPanel != null) _confirmPanel.SetActive(false);
-            var name = string.IsNullOrEmpty(_pendingSessionName)
-                ? (string.IsNullOrWhiteSpace(_sessionInput?.text) ? _defaultSessionName : _sessionInput.text.Trim())
-                : _pendingSessionName;
-
-            _pendingSessionName = null;
-
-            SetInteractable(false);
-            try
-            {
-                await Launch(GameMode.Client, name);
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogException(e);
-                gameObject.SetActive(true);
-            }
-            finally
-            {
-                SetInteractable(true);
-            }
-        }
-
-        private async Task Launch(GameMode mode, string sessionName)
-        {
-            gameObject.SetActive(false);
-            await _startup.BeginSession(mode, sessionName);
-            _ui?.ShowGameHUD(); // показать игровой UI после старта
+            SceneManager.LoadScene(_levelSceneName);
         }
     }
 }
-

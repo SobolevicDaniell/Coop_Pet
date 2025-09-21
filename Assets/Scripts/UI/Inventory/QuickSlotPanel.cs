@@ -27,33 +27,34 @@ namespace Game.UI
         [Inject(Optional = true)] private InventoryClientFacade _facade;
 
         [Inject]
-        public void Construct(ItemDatabaseSO db, [Inject(Id = "InventorySlotPrefab")] InventorySlotUI slotPrefab)
+        public void Construct(Game.InventoryService inv, ItemDatabaseSO db, [Inject(Id = "InventorySlotPrefab")] InventorySlotUI slotPrefab)
         {
+            _inv = inv;
             _db = db;
             _slotPrefab = slotPrefab;
         }
-
-        public void InitializeIfLocal(Game.InteractionController controller)
+        private void OnEnable()
         {
-            if (controller == null || !controller.Object.HasInputAuthority)
-            {
-                gameObject.SetActive(false);
-                return;
-            }
-            if (_initialized) return;
+            if (!_initialized) Initialize();
+        }
 
-            _inv = controller.inventory;
+        private void Initialize()
+        {
             if (_inv == null || _db == null || _slotPrefab == null || _slotsParent == null)
             {
-                Debug.LogError("[QuickSlotPanel] Not initialized: missing dependencies.");
                 gameObject.SetActive(false);
                 return;
             }
 
-            _initialized = true;
+            var slots = _inv.GetQuickSlots();
+            var count = slots != null ? slots.Length : 0;
+
+            CreateSlots(count);
 
             _inv.OnQuickSlotsChanged += Refresh;
             _inv.OnQuickSlotSelectionChanged += OnQuickSlotChanged;
+
+            _initialized = true;
 
             Refresh();
             OnQuickSlotChanged(_inv.SelectedQuickSlot);
@@ -69,9 +70,9 @@ namespace Game.UI
                     if (s == null) continue;
 
                     s.OnBeginDrag -= HandleBeginDrag;
-                    s.OnEndDrag   -= HandleEndDrag;
-                    s.OnEnter     -= HandleSlotEnter;
-                    s.OnExit      -= HandleSlotExit;
+                    s.OnEndDrag -= HandleEndDrag;
+                    s.OnEnter -= HandleSlotEnter;
+                    s.OnExit -= HandleSlotExit;
 
                     Destroy(s.gameObject);
                 }
@@ -88,9 +89,9 @@ namespace Game.UI
                 slot.SetActive(false);
 
                 slot.OnBeginDrag += HandleBeginDrag;
-                slot.OnEndDrag   += HandleEndDrag;
-                slot.OnEnter     += HandleSlotEnter;
-                slot.OnExit      += HandleSlotExit;
+                slot.OnEndDrag += HandleEndDrag;
+                slot.OnEnter += HandleSlotEnter;
+                slot.OnExit += HandleSlotExit;
 
                 _slots[i] = slot;
             }
@@ -123,44 +124,32 @@ namespace Game.UI
 
         public void RefreshPanel() => Refresh();
 
-        private void Refresh()
+        public void Refresh()
         {
-            if (!_initialized || _inv == null || _db == null) return;
+            var backend = _inv.GetQuickSlots();
+            var need = backend != null ? backend.Length : 0;
 
-            var data = _inv.GetQuickSlots();
-            int cap = data?.Length ?? 0;
+            if (_slots == null || _slots.Length != need)
+                CreateSlots(need);
 
-            // 🔧 если клиент ещё не получил снапшот, берём ёмкость из фасада
-            if (cap <= 0 && _facade != null)
-                cap = Mathf.Max(cap, _facade.GetLocalQuickCapacity());
-
-            if (cap <= 0) return;
-
-            if (_slots == null || _slots.Length != cap)
-                CreateSlots(cap);
-
-            int selected = _inv.SelectedQuickSlot;
-
-            for (int i = 0; i < _slots.Length; i++)
+            int n = _slots != null ? _slots.Length : 0;
+            for (int i = 0; i < n; i++)
             {
                 var ui = _slots[i];
-                if (ui == null) continue;
+                var slot = backend != null && i < backend.Length ? backend[i] : null;
 
-                ItemSO item = null; int count = 0; Game.ItemState state = null;
+                ItemSO item = null;
+                int count = 0;
+                ItemState state = null;
 
-                if (data != null && i < data.Length)
+                if (slot != null && !string.IsNullOrEmpty(slot.Id))
                 {
-                    var backend = data[i];
-                    if (backend != null && !string.IsNullOrEmpty(backend.Id))
-                    {
-                        item = _db.Get(backend.Id);
-                        count = backend.Count;
-                        state = backend.State;
-                    }
+                    item = _db.Get(slot.Id);
+                    count = slot.Count;
+                    state = slot.State;
                 }
 
                 ui.Set(item, count, state);
-                ui.SetActive(selected >= 0 && i == selected);
             }
         }
 
@@ -191,17 +180,6 @@ namespace Game.UI
             {
                 _inv.OnQuickSlotsChanged -= Refresh;
                 _inv.OnQuickSlotSelectionChanged -= OnQuickSlotChanged;
-            }
-            if (_slots != null)
-            {
-                foreach (var s in _slots)
-                {
-                    if (s == null) continue;
-                    s.OnBeginDrag -= HandleBeginDrag;
-                    s.OnEndDrag   -= HandleEndDrag;
-                    s.OnEnter     -= HandleSlotEnter;
-                    s.OnExit      -= HandleSlotExit;
-                }
             }
         }
     }

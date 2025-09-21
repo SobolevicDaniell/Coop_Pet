@@ -18,13 +18,13 @@
         "InputDataWordCount": 0,
         "ReplicationFeatures": 1,
         "InputTransferMode": 0,
-        "SimulationUpdateTimeMode": 0,
+        "SimulationUpdateTimeMode": 1,
         "PlayerCount": 10,
         "TickRateSelection": {
-            "Client": 256,
+            "Client": 60,
             "ServerIndex": 0,
-            "ClientSendIndex": 3,
-            "ServerSendIndex": 3
+            "ClientSendIndex": 0,
+            "ServerSendIndex": 0
         }
     },
     "Network": {

@@ -208,7 +208,6 @@ GameObject:
   - component: {fileID: 8080840332799535230}
   - component: {fileID: 3574648107898299525}
   - component: {fileID: 9151890314696254824}
-  - component: {fileID: 2956075808528719169}
   - component: {fileID: 8225079911294365844}
   - component: {fileID: 3951271383083379316}
   - component: {fileID: 536071863030034606}
@@ -220,16 +219,14 @@ GameObject:
   - component: {fileID: -6335083702584605143}
   - component: {fileID: -3395697285265996011}
   - component: {fileID: -2158133828490695294}
-  - component: {fileID: 2851646817115359618}
   - component: {fileID: 4709696160151012762}
   - component: {fileID: 8895098840597039882}
   - component: {fileID: 3471077576768736987}
-  - component: {fileID: 790540318843576373}
   - component: {fileID: 5675536301013715036}
   - component: {fileID: 3377142800751568103}
   - component: {fileID: 5643700712207718660}
   m_Layer: 6
-  m_Name: Player
+  m_Name: AvatarPrefab
   m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -277,12 +274,10 @@ MonoBehaviour:
   - {fileID: 8225079911294365844}
   - {fileID: 3951271383083379316}
   - {fileID: 536071863030034606}
-  - {fileID: 3098677230441079902}
   - {fileID: 6153325551596305792}
   - {fileID: 4709696160151012762}
   - {fileID: 8895098840597039882}
   - {fileID: 3471077576768736987}
-  - {fileID: 790540318843576373}
   - {fileID: 5675536301013715036}
   - {fileID: 3377142800751568103}
   - {fileID: 5643700712207718660}
@@ -300,13 +295,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 378411a89480da345945c2f888327a2d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _stateAuthorityChangeErrorCorrectionDelta: 0
-  gravity: -20
-  jumpImpulse: 8
-  acceleration: 10
-  braking: 10
-  maxSpeed: 2
-  rotationSpeed: 15
+  _stateAuthorityChangeErrorCorrectionDelta: 1
+  gravity: 0
+  jumpImpulse: 0
+  acceleration: 0
+  braking: 0
+  maxSpeed: 0
+  rotationSpeed: 0
 --- !u!143 &8738837504596620008
 CharacterController:
   m_ObjectHideFlags: 0
@@ -381,35 +376,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: db4af2fd1fe5a224aa921479b9228f2e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerMovement
-  _controller: {fileID: 8738837504596620008}
+  _ncc: {fileID: 4402347777045086714}
   _cameraRoot: {fileID: 9057606014164570482}
-  _moveSpeed: 7
-  _mouseSensitivity: 6
-  _gravity: -9.81
-  _jumpForce: 1
-  _groundCheck: {fileID: 0}
-  _groundRadius: 0.25
-  _groundMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
---- !u!114 &2956075808528719169
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3950158868047817375}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 08eca9f7688a0a24685b89133b020c8e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Zenject::Zenject.GameObjectContext
-  _scriptableObjectInstallers: []
-  _monoInstallers:
-  - {fileID: 2851646817115359618}
-  _installerPrefabs: []
-  _autoRun: 1
-  _kernel: {fileID: 0}
+  _moveSpeed: 14
+  _groundAcceleration: 70
+  _groundFriction: 14
+  _airAcceleration: 0
+  _airDrag: 0.5
+  _jumpImpulse: 8
+  _gravity: -20
 --- !u!114 &8225079911294365844
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -494,9 +469,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 41f291ab73f0c3049ae849fe85bb59c4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.HandItemController
-  _handPoint: {fileID: 135403576282410744}
-  _HandModelNetId:
-    Raw: 0
 --- !u!114 &6153325551596305792
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -521,8 +493,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43073b4c1b8ba934581e9df5297195ff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InputHandler
-  keyboardLookSensitivity: 0.001
-  mouseLookSensitivity: 60
+  keyboardLookSensitivity: 1
+  mouseLookSensitivity: 1
 --- !u!114 &-6335083702584605143
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -559,18 +531,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 75abaacbc75dbed469b35ab47bee7dc6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlaceItemController
---- !u!114 &2851646817115359618
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3950158868047817375}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ff1b44a433bb75344a686526fba7452b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Zenject::Zenject.SpaceFighter.PlayerInstaller
 --- !u!114 &4709696160151012762
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -614,18 +574,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerInventoryServer
   _kind: 0
   _statsSerialized: {fileID: 11400000, guid: cc20679dc2d8a0340830f3ba31fbbe2f, type: 2}
---- !u!114 &790540318843576373
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3950158868047817375}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b018b4eb05072ef4c8ca7ad63fe22c31, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Game.InventoryRpcRouter
 --- !u!114 &5675536301013715036
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -641,6 +589,8 @@ MonoBehaviour:
   _statsSerialized: {fileID: 11400000, guid: cc20679dc2d8a0340830f3ba31fbbe2f, type: 2}
   _Current: 0
   _Max: 0
+  _IsDead:
+    _value: 0
 --- !u!114 &3377142800751568103
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -18,34 +18,42 @@ namespace Game.UI
         public event Action<InventorySlotUI> OnSlotBeginDrag;
         public event Action<InventorySlotUI> OnSlotEndDrag;
         public event Action<InventorySlotUI> OnSlotEnter;
-        public event Action<InventorySlotUI> OnSlotExit; 
+        public event Action<InventorySlotUI> OnSlotExit;
+
+        private bool _initialized;
 
         [Inject]
-        public void Construct(ItemDatabaseSO database, [Inject(Id = "InventorySlotPrefab")] InventorySlotUI slotPrefab, PlayerStatsSO playerStats)
+        public void Construct(IInventory inventory, ItemDatabaseSO database, [Inject(Id = "InventorySlotPrefab")] InventorySlotUI slotPrefab)
         {
+            _inventory = inventory;
             _database = database;
             _slotPrefab = slotPrefab;
-
-            int count = playerStats != null ? playerStats.inventorySlotsCount : 30;
-            CreateSlots(count);
         }
 
-        public void Construct(IInventory inventory)
+        private void OnEnable()
         {
-            if (_inventory != null)
-                _inventory.OnInventoryChanged -= Refresh;
+            if (!_initialized) Initialize();
+        }
 
-            _inventory = inventory;
+        private void Initialize()
+        {
+            if (_inventory == null || _database == null || _slotPrefab == null || _slotsParent == null)
+            {
+                gameObject.SetActive(false);
+                return;
+            }
 
-            if (_slotsUI != null)
-                for (int i = 0; i < _slotsUI.Length; i++)
-                    _slotsUI[i]?.Init(i, _inventory, this); // единственный Init
+            var slots = _inventory.GetInventorySlots();
+            var count = slots != null ? slots.Length : 0;
 
-            if (_inventory != null)
-                _inventory.OnInventoryChanged += Refresh;
+            CreateSlots(count);
 
+            _inventory.OnInventoryChanged += Refresh;
+
+            _initialized = true;
             Refresh();
         }
+        
 
         public void RefreshPanel() => Refresh();
 
@@ -78,16 +86,18 @@ namespace Game.UI
         private void HandleEnter(InventorySlotUI slot)     => OnSlotEnter?.Invoke(slot);
         private void HandleExit(InventorySlotUI slot)      => OnSlotExit?.Invoke(slot);
 
-        private void Refresh()
+        public void Refresh()
         {
-            if (_slotsUI == null || _database == null) return;
+            var slots = _inventory.GetInventorySlots();
+            var need = slots != null ? slots.Length : 0;
 
-            var slots = _inventory != null ? _inventory.GetInventorySlots() : null;
+            if (_slotsUI == null || _slotsUI.Length != need)
+                CreateSlots(need);
 
-            for (int i = 0; i < _slotsUI.Length; i++)
+            int n = _slotsUI != null ? _slotsUI.Length : 0;
+            for (int i = 0; i < n; i++)
             {
                 var ui = _slotsUI[i];
-                if (ui == null) continue;
 
                 ItemSO item = null;
                 int count = 0;
@@ -105,8 +115,6 @@ namespace Game.UI
                 }
 
                 ui.Set(item, count, state);
-
-
             }
         }
 

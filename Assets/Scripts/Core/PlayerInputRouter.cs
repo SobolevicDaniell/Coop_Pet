@@ -7,12 +7,6 @@ namespace Game
     public sealed class PlayerInputRouter : NetworkBehaviour
     {
         [Inject] private InputHandler _input;
-        [Inject] private PlayerRpcHandler _rpc;
-        [Inject] private QuickSlotController _quick;
-        [Inject] private PickDropController _pickDrop;
-        [Inject(Optional = true)] private InteractionController _ic;
-
-        // нов: берём количество слотов с сервера (через фасад), без хардкода
         [Inject(Optional = true)] private InventoryClientFacade _inventoryFacade;
         [Inject(Optional = true)] private ContainerViewSessionClient _view;
         [Inject(Optional = true)] private InventoryService _inventory;
@@ -21,38 +15,55 @@ namespace Game
         [SerializeField] private float _placeMaxDistance = 4f;
         [SerializeField] private float _dropCooldown = 0.12f;
 
+        private PlayerRpcHandler _playerRpc;
+        private QuickSlotController _quick;
+        private PickDropController _pickDrop;
+        private InteractionController _ic;
+
         private float _nextWheelTime;
         private float _nextDropTime;
         private bool _isFiring;
 
-        private int _slotCount;              // нов: фактическое число слотов хотбара
-        private bool _quickCountFixed;       // нов: фиксируем число слотов один раз
-        private bool _subscribedQuickCount;  // нов: чтобы отписаться
+        private int _slotCount;
+        private bool _quickCountFixed;
+        private bool _subscribedQuickCount;
 
         public override void Spawned()
         {
-            if (HasInputAuthority) _quick.EnableForLocal();
-            else _quick.DisableForLocal();
+            _playerRpc ??= GetComponent<PlayerRpcHandler>();
+            _quick ??= GetComponent<QuickSlotController>();
+            _pickDrop ??= GetComponent<PickDropController>();
+            _ic ??= GetComponent<InteractionController>();
 
-            // нов: открываем локальные контейнеры и фиксируем число слотов один раз
-            if (HasInputAuthority && _inventoryFacade != null)
+            InventoryRpcRouter router = null;
+            NetworkId poId = default;
+
+            if (Runner != null && Runner.TryGetPlayerObject(Object.InputAuthority, out var po) && po != null)
             {
-                _inventoryFacade.SetLocal(Object.InputAuthority, GetComponent<InventoryRpcRouter>());
+                router = po.GetComponentInChildren<InventoryRpcRouter>(true);
+                poId = po.Id;
+            }
 
+            if (router == null)
+            {
+                var all = FindObjectsOfType<InventoryRpcRouter>(true);
+                for (int i = 0; i < all.Length && router == null; i++)
+                    if (all[i].Object != null && all[i].Object.HasInputAuthority)
+                        router = all[i];
+            }
+
+            if (router == null) return;
+
+            if (_inventoryFacade != null)
+            {
+                _inventoryFacade.SetLocal(Object.InputAuthority, router);
                 _inventoryFacade.OpenLocalQuick();
                 _inventoryFacade.OpenLocalMain();
-
-                var cap = _inventoryFacade.GetLocalQuickCapacity();
-                if (cap > 0)
-                {
-                    _slotCount = cap;
-                    _quickCountFixed = true;
-                }
-                else if (_view != null)
-                {
-                    _view.OnContainerChanged += OnContainerChanged_OnceForQuick;
-                    _subscribedQuickCount = true;
-                }
+            }
+            else
+            {
+                StartCoroutine(router.RetryOpenContainer((int)ContainerType.PlayerQuick, Object.InputAuthority, poId));
+                StartCoroutine(router.RetryOpenContainer((int)ContainerType.PlayerMain, Object.InputAuthority, poId));
             }
         }
 
@@ -97,7 +108,7 @@ namespace Game
             HandleNumberKeys();
             HandleMouseWheel();
 
-              if (Input.GetKeyDown(KeyCode.Q))
+            if (Input.GetKeyDown(KeyCode.Q))
                 _pickDrop?.TryDrop();
 
             var beh = _ic != null ? _ic.currentBehavior : null;
@@ -128,23 +139,22 @@ namespace Game
 
         private void HandleNumberKeys()
         {
-            // если слотов ещё нет — просто выходим
             int quickLen = _inventory?.GetQuickSlots()?.Length ?? 0;
             if (quickLen <= 0) return;
 
-            if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1)) { _quick.ChangeSlotAbsolute(0); return; }
-            if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2)) { _quick.ChangeSlotAbsolute(1); return; }
-            if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3)) { _quick.ChangeSlotAbsolute(2); return; }
-            if (Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4)) { _quick.ChangeSlotAbsolute(3); return; }
-            if (Input.GetKeyDown(KeyCode.Alpha5) || Input.GetKeyDown(KeyCode.Keypad5)) { _quick.ChangeSlotAbsolute(4); return; }
-            if (Input.GetKeyDown(KeyCode.Alpha6) || Input.GetKeyDown(KeyCode.Keypad6)) { _quick.ChangeSlotAbsolute(5); return; }
-            if (Input.GetKeyDown(KeyCode.Alpha7) || Input.GetKeyDown(KeyCode.Keypad7)) { _quick.ChangeSlotAbsolute(6); return; }
-            if (Input.GetKeyDown(KeyCode.Alpha8) || Input.GetKeyDown(KeyCode.Keypad8)) { _quick.ChangeSlotAbsolute(7); return; }
-            if (Input.GetKeyDown(KeyCode.Alpha9) || Input.GetKeyDown(KeyCode.Keypad9)) { _quick.ChangeSlotAbsolute(8); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1)) { _quick?.ChangeSlotAbsolute(0); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2)) { _quick?.ChangeSlotAbsolute(1); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3)) { _quick?.ChangeSlotAbsolute(2); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4)) { _quick?.ChangeSlotAbsolute(3); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha5) || Input.GetKeyDown(KeyCode.Keypad5)) { _quick?.ChangeSlotAbsolute(4); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha6) || Input.GetKeyDown(KeyCode.Keypad6)) { _quick?.ChangeSlotAbsolute(5); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha7) || Input.GetKeyDown(KeyCode.Keypad7)) { _quick?.ChangeSlotAbsolute(6); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha8) || Input.GetKeyDown(KeyCode.Keypad8)) { _quick?.ChangeSlotAbsolute(7); return; }
+            if (Input.GetKeyDown(KeyCode.Alpha9) || Input.GetKeyDown(KeyCode.Keypad9)) { _quick?.ChangeSlotAbsolute(8); return; }
             if (Input.GetKeyDown(KeyCode.Alpha0) || Input.GetKeyDown(KeyCode.Keypad0))
             {
                 int last = Mathf.Clamp(quickLen - 1, 0, quickLen - 1);
-                _quick.ChangeSlotAbsolute(last);
+                _quick?.ChangeSlotAbsolute(last);
             }
         }
 
@@ -158,12 +168,12 @@ namespace Game
             float dy = Input.mouseScrollDelta.y;
             if (dy > 0.1f)
             {
-                _quick.ChangeSlotRelative(-1);
+                _quick?.ChangeSlotRelative(-1);
                 _nextWheelTime = Time.unscaledTime + _wheelCooldown;
             }
             else if (dy < -0.1f)
             {
-                _quick.ChangeSlotRelative(1);
+                _quick?.ChangeSlotRelative(1);
                 _nextWheelTime = Time.unscaledTime + _wheelCooldown;
             }
         }
@@ -190,13 +200,13 @@ namespace Game
         {
             if (!HasInputAuthority) return;
             int idx = _inventory != null ? _inventory.SelectedQuickSlot : -1;
-            _rpc.RPC_RequestReload(idx);
+            _playerRpc?.RPC_RequestReload(idx);
         }
 
         private void OnInteract()
         {
             if (!HasInputAuthority) return;
-            _pickDrop.TryPickAtCrosshair();
+            _pickDrop?.TryPickAtCrosshair();
         }
 
         private void OnQuickDrop()
@@ -204,7 +214,7 @@ namespace Game
             if (!HasInputAuthority) return;
             if (Time.unscaledTime < _nextDropTime) return;
 
-            _pickDrop.TryDrop();
+            _pickDrop?.TryDrop();
             _nextDropTime = Time.unscaledTime + _dropCooldown;
         }
 
@@ -238,7 +248,7 @@ namespace Game
                 rot = flat.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(flat.normalized, Vector3.up) : Quaternion.identity;
             }
 
-            _pickDrop.TryPlaceFromQuickSlot(pos, rot);
+            _pickDrop?.TryPlaceFromQuickSlot(pos, rot);
         }
 
         private void OnContainerChanged_OnceForQuick(ContainerId id)

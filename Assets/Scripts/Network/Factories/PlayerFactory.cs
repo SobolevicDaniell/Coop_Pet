@@ -1,4 +1,5 @@
 using Fusion;
+using Game.UI;
 using UnityEngine;
 using Zenject;
 
@@ -7,30 +8,31 @@ namespace Game.Network
     public sealed class PlayerFactory : IPlayerFactory
     {
         private readonly NetworkRunner _runner;
-        private readonly GameObject _playerPrefab;
+        private readonly GameObject _avatarPrefab;
+        private readonly DiContainer _container;
 
-        public PlayerFactory(NetworkRunner runner, [Inject(Id = "PlayerPrefab")] GameObject playerPrefab)
+        public PlayerFactory(NetworkRunner runner, [Inject(Id = "AvatarPrefab")] GameObject avatarPrefab, DiContainer container, [Inject(Optional = true)] UIController uiController)
         {
             _runner = runner;
-            _playerPrefab = playerPrefab;
+            _avatarPrefab = avatarPrefab;
+            _container = container;
         }
 
         public NetworkObject Spawn(PlayerRef player)
         {
-            var no = _runner.Spawn(
-                _playerPrefab.GetComponent<NetworkObject>(),
-                Vector3.zero, Quaternion.identity,
-                inputAuthority: player
+            NetworkObject spawned = null;
+            _runner.Spawn(
+                _avatarPrefab.GetComponent<NetworkObject>(),
+                Vector3.zero,
+                Quaternion.identity,
+                inputAuthority: player,
+                onBeforeSpawned: (r, obj) =>
+                {
+                    _container.InjectGameObject(obj.gameObject);
+                    spawned = obj;
+                }
             );
-            
-
-            // КРИТИЧЕСКО: привязываем PlayerObject → тогда TryGetPlayerObject работает
-            _runner.SetPlayerObject(player, no);
-
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            Debug.Log($"[Server] Spawned Player: {player}");
-#endif
-            return no;
+            return spawned;
         }
     }
 }

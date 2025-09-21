@@ -1,158 +1,159 @@
-using UnityEngine;
-using Fusion;
 using System.Reflection;
+using Fusion;
+using UnityEngine;
 
 namespace Game
 {
-    public class HandItemController : NetworkBehaviour
+    public sealed class HandItemController : MonoBehaviour
     {
-        [SerializeField] private Transform _handPoint;
-
-        [Networked] public NetworkId HandModelNetId { get; private set; }
-        private NetworkObject _handModel;
-
-        private ItemDatabaseSO _itemDatabase;
-        private PlayerRpcHandler _playerRpc;
+        private ItemDatabaseSO _db;
+        private PlayerRpcHandler _rpc;
         private InteractionController _ic;
+
+        private NetworkObject _currentHandNet;
+        private string _currentItemId;
 
         public void Construct(ItemDatabaseSO db, PlayerRpcHandler rpc, InteractionController ic)
         {
-            _itemDatabase = db;
-            _playerRpc = rpc;
+            _db = db;
+            _rpc = rpc;
             _ic = ic;
-        }
-
-        public void RequestEquip(string itemId)
-        {
-            if (_playerRpc == null) { Debug.LogError("[HandItemController] _playerRpc == null"); return; }
-            _playerRpc.RPC_EquipItem(itemId);
-        }
-
-        public void RequestUnEquip()
-        {
-            if (_playerRpc == null) { Debug.LogError("[HandItemController] _playerRpc == null"); return; }
-            _playerRpc.RPC_UnEquipItem();
         }
 
         public void EquipItemServer(string itemId)
         {
-            if (!Object.HasStateAuthority) return;
-            DespawnCurrent();
+            if (_ic == null || _db == null) return;
+            if (_ic.Runner == null || !_ic.Runner.IsServer) return;
 
             if (string.IsNullOrEmpty(itemId))
             {
-                NotifyHandModelChanged(null);
+                UnEquipItemServer();
                 return;
             }
 
-            if (_itemDatabase == null)
+            if (_currentHandNet != null)
             {
-                Debug.LogError("[HandItemController] _itemDatabase == null. Вызовите Construct(...)");
-                return;
+                if (_currentItemId == itemId) { SyncAttachClientSide(); return; }
+                if (_ic.Runner != null) _ic.Runner.Despawn(_currentHandNet);
+                _currentHandNet = null;
+                _ic.SetHandModelNetworkInstance(null);
             }
 
-            var item = _itemDatabase.Get(itemId);
-            if (item == null)
-            {
-                Debug.LogError($"[HandItemController] Item '{itemId}' not found");
-                return;
-            }
+            var so = _db.Get(itemId);
+            if (so == null) { UnEquipItemServer(); return; }
 
-            var handPrefab = ResolveHandPrefab(item);
-            if (handPrefab == null)
-            {
-                NotifyHandModelChanged(null);
-                return;
-            }
+            if (!TryGetHandModelPrefab(so, out var handPrefab)) { UnEquipItemServer(); return; }
 
-            var spawned = Runner.Spawn(handPrefab, Vector3.zero, Quaternion.identity, Object.InputAuthority);
-            _handModel = spawned;
-            HandModelNetId = spawned != null ? spawned.Id : default;
+            var pos = _ic.handPoint != null ? _ic.handPoint.position : _ic.transform.position;
+            var rot = _ic.handPoint != null ? _ic.handPoint.rotation : _ic.transform.rotation;
 
-            SanitizeHandModel(_handModel != null ? _handModel.gameObject : null);
-            NotifyHandModelChanged(_handModel);
-            AttachToHand(_handModel != null ? _handModel.transform : null);
+            NetworkObject spawned = null;
+            _ic.Runner.Spawn(
+                handPrefab,
+                pos,
+                rot,
+                _ic.Object.InputAuthority,
+                (runner, obj) =>
+                {
+                    spawned = obj;
+                });
+
+            _currentHandNet = spawned;
+            _currentItemId = itemId;
+
+            _ic.SetHandModelNetworkInstance(spawned);
+            SyncAttachClientSide();
         }
 
         public void UnEquipItemServer()
         {
-            if (!Object.HasStateAuthority) return;
-            DespawnCurrent();
-            HandModelNetId = default;
-            NotifyHandModelChanged(null);
+            if (_ic == null) return;
+            if (_ic.Object == null || !_ic.Object.HasStateAuthority) return;
+
+            if (_currentHandNet != null && _ic.Runner != null)
+            {
+                _ic.Runner.Despawn(_currentHandNet);
+            }
+            _currentHandNet = null;
+            _currentItemId = null;
+            _ic.SetHandModelNetworkInstance(null);
         }
 
-        private void DespawnCurrent()
+        public void RequestUnEquip()
         {
-            if (_handModel != null)
+            if (_rpc != null)
             {
-                var toDespawn = _handModel;
-                _handModel = null;
-                if (toDespawn != null && toDespawn.Runner) Runner.Despawn(toDespawn);
+                _rpc.RPC_UnEquipItem();
             }
         }
 
-        private void NotifyHandModelChanged(NetworkObject model) => _ic?.SetHandModelNetworkInstance(model);
-
-        private void AttachToHand(Transform t)
+        private void LateUpdate()
         {
-            if (t == null || _handPoint == null) return;
-            var originalLocalScale = t.localScale;
-            t.SetParent(_handPoint, false);
-            t.localPosition = Vector3.zero;
-            t.localRotation = Quaternion.identity;
-            t.localScale = originalLocalScale;
+            SyncAttachClientSide();
         }
 
-        private void SanitizeHandModel(GameObject go)
+        private void SyncAttachClientSide()
         {
-            if (go == null) return;
-            var rbs = go.GetComponentsInChildren<Rigidbody>(true);
-            foreach (var rb in rbs) { rb.isKinematic = true; rb.useGravity = false; rb.detectCollisions = false; }
-            var cols = go.GetComponentsInChildren<Collider>(true);
-            foreach (var c in cols) c.enabled = false;
+            var no = _ic != null ? _ic.GetHandModelNetworkInstance() : null;
+            var hp = _ic != null ? _ic.handPoint : null;
+            if (no == null || hp == null) return;
+
+            var tr = no.transform;
+            if (tr.parent == hp) return;
+
+            var worldScale = tr.lossyScale;
+
+            tr.SetParent(hp, false);
+            tr.localPosition = Vector3.zero;
+            tr.localRotation = Quaternion.identity;
+            tr.localScale = new Vector3(
+                hp.lossyScale.x != 0f ? worldScale.x / hp.lossyScale.x : worldScale.x,
+                hp.lossyScale.y != 0f ? worldScale.y / hp.lossyScale.y : worldScale.y,
+                hp.lossyScale.z != 0f ? worldScale.z / hp.lossyScale.z : worldScale.z
+            );
         }
 
-        public override void Render()
+        private static bool TryGetHandModelPrefab(ScriptableObject so, out NetworkObject prefab)
         {
-            if (_handModel == null && HandModelNetId != default && Runner != null)
+            prefab = null;
+            if (so == null) return false;
+
+            if (so is IHandModelProvider hp && hp.HandModelNetwork != null)
             {
-                _handModel = Runner.FindObject(HandModelNetId);
-                if (_handModel != null)
+                prefab = hp.HandModelNetwork;
+                return true;
+            }
+
+            const BindingFlags BF = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+            var t = so.GetType();
+
+            string[] names =
+            {
+                "HandModelNetwork","HandNetwork","FPVNetwork","ViewNetwork","ModelNetwork",
+                "HandModelPrefab","HandPrefab","FPVPrefab","ViewPrefab","ModelPrefab"
+            };
+
+            for (int i = 0; i < names.Length; i++)
+            {
+                var f = t.GetField(names[i], BF);
+                if (f != null)
                 {
-                    SanitizeHandModel(_handModel.gameObject);
-                    AttachToHand(_handModel.transform);
+                    var v = f.GetValue(so);
+                    if (v is NetworkObject no1) { prefab = no1; return true; }
+                    if (v is GameObject go1) { prefab = go1.GetComponent<NetworkObject>(); if (prefab != null) return true; }
+                }
+
+                var p = t.GetProperty(names[i], BF);
+                if (p != null && p.CanRead)
+                {
+                    var v = p.GetValue(so);
+                    if (v is NetworkObject no2) { prefab = no2; return true; }
+                    if (v is GameObject go2) { prefab = go2.GetComponent<NetworkObject>(); if (prefab != null) return true; }
                 }
             }
-            if (_handModel != null && _handPoint != null && _handModel.transform.parent != _handPoint)
-                AttachToHand(_handModel.transform);
+
+            return false;
         }
 
-        private static NetworkObject ResolveHandPrefab(ItemSO item)
-        {
-            if (item is IHandModelProvider p && p.HandModelNetwork != null)
-                return p.HandModelNetwork;
-
-            var t = item.GetType();
-            var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-
-            var f = t.GetField("HandModelNetwork", flags);
-            if (f != null)
-            {
-                var v = f.GetValue(item);
-                if (v is NetworkObject no1) return no1;
-                if (v is GameObject go1) { var no = go1.GetComponent<NetworkObject>(); if (no != null) return no; }
-            }
-
-            var pinfo = t.GetProperty("HandModelNetwork", flags);
-            if (pinfo != null && pinfo.CanRead)
-            {
-                var v = pinfo.GetValue(item);
-                if (v is NetworkObject no2) return no2;
-                if (v is GameObject go2) { var no = go2.GetComponent<NetworkObject>(); if (no != null) return no; }
-            }
-
-            return null;
-        }
     }
 }

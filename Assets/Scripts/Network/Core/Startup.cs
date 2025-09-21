@@ -1,82 +1,86 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Fusion;
 using UnityEngine;
 using Zenject;
-using System;
-using Game.UI;
 
-namespace Game.Network
+namespace Game
 {
-    public class Startup : MonoBehaviour
+    public sealed class Startup : MonoBehaviour
     {
+        [SerializeField] private SceneRef _levelScene;
+        [SerializeField] private bool _dontDestroyRunner = true;
+
         [Inject] private NetworkRunner _runner;
-        [Inject] private NetworkCallbacks _callbacks;
-        [Inject] private UIController _uiController;
+        [Inject(Optional = true)] private NetworkSceneManagerDefault _sceneManager;
         [Inject] private INetworkObjectProvider _provider;
 
-        public static event Action OnSessionStarted;
-
-        private TaskCompletionSource<List<SessionInfo>> _sessionListAwaiter;
+        private readonly List<SessionInfo> _sessions = new();
+        private TaskCompletionSource<List<SessionInfo>> _sessionListTcs;
 
         private void Awake()
         {
-            _callbacks.OnSessionListReceived = OnSessionListUpdatedHandler;
-            _runner.AddCallbacks(_callbacks);
-
-            if (_uiController != null)
-                _uiController.HideGameHUD();
+            if (_dontDestroyRunner) DontDestroyOnLoad(_runner.gameObject);
+            EnsureSceneManager();
         }
 
-        public async Task<List<SessionInfo>> GetSessionList()
+        public async Task RefreshSessionList()
         {
-            _sessionListAwaiter = new TaskCompletionSource<List<SessionInfo>>();
-
+            _sessionListTcs = new TaskCompletionSource<List<SessionInfo>>();
             await _runner.JoinSessionLobby(SessionLobby.Shared);
-
-            var completedTask = await Task.WhenAny(_sessionListAwaiter.Task, Task.Delay(5000));
-            if (completedTask != _sessionListAwaiter.Task)
-            {
-                return new List<SessionInfo>();
-            }
-            return await _sessionListAwaiter.Task;
+            await _sessionListTcs.Task;
         }
 
-        public async Task<bool> CheckSessionExists(string sessionName)
+        public async Task<bool> CheckSessionExists(string name)
         {
-            var sessionList = await GetSessionList();
-            foreach (var session in sessionList)
-            {
-                if (session.Name == sessionName)
-                    return true;
-            }
-            return false;
+            _sessionListTcs = new TaskCompletionSource<List<SessionInfo>>();
+            await _runner.JoinSessionLobby(SessionLobby.Shared);
+            var list = await _sessionListTcs.Task;
+            return list.Any(s => s.Name == name);
+        }
+
+        public void SetSessions(List<SessionInfo> list)
+        {
+            _sessions.Clear();
+            _sessions.AddRange(list);
+            _sessionListTcs?.TrySetResult(list);
+            _sessionListTcs = null;
         }
 
         public async Task BeginSession(GameMode mode, string sessionName)
         {
+            EnsureSceneManager();
             _runner.ProvideInput = true;
-
-            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-            var sceneRef = SceneRef.FromIndex(scene.buildIndex);
-            var sceneInfo = new NetworkSceneInfo();
-            if (sceneRef.IsValid)
-                sceneInfo.AddSceneRef(sceneRef, UnityEngine.SceneManagement.LoadSceneMode.Additive);
 
             var args = new StartGameArgs
             {
                 GameMode = mode,
                 SessionName = sessionName,
-                Scene = sceneInfo,
+                SceneManager = _sceneManager,
                 ObjectProvider = _provider
             };
+
+            if (mode == GameMode.Host)
+                args.Scene = _levelScene;
 
             await _runner.StartGame(args);
         }
 
-        public void OnSessionListUpdatedHandler(List<SessionInfo> sessionList)
+        public async Task StartHost(string sessionName)
         {
-            _sessionListAwaiter?.TrySetResult(sessionList);
+            await BeginSession(GameMode.Host, sessionName);
+        }
+
+        public async Task StartClient(string sessionName)
+        {
+            await BeginSession(GameMode.Client, sessionName);
+        }
+
+        private void EnsureSceneManager()
+        {
+            if (_sceneManager == null)
+                _sceneManager = _runner.GetComponent<NetworkSceneManagerDefault>() ?? _runner.gameObject.AddComponent<NetworkSceneManagerDefault>();
         }
     }
 }

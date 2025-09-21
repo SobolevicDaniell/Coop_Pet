@@ -37,11 +37,13 @@ namespace Game
             if (_snapshots == null)
             { reason = "SnapshotBuilder missing"; return false; }
 
-            // ВАЖНО: работаем с реальным ID контейнера
             var realId = container.Id;
-
             AddWatcher(realId, requester);
-            snap = _snapshots.Build(realId); // ← не по исходному id
+
+            snap = _snapshots.Build(realId);
+            if (snap.slots == null)
+            { reason = "Pending"; return false; }
+
             return true;
         }
 
@@ -242,7 +244,7 @@ namespace Game
             reason = "ok";
             return true;
         }
-    
+
 
 
         // ─────────────────────────────────────────────────────────────────────────────
@@ -250,15 +252,17 @@ namespace Game
         // ─────────────────────────────────────────────────────────────────────────────
 
         public bool TryAddItemToPlayer(
-            PlayerRef player,
-            string itemId,
-            int amount,
-            int ammo,
-            out int left,
-            out List<ContainerDelta> deltas,
-            out string reason)
+    PlayerRef player,
+    string itemId,
+    int amount,
+    int ammo,
+    out int left,
+    out List<ContainerDelta> deltas,
+    out string reason)
         {
-            left = amount; deltas = null; reason = null;
+            left = amount;
+            deltas = null;
+            reason = null;
             if (left <= 0) return true;
 
             var so = _db != null ? _db.Get(itemId) : null;
@@ -270,10 +274,20 @@ namespace Game
                 return false;
             }
 
+            var list = new List<ContainerDelta>(4);
+
+            if (so.priority == 1 && quick != null && quick.Slots != null && quick.Slots.Length > 0)
+            {
+                int sel = GetSelectedQuickIndex(player);
+                if (sel >= 0 && sel < quick.Slots.Length)
+                {
+                    left = TryAddToExactSlotIfEmpty(quick, sel, so, left, ammo, out var dsel);
+                    if (dsel != null) list.Add(dsel);
+                }
+            }
+
             var first = (so.priority == 1) ? quick : main;
             var second = (so.priority == 1) ? main : quick;
-
-            var list = new List<ContainerDelta>(2);
 
             left = TryAddToContainerForDeltas(first, so, left, ammo, out var d1);
             if (d1 != null) list.Add(d1);
@@ -287,6 +301,98 @@ namespace Game
             if (list.Count > 0) deltas = list;
             if (left > 0) reason = "Not enough space";
             return true;
+        }
+
+        private int TryAddToExactSlotIfEmpty(
+    PlayerInventoryServer container,
+    int index,
+    ItemSO so,
+    int left,
+    int ammo,
+    out ContainerDelta delta)
+        {
+            delta = null;
+            if (container == null || container.Slots == null) return left;
+            if (index < 0 || index >= container.Slots.Length) return left;
+            if (left <= 0) return left;
+
+            var s = container.Slots[index];
+            var sid = InventorySlotStateAccessor.ReadId(s);
+            var scnt = InventorySlotStateAccessor.ReadCount(s);
+            int max = Mathf.Max(1, so.MaxStack);
+
+            if (string.IsNullOrEmpty(sid) || scnt <= 0)
+            {
+                int put = Mathf.Min(left, max);
+                var ns = s?.Clone() ?? new InventorySlotState();
+                InventorySlotStateAccessor.WriteId(ns, so.Id);
+                InventorySlotStateAccessor.WriteCount(ns, put);
+                InventorySlotStateAccessor.WriteState(ns, new ItemState(ammo));
+
+                int before = container.Version;
+                container.SetSlot(index, ns);
+                container.IncrementVersion();
+
+                delta = new ContainerDelta
+                {
+                    id = container.Id,
+                    fromVersion = before,
+                    toVersion = container.Version,
+                    changes = new[] { new SlotChange { index = index, state = ns?.Clone() } }
+                };
+
+                return left - put;
+            }
+
+            if (sid == so.Id && scnt < max)
+            {
+                int free = max - scnt;
+                int put = Mathf.Min(left, free);
+
+                var ns = s?.Clone() ?? new InventorySlotState();
+                InventorySlotStateAccessor.WriteId(ns, sid);
+                InventorySlotStateAccessor.WriteCount(ns, scnt + put);
+                if (InventorySlotStateAccessor.ReadState(ns) == null)
+                    InventorySlotStateAccessor.WriteState(ns, new ItemState(ammo));
+
+                int before = container.Version;
+                container.SetSlot(index, ns);
+                container.IncrementVersion();
+
+                delta = new ContainerDelta
+                {
+                    id = container.Id,
+                    fromVersion = before,
+                    toVersion = container.Version,
+                    changes = new[] { new SlotChange { index = index, state = ns?.Clone() } }
+                };
+
+                return left - put;
+            }
+
+            return left;
+        }
+
+        private int GetSelectedQuickIndex(PlayerRef player)
+        {
+            var runner = ResolveRunner();
+            if (runner == null) return -1;
+
+            var all = UnityEngine.Object.FindObjectsOfType<InteractionController>(true);
+            for (int i = 0; i < all.Length; i++)
+            {
+                var ic = all[i];
+                if (ic != null && ic.Object != null && ic.Object.InputAuthority == player)
+                    return ic.SelectedQuickIndexNet;
+            }
+
+            if (runner.TryGetPlayerObject(player, out var no) && no != null)
+            {
+                var ic = no.GetComponentInChildren<InteractionController>(true);
+                if (ic != null) return ic.SelectedQuickIndexNet;
+            }
+
+            return -1;
         }
 
         // InventoryServerService.cs
@@ -304,11 +410,9 @@ namespace Game
             if (slots == null || slots.Length == 0) return left;
 
             int beforeVersion = container.Version;
-            var changes = new List<SlotChange>(4);
-
+            var changes = new List<SlotChange>(8);
             int max = Mathf.Max(1, so.MaxStack);
 
-            // 1) достаковываем
             for (int i = 0; i < slots.Length && left > 0; i++)
             {
                 var s = slots[i];
@@ -322,6 +426,8 @@ namespace Game
                         var ns = s?.Clone() ?? new InventorySlotState();
                         InventorySlotStateAccessor.WriteId(ns, so.Id);
                         InventorySlotStateAccessor.WriteCount(ns, cnt + put);
+                        if (InventorySlotStateAccessor.ReadState(ns) == null)
+                            InventorySlotStateAccessor.WriteState(ns, new ItemState(ammo));
 
                         container.SetSlot(i, ns);
                         container.IncrementVersion();
@@ -332,12 +438,12 @@ namespace Game
                 }
             }
 
-            // 2) в пустые (ИМЕННО IsNullOrEmpty)
             for (int i = 0; i < slots.Length && left > 0; i++)
             {
                 var s = slots[i];
                 var sid = InventorySlotStateAccessor.ReadId(s);
-                if (string.IsNullOrEmpty(sid))
+                var scnt = InventorySlotStateAccessor.ReadCount(s);
+                if (string.IsNullOrEmpty(sid) || scnt <= 0)
                 {
                     int put = Mathf.Min(left, max);
                     var ns = s?.Clone() ?? new InventorySlotState();
@@ -363,11 +469,9 @@ namespace Game
                     changes = changes.ToArray()
                 };
             }
+
             return left;
         }
-        // ─────────────────────────────────────────────────────────────────────────────
-        // SHOOT: расход ammo из быстрого слота
-        // ─────────────────────────────────────────────────────────────────────────────
 
         // Внутри InventoryServerService
         public bool TryConsumeAmmoFromQuick(
@@ -589,37 +693,40 @@ namespace Game
             return slots[idx];
         }
 
-        private bool TryGetPlayerContainers(PlayerRef player, out PlayerInventoryServer quick, out PlayerInventoryServer main)
+        public bool TryGetPlayerContainers(PlayerRef player, out PlayerInventoryServer quick, out PlayerInventoryServer main)
         {
             quick = null;
             main = null;
 
-            // 1) Сначала пробуем через реестр (надежно)
             if (_registry != null)
             {
                 var qId = ContainerId.PlayerQuickOf(player);
                 var mId = ContainerId.PlayerMainOf(player);
-
                 if (_registry.TryGet(qId, out var q) && q is PlayerInventoryServer qs) quick = qs;
                 if (_registry.TryGet(mId, out var m) && m is PlayerInventoryServer ms) main = ms;
-
-                if (quick != null && main != null)
-                    return true;
+                if (quick != null && main != null) return true;
             }
 
-            // 2) Фолбэк через Runner
             var runner = ResolveRunner();
-            if (runner == null)
-                return false;
+            if (runner != null && runner.TryGetPlayerObject(player, out var playerNO) && playerNO != null)
+            {
+                var children = playerNO.GetComponentsInChildren<PlayerInventoryServer>(true);
+                for (int i = 0; i < children.Length; i++)
+                {
+                    var c = children[i];
+                    if (c == null) continue;
+                    if (c.Id.type == ContainerType.PlayerQuick) quick = c;
+                    else if (c.Id.type == ContainerType.PlayerMain) main = c;
+                }
+                if (quick != null && main != null) return true;
+            }
 
-            if (!runner.TryGetPlayerObject(player, out var playerNO) || playerNO == null)
-                return false;
-
-            var all = playerNO.GetComponentsInChildren<PlayerInventoryServer>(true);
+            var all = UnityEngine.Object.FindObjectsOfType<PlayerInventoryServer>(true);
             for (int i = 0; i < all.Length; i++)
             {
                 var c = all[i];
-                if (c == null) continue;
+                if (c == null || c.Object == null) continue;
+                if (c.Object.InputAuthority != player) continue;
                 if (c.Id.type == ContainerType.PlayerQuick) quick = c;
                 else if (c.Id.type == ContainerType.PlayerMain) main = c;
             }
@@ -631,64 +738,23 @@ namespace Game
         {
             container = null;
 
-            // 0) Быстрый путь — реестр
-            if (_registry != null && _registry.TryGet(id, out var ic) && ic is PlayerInventoryServer ps0)
+            if (_registry != null && _registry.TryGet(id, out var c) && c is PlayerInventoryServer ps)
             {
-                container = ps0;
+                container = ps;
                 return true;
             }
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            Debug.LogWarning($"[INV][Server] Registry miss for {id.type}, owner={id.ownerRef}. Trying runner fallback...");
-#endif
-
-            // 1) Runner → PlayerObject → компоненты
-            var runner = ResolveRunner();
-            NetworkObject ownerNO = null;                   // ← объявляем заранее
-
-            if (runner != null)
+            var all = UnityEngine.Object.FindObjectsOfType<PlayerInventoryServer>(true);
+            for (int i = 0; i < all.Length; i++)
             {
-                runner.TryGetPlayerObject(id.ownerRef, out ownerNO);
-                if (ownerNO != null)
+                var srv = all[i];
+                if (srv != null && srv.Id.ownerRef == id.ownerRef && srv.Id.type == id.type)
                 {
-                    var all = ownerNO.GetComponentsInChildren<PlayerInventoryServer>(true);
-                    for (int i = 0; i < all.Length; i++)
-                    {
-                        var c = all[i];
-                        if (c == null) continue;
-
-                        // Совпадение по типу и владельцу
-                        if (c.Id.type == id.type && c.Object != null && c.Object.InputAuthority == id.ownerRef)
-                        {
-                            container = c;
-                            return true;
-                        }
-                    }
-                }
-            }
-
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            if (runner == null) Debug.LogWarning("[INV][Server] ResolveRunner() returned null.");
-            else if (ownerNO == null) Debug.LogWarning($"[INV][Server] Runner has no PlayerObject for {id.ownerRef}. Trying global scan...");
-#endif
-
-            // 2) Последний шанс — глобальный скан по сцене
-            var allGlobal = UnityEngine.Object.FindObjectsOfType<PlayerInventoryServer>(true);
-            for (int i = 0; i < allGlobal.Length; i++)
-            {
-                var c = allGlobal[i];
-                if (c == null) continue;
-
-                if (c.Id.type == id.type && c.Id.ownerRef == id.ownerRef)
-                {
-                    container = c;
+                    container = srv;
                     return true;
                 }
             }
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            Debug.LogError($"[INV][Server] Container not found: {id.type}, owner={id.ownerRef}.");
-#endif
             return false;
         }
     

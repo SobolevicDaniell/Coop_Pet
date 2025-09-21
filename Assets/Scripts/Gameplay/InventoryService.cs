@@ -63,49 +63,35 @@ namespace Game
             }
         }
 
-        // одноразово подгоняемся под серверные капасити
         private void OnContainerChangedFromServer_ResizeOnce(ContainerId id)
         {
-            if (_resizedToServer || _facade == null) return;
+            if (_facade == null) return;
+            if (_resizedToServer) return;
 
-            var q = _facade.GetLocalQuickCapacity();
-            var m = _facade.GetLocalMainCapacity();
-            if (q <= 0 || m <= 0) return;
+            int quickCap = Mathf.Max(1, _facade.GetLocalQuickCapacity());
+            int mainCap = Mathf.Max(1, _facade.GetLocalMainCapacity());
 
-            bool changed = false;
-
-            if (_quickSlots.Length != q)
+            if (quickCap > 0 && (_quickSlots == null || _quickSlots.Length != quickCap))
             {
-                var newQ = new InventorySlot[q];
-                for (int i = 0; i < q; i++)
-                    newQ[i] = i < _quickSlots.Length ? _quickSlots[i] : new InventorySlot(null, 0);
-                _quickSlots = newQ;
-                changed = true;
-                OnQuickSlotsChanged?.Invoke();
+                var arr = new InventorySlot[quickCap];
+                int old = _quickSlots != null ? _quickSlots.Length : 0;
+                for (int i = 0; i < quickCap; i++)
+                    arr[i] = i < old ? _quickSlots[i] : new InventorySlot(null, 0);
+                _quickSlots = arr;
             }
 
-            if (_inventorySlots.Length != m)
+            if (mainCap > 0 && (_inventorySlots == null || _inventorySlots.Length != mainCap))
             {
-                var newM = new InventorySlot[m];
-                for (int i = 0; i < m; i++)
-                    newM[i] = i < _inventorySlots.Length ? _inventorySlots[i] : new InventorySlot(null, 0);
-                _inventorySlots = newM;
-                changed = true;
-                OnInventoryChanged?.Invoke();
+                var arr = new InventorySlot[mainCap];
+                int old = _inventorySlots != null ? _inventorySlots.Length : 0;
+                for (int i = 0; i < mainCap; i++)
+                    arr[i] = i < old ? _inventorySlots[i] : new InventorySlot(null, 0);
+                _inventorySlots = arr;
             }
 
-            if (changed)
-            {
-                _resizedToServer = true;
-                if (_subscribed && _view != null)
-                {
-                    _view.OnContainerChanged -= OnContainerChangedFromServer_ResizeOnce;
-                    _subscribed = false;
-                }
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-                Debug.Log($"[INV][Client] Resized to server caps: quick={_quickSlots.Length}, main={_inventorySlots.Length}");
-#endif
-            }
+            _resizedToServer = true;
+            OnQuickSlotsChanged?.Invoke();
+            OnInventoryChanged?.Invoke();
         }
 
         public InventorySlot[] GetQuickSlots() => _quickSlots;

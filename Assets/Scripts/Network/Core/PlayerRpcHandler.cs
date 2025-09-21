@@ -24,7 +24,12 @@ namespace Game
 
         public override void Spawned()
         {
-            _invRouter ??= GetComponent<InventoryRpcRouter>();
+            _invRouter = ResolveServerRouter();
+            if (Object.HasStateAuthority)
+            {
+                var ic = GetComponent<InteractionController>();
+                ic?.ServerSetSelectedQuickIndex(-1);
+            }
         }
 
         // ─── DI ────────────────────────────────────────────────────────────────────────
@@ -35,56 +40,72 @@ namespace Game
             _inventory = inventory;
         }
 
-        // ─── Экип / снятие предмета в руке ────────────────────────────────────────────
+        private InventoryRpcRouter ResolveServerRouter()
+        {
+            if (_invRouter != null) return _invRouter;
+            var r = Runner != null && Runner.TryGetPlayerObject(Object.InputAuthority, out var po) && po != null
+                ? (po.GetComponent<InventoryRpcRouter>() ?? po.GetComponentInChildren<InventoryRpcRouter>(true))
+                : null;
+            if (r != null) _invRouter = r;
+            return r;
+        }
+
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_EquipItem(string itemId, RpcInfo info = default)
         {
-            if (!Object.HasStateAuthority || _ic == null) return;
-            if (string.IsNullOrEmpty(itemId)) { RPC_UnEquipItem(); return; }
-            _ic.handItemController?.EquipItemServer(itemId);
+            if (!Object.HasStateAuthority) return;
+
+            // важный фолбэк: не доверяем кэшу _ic
+            var ic = _ic ??= GetComponent<InteractionController>();
+            if (ic == null) return;
+
+            if (string.IsNullOrEmpty(itemId))
+            {
+                ic.handItemController?.UnEquipItemServer();
+            }
+            else
+            {
+                ic.handItemController?.EquipItemServer(itemId);
+            }
         }
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_UnEquipItem(RpcInfo info = default)
         {
-            if (!Object.HasStateAuthority || _ic == null) return;
-            _ic.handItemController?.UnEquipItemServer();
+            if (!Object.HasStateAuthority) return;
+
+            // важный фолбэк: не доверяем кэшу _ic
+            var ic = _ic ??= GetComponent<InteractionController>();
+            if (ic == null) return;
+
+            ic.handItemController?.UnEquipItemServer();
         }
 
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        public void RPC_RequestReload(int slotIndex, RpcInfo info = default)
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
+        public void RPC_RequestReload(int clientSlotIndex, RpcInfo info = default)
         {
-            if (!Object.HasStateAuthority || _ic == null || _invServer == null) return;
+            if (!Object.HasStateAuthority || _invServer == null) return;
 
-            if (!TryGetPlayerContainers(Object.InputAuthority, out var quick, out var main))
-                return;
+            var actor = info.Source;
+            if (actor == PlayerRef.None) actor = Object.InputAuthority;
+            if (actor != Object.InputAuthority) return;
 
-            var slots = quick?.Slots;
-            if (slots == null || slotIndex < 0 || slotIndex >= slots.Length)
-                return;
+            var ic = _ic ??= GetComponent<InteractionController>();
+            if (ic == null) return;
 
-            var sid = InventorySlotStateAccessor.ReadId(slots[slotIndex]);
-            if (string.IsNullOrEmpty(sid))
-                return;
+            int selected = ic.SelectedQuickIndexNet;
+            if (selected < 0) selected = Mathf.Max(-1, clientSlotIndex);
+            if (selected < 0) return;
 
-            // Перезаряжаем ИМЕННО ЭТОТ слот
-            if (_invServer.TryReloadWeapon(Object.InputAuthority, slotIndex,
-                                           out var newAmmo,
-                                           out var deltas,
-                                           out var reason))
+            if (_invServer.TryReloadWeapon(actor, selected, out var newAmmo, out var deltas, out var reason))
             {
-                if (_invRouter != null && deltas != null)
+                var router = ResolveServerRouter();
+                if (router != null && deltas != null)
                 {
-                    foreach (var d in deltas)
-                        _invRouter.BroadcastDeltaFromServer(d);
+                    for (int i = 0; i < deltas.Count; i++)
+                        router.BroadcastDeltaFromServer(deltas[i]);
                 }
-                RPC_SetSlotAmmo(slotIndex, newAmmo);
-            }
-            else
-            {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-                Debug.Log($"[RELOAD] denied: {reason}");
-#endif
+                RPC_SetSlotAmmo(selected, newAmmo);
             }
         }
 
@@ -104,24 +125,36 @@ namespace Game
             Runner.Spawn(placeablePrefab, position, rotation, Object.InputAuthority);
         }
 
-        // В PlayerRpcHandler.cs
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
         public void RPC_RequestDrop(Vector3 pos, Vector3 fwd, int fromGlobalIndex, int count, RpcInfo info = default)
         {
-            // Нормализуем актёра (важно для Host)
             var actor = info.Source;
-            if (actor == PlayerRef.None)
-                actor = Object.InputAuthority;
-
-            // Доп. страховка: RPC должно приходить от своего владельца
-            if (actor != Object.InputAuthority)
-                return;
+            if (actor == PlayerRef.None) actor = Object.InputAuthority;
+            if (actor != Object.InputAuthority) return;
 
             if (!Object.HasStateAuthority || Runner == null || _invServer == null || _db == null)
                 return;
 
-            // Разрешаем глобальный индекс в контейнер и локальный индекс
-            if (!_invServer.TryResolveGlobalIndex(actor, fromGlobalIndex, out var container, out int slotIndex))
+            var ic = _ic ??= GetComponent<InteractionController>();
+            if (ic == null) return;
+
+            PlayerInventoryServer container = null;
+            int slotIndex = -1;
+
+            if (fromGlobalIndex >= 0)
+            {
+                if (!_invServer.TryResolveGlobalIndex(actor, fromGlobalIndex, out container, out slotIndex))
+                    return;
+            }
+            else
+            {
+                int selected = ic.SelectedQuickIndexNet;
+                if (selected < 0) return;
+                if (!_invServer.TryResolveGlobalIndex(actor, selected, out container, out slotIndex))
+                    return;
+            }
+
+            if (container == null || slotIndex < 0 || container.Slots == null || slotIndex >= container.Slots.Length)
                 return;
 
             var slot = container.Slots[slotIndex];
@@ -133,25 +166,24 @@ namespace Game
             if (so == null)
                 return;
 
-            // Снимем состояние ДО удаления (для ammo и т.п.)
             var st = InventorySlotStateAccessor.ReadState(slot);
             int ammo = st?.ammo ?? 0;
 
             int currentCount = InventorySlotStateAccessor.ReadCount(slot);
-            int dropCount = Mathf.Clamp(count, 1, currentCount);
+            int dropCount = Mathf.Clamp(count > 0 ? count : currentCount, 1, currentCount);
 
-            // Удаляем из инвентаря на сервере
             if (!_invServer.TryRemove(actor, container.Id, slotIndex, dropCount, out var deltas))
                 return;
 
-            // Рассылаем дельты наблюдателям
-            if (_invRouter != null && deltas != null)
+            var router = ResolveServerRouter();
+            if (router != null && deltas != null)
             {
-                foreach (var d in deltas)
-                    _invRouter.BroadcastDeltaFromServer(d);
+                for (int i = 0; i < deltas.Count; i++)
+                    router.BroadcastDeltaFromServer(deltas[i]);
             }
 
-            // Спавним предмет в мире
+            ServerRefreshHandsFromSelectedQuick(actor);
+
             if (!TryGetNetworkPrefab(so, out var pickablePrefab,
                 "PickableNetwork", "PickupNetwork", "WorldDrop", "WorldPrefab",
                 "PickablePrefab", "PickupPrefab", "WorldPickable", "Prefab"))
@@ -171,17 +203,52 @@ namespace Game
                     }
                     else
                     {
-                        // 2) Фолбэк: проставим поля по всей иерархии (дети тоже)
                         TryInitWorldItemDeep(netObj.gameObject, itemId, dropCount, ammo);
                     }
                 });
 
             if (spawned != null && spawned.TryGetComponent<Rigidbody>(out var rb))
             {
-                float force = _ic != null ? _ic.ThrowForce : 5f;
+                float force = ic != null ? ic.ThrowForce : 5f;
                 rb.AddForce(dir * force, ForceMode.VelocityChange);
             }
         }
+
+        private void ServerSyncHandsWithQuickDelta(PlayerRef actor, List<ContainerDelta> deltas)
+        {
+            if (deltas == null || deltas.Count == 0 || Runner == null) return;
+            if (!Runner.TryGetPlayerObject(actor, out var playerNO) || playerNO == null) return;
+
+            var ic = playerNO.GetComponentInChildren<InteractionController>(true);
+            if (ic == null) return;
+
+            int sel = ic.SelectedQuickIndexNet;
+            if (sel < 0) return;
+
+            // Ищем изменение именно выбранного быстрого слота
+            for (int i = 0; i < deltas.Count; i++)
+            {
+                var d = deltas[i];
+                if (d == null || d.id.type != ContainerType.PlayerQuick || d.changes == null) continue;
+
+                for (int j = 0; j < d.changes.Length; j++)
+                {
+                    var c = d.changes[j];
+                    if (c.index != sel) continue;
+
+                    var id = InventorySlotStateAccessor.ReadId(c.state);
+                    var cnt = InventorySlotStateAccessor.ReadCount(c.state);
+
+                    if (string.IsNullOrEmpty(id) || cnt <= 0)
+                        ic.handItemController?.UnEquipItemServer();
+                    else
+                        ic.handItemController?.EquipItemServer(id);
+
+                    return; // нашли нужный индекс — выходим
+                }
+            }
+        }
+
         private void TryInitWorldItemDeep(GameObject root, string itemId, int count, int ammo)
         {
             // Если вдруг PickableItem есть где-то в детях — используем его
@@ -210,7 +277,6 @@ namespace Game
         {
             if (!Object.HasStateAuthority || _invServer == null || target == null) return;
 
-            // safety: работаем с корневым NO
             var root = target.transform.root != null
                 ? target.transform.root.GetComponent<NetworkObject>()
                 : target;
@@ -219,18 +285,35 @@ namespace Game
             if (!TryReadWorldItem(target, out var itemId, out var amount, out var ammoFromPickup))
                 return;
 
-            if (_invServer.TryAddItemToPlayer(
-                    Object.InputAuthority, itemId, amount, ammoFromPickup,
-                    out var left, out var deltas, out var reason))
+            if (_invServer.TryAddItemToPlayer(Object.InputAuthority, itemId, amount, ammoFromPickup, out var left, out var deltas, out var reason))
             {
-                if (deltas != null && _invRouter != null)
-                    for (int i = 0; i < deltas.Count; i++)
-                        _invRouter.BroadcastDeltaFromServer(deltas[i]);
+                var extra = ServerPrioritizeSelectedQuick(Object.InputAuthority, itemId);
+                var router = ResolveServerRouter();
+                if (router != null)
+                {
+                    if (deltas != null) for (int i = 0; i < deltas.Count; i++) router.BroadcastDeltaFromServer(deltas[i]);
+                    if (extra != null) for (int i = 0; i < extra.Count; i++) router.BroadcastDeltaFromServer(extra[i]);
+                }
 
-                Runner.Despawn(target);
+                ServerRefreshHandsFromSelectedQuick(Object.InputAuthority);
+
+                if (left == 0)
+                {
+                    Runner.Despawn(target);
+                }
+                else if (left < amount)
+                {
+                    var pick = target.GetComponentInChildren<PickableItem>(true) ?? target.GetComponentInParent<PickableItem>(true);
+                    if (pick != null) pick.SetCount(left);
+                    else WriteInt(typeof(MonoBehaviour), target, left, "Count", "count", "Stack", "stack");
+                }
+                else
+                {
+                    ServerDropOverflow(itemId, amount, ammoFromPickup);
+                    Runner.Despawn(target);
+                }
             }
         }
-        // using Fusion;  // уже есть
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestPickById(NetworkId targetId, RpcInfo info = default)
@@ -241,40 +324,44 @@ namespace Game
             if (!TryReadWorldItem(target, out var itemId, out var amount, out var ammoFromPickup))
                 return;
 
-            if (_invServer.TryAddItemToPlayer(
-                    Object.InputAuthority,
-                    itemId,
-                    amount,
-                    ammoFromPickup,
-                    out var left,
-                    out var deltas,
-                    out var reason))
+            if (_invServer.TryAddItemToPlayer(Object.InputAuthority, itemId, amount, ammoFromPickup, out var left, out var deltas, out var reason))
             {
-                if (deltas != null && _invRouter != null)
+                var extra = ServerPrioritizeSelectedQuick(Object.InputAuthority, itemId);
+                var router = ResolveServerRouter();
+                if (router != null)
                 {
-                    for (int i = 0; i < deltas.Count; i++)
-                        _invRouter.BroadcastDeltaFromServer(deltas[i]);
+                    if (deltas != null) for (int i = 0; i < deltas.Count; i++) router.BroadcastDeltaFromServer(deltas[i]);
+                    if (extra != null) for (int i = 0; i < extra.Count; i++) router.BroadcastDeltaFromServer(extra[i]);
                 }
-                Runner.Despawn(target);
+
+                ServerRefreshHandsFromSelectedQuick(Object.InputAuthority);
+
+                if (left == 0)
+                {
+                    Runner.Despawn(target);
+                }
+                else if (left < amount)
+                {
+                    var pick = target.GetComponentInChildren<PickableItem>(true) ?? target.GetComponentInParent<PickableItem>(true);
+                    if (pick != null) pick.SetCount(left);
+                    else WriteInt(typeof(MonoBehaviour), target, left, "Count", "count", "Stack", "stack");
+                }
+                else
+                {
+                    ServerDropOverflow(itemId, amount, ammoFromPickup);
+                    Runner.Despawn(target);
+                }
             }
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            else
-            {
-                Debug.Log($"[PICK] denied: {reason}");
-            }
-#endif
         }
-        
+
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestPickAtRay(Vector3 origin, Vector3 dir, float maxDist, RpcInfo info = default)
         {
             if (!Object.HasStateAuthority || _invServer == null) return;
 
-            // Серверный рейкаст в authoritative-физике
             if (!Physics.Raycast(origin, dir, out var hit, maxDist, ~0, QueryTriggerInteraction.Collide))
                 return;
 
-            // Берём то, что реально под прицелом
             var pick = hit.collider.GetComponentInParent<PickableItem>();
             if (pick == null) return;
 
@@ -284,25 +371,106 @@ namespace Game
             if (!TryReadWorldItem(no, out var itemId, out var amount, out var ammo))
                 return;
 
-            if (_invServer.TryAddItemToPlayer(
-                    Object.InputAuthority, itemId, amount, ammo,
-                    out var left, out var deltas, out var reason))
+            if (_invServer.TryAddItemToPlayer(Object.InputAuthority, itemId, amount, ammo, out var left, out var deltas, out var reason))
             {
-                if (deltas != null && _invRouter != null)
-                    for (int i = 0; i < deltas.Count; i++)
-                        _invRouter.BroadcastDeltaFromServer(deltas[i]);
+                var extra = ServerPrioritizeSelectedQuick(Object.InputAuthority, itemId);
+                var router = ResolveServerRouter();
+                if (router != null)
+                {
+                    if (deltas != null) for (int i = 0; i < deltas.Count; i++) router.BroadcastDeltaFromServer(deltas[i]);
+                    if (extra != null) for (int i = 0; i < extra.Count; i++) router.BroadcastDeltaFromServer(extra[i]);
+                }
 
-                Runner.Despawn(no);
+                ServerRefreshHandsFromSelectedQuick(Object.InputAuthority);
+
+                if (left == 0)
+                {
+                    Runner.Despawn(no);
+                }
+                else if (left < amount)
+                {
+                    pick.SetCount(left);
+                }
+                else
+                {
+                    ServerDropOverflow(itemId, amount, ammo);
+                    Runner.Despawn(no);
+                }
             }
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            else
-            {
-                Debug.Log($"[PICK] denied: {reason}");
-            }
-#endif
         }
 
+        private List<ContainerDelta> ServerPrioritizeSelectedQuick(PlayerRef actor, string itemId)
+        {
+            if (Runner == null || _invServer == null || string.IsNullOrEmpty(itemId)) return null;
+            if (!Runner.TryGetPlayerObject(actor, out var playerNO) || playerNO == null) return null;
 
+            var ic = playerNO.GetComponentInChildren<InteractionController>(true);
+            if (ic == null) return null;
+
+            int sel = ic.SelectedQuickIndexNet;
+            if (sel < 0) return null;
+
+            if (!_invServer.TryResolveGlobalIndex(actor, sel, out var quick, out var qIdx)) return null;
+            if (quick == null || quick.Slots == null || qIdx < 0 || qIdx >= quick.Slots.Length) return null;
+
+            var qState = quick.Slots[qIdx];
+            var qId = InventorySlotStateAccessor.ReadId(qState);
+            var qCnt = InventorySlotStateAccessor.ReadCount(qState);
+
+            bool canAccept = string.IsNullOrEmpty(qId) || qId == itemId;
+            if (!canAccept) return null;
+
+            PlayerInventoryServer main = null;
+            TryGetPlayerContainers(actor, out var quickC, out main);
+
+            int srcIdx = -1;
+            PlayerInventoryServer src = null;
+
+            if (quickC != null && quickC.Slots != null)
+            {
+                for (int i = 0; i < quickC.Slots.Length; i++)
+                {
+                    if (i == qIdx) continue;
+                    var s = quickC.Slots[i];
+                    if (InventorySlotStateAccessor.ReadId(s) == itemId && InventorySlotStateAccessor.ReadCount(s) > 0)
+                    {
+                        src = quickC; srcIdx = i; break;
+                    }
+                }
+            }
+
+            if (src == null && main != null && main.Slots != null)
+            {
+                for (int i = 0; i < main.Slots.Length; i++)
+                {
+                    var s = main.Slots[i];
+                    if (InventorySlotStateAccessor.ReadId(s) == itemId && InventorySlotStateAccessor.ReadCount(s) > 0)
+                    {
+                        src = main; srcIdx = i; break;
+                    }
+                }
+            }
+
+            if (src == null || srcIdx < 0) return null;
+
+            int amount = InventorySlotStateAccessor.ReadCount(src.Slots[srcIdx]);
+            if (amount <= 0) return null;
+
+            if (_invServer.TryTransfer(
+                    actor,
+                    src.Id, srcIdx,
+                    quick.Id, qIdx,
+                    amount,
+                    out var fromDelta, out var toDelta, out var swapped, out var reason))
+            {
+                var list = new List<ContainerDelta>(2);
+                if (fromDelta != null) list.Add(fromDelta);
+                if (toDelta != null) list.Add(toDelta);
+                return list.Count > 0 ? list : null;
+            }
+
+            return null;
+        }
 
         private void GetDropPoint(out Vector3 pos, out Vector3 fwd)
         {
@@ -333,46 +501,25 @@ namespace Game
 
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
-        public void RPC_RequestShoot(string itemId, int clientSlotIndex, Vector3 dir, int seed, bool isAuto)
+        public void RPC_RequestShoot(string itemId, int clientSlotIndex, Vector3 dir, int seed, bool isAuto, RpcInfo info = default)
         {
-            if (!Object.HasStateAuthority || _invServer == null || Runner == null)
-                return;
+            if (!Object.HasStateAuthority || _invServer == null || Runner == null) return;
 
-            if (!TryGetPlayerContainers(Object.InputAuthority, out var quick, out _))
-                return;
+            var actor = info.Source;
+            if (actor == PlayerRef.None) actor = Object.InputAuthority;
+            if (actor != Object.InputAuthority) return;
 
-            var slots = quick?.Slots;
-            if (slots == null || clientSlotIndex < 0 || clientSlotIndex >= slots.Length)
-                return;
+            var ic = _ic ??= GetComponent<InteractionController>();
+            if (ic == null) return;
 
-            // Валидация содержимого именно того слота, который указан клиентом
-            var sid = InventorySlotStateAccessor.ReadId(slots[clientSlotIndex]);
-            if (string.IsNullOrEmpty(sid))
-                return;
+            int selected = ic.SelectedQuickIndexNet;
+            if (selected < 0) selected = Mathf.Max(-1, clientSlotIndex);
+            if (selected < 0) return;
 
-            // Если клиент прислал itemId — убеждаемся, что в этом слоте именно тот же предмет
-            if (!string.IsNullOrEmpty(itemId) && sid != itemId)
-                return;
+            if (!_fireCooldown.ExpiredOrNotRunning(Runner)) return;
 
-            // КД
-            if (!_fireCooldown.ExpiredOrNotRunning(Runner))
+            if (!_invServer.TryConsumeAmmoFromQuick(actor, selected, 1, out var newAmmo, out var quickDelta, out var weaponSO, out var reason))
                 return;
-
-            // Списание 1 патрона из ЭТОГО же clientSlotIndex
-            if (!_invServer.TryConsumeAmmoFromQuick(
-                    Object.InputAuthority,
-                    clientSlotIndex,
-                    1,
-                    out var newAmmo,
-                    out var quickDelta,
-                    out var weaponSO,
-                    out var reason))
-            {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-                Debug.Log($"[SHOOT] denied: {reason}");
-#endif
-                return;
-            }
 
             float rate = 0f;
             if (weaponSO != null)
@@ -380,9 +527,9 @@ namespace Game
             if (rate <= 0f) rate = 10f;
             _fireCooldown = TickTimer.CreateFromSeconds(Runner, 1f / Mathf.Max(0.01f, rate));
 
-            Vector3 forward = dir.sqrMagnitude > 1e-12f ? dir.normalized : Vector3.forward;
-            Transform muzzle = FindMuzzlePointTransform();
-            Vector3 muzzlePos = muzzle != null ? muzzle.position : _ic.transform.position + forward * 0.5f;
+            Vector3 forward = dir.sqrMagnitude > 1e-12f ? dir.normalized : (ic != null ? ic.transform.forward : Vector3.forward);
+            Transform muzzle = FindMuzzlePointTransformSafe(ic);
+            Vector3 origin = muzzle != null ? muzzle.position : (ic != null ? ic.transform.position + forward * 0.5f : transform.position + forward * 0.5f);
 
             if (weaponSO != null && weaponSO.bulletPrefab != null)
             {
@@ -391,9 +538,9 @@ namespace Game
                 {
                     Runner.Spawn(
                         prefabNo,
-                        muzzlePos,
+                        origin,
                         Quaternion.LookRotation(forward),
-                        Object.InputAuthority,
+                        actor,
                         (runner, obj) =>
                         {
                             var b = obj.GetComponent<Bullet>();
@@ -410,39 +557,40 @@ namespace Game
             }
             else
             {
-                if (Runner.LagCompensation.Raycast(muzzlePos, forward, 1000f, Object.InputAuthority, out var hit))
+                if (Runner.LagCompensation.Raycast(origin, forward, 1000f, actor, out var hit))
                 {
                     var damageable = hit.GameObject != null ? hit.GameObject.GetComponentInParent<IDamageable>() : null;
                     if (damageable != null)
                     {
                         int dmg = weaponSO != null ? (int)weaponSO.bulletDamage : 10;
-                        var info = new DamageInfo(dmg, DamageKind.Bullet, hit.Point, forward, Object.InputAuthority);
-                        damageable.ApplyDamage(info);
+                        var infoDmg = new DamageInfo(dmg, DamageKind.Bullet, hit.Point, forward, actor);
+                        damageable.ApplyDamage(infoDmg);
                     }
                 }
             }
 
-            if (_invRouter != null && quickDelta != null)
-                _invRouter.BroadcastDeltaFromServer(quickDelta);
+            var router = ResolveServerRouter();
+            if (router != null && quickDelta != null)
+                router.BroadcastDeltaFromServer(quickDelta);
 
-            RPC_SetSlotAmmo(clientSlotIndex, newAmmo);
+            RPC_SetSlotAmmo(selected, newAmmo);
         }
-        private Transform FindMuzzlePointTransform()
-        {
-            if (_ic == null) return null;
 
-            // 1) Есть ли сетевая ручная модель? (InteractionController уже хранит/ищет её)
-            var handNetObj = _ic.GetHandModelNetworkInstance();
+        private Transform FindMuzzlePointTransformSafe(InteractionController ic)
+        {
+            if (ic == null) return null;
+
+            var handNetObj = ic.GetHandModelNetworkInstance();
             if (handNetObj != null)
             {
                 var mp = handNetObj.GetComponentInChildren<MuzzlePoint>(true);
                 if (mp != null) return mp.transform;
             }
 
-            // 2) Можно поискать и на локальной иерархии контроллера
-            var localMp = _ic.GetComponentInChildren<MuzzlePoint>(true);
+            var localMp = ic.GetComponentInChildren<MuzzlePoint>(true);
             return localMp != null ? localMp.transform : null;
         }
+
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
         private void RPC_SetSlotAmmo(int slotIndex, int ammo, RpcInfo info = default)
@@ -459,7 +607,7 @@ namespace Game
             _inventory.RaiseQuickSlotsChanged();
         }
 
-      
+
 
         private static bool TryGetNetworkPrefab(ScriptableObject so, out NetworkObject prefab, params string[] candidateNames)
         {
@@ -627,24 +775,34 @@ namespace Game
             if (hp != null) hp.ApplyDamage(Mathf.Max(0, amount));
         }
 
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
         public void RPC_RequestEquipQuickSlot(int quickIndex, RpcInfo info = default)
         {
-            if (Object.InputAuthority != info.Source) return;
+            var actor = info.Source;
+            if (actor == PlayerRef.None) actor = Object.InputAuthority;
+            if (actor != Object.InputAuthority) return;
 
             var ic = GetComponent<InteractionController>();
             if (ic == null || _invServer == null) return;
+
+            int current = ic.SelectedQuickIndexNet;
+            if (quickIndex >= 0 && current == quickIndex)
+            {
+                ic.ServerSetSelectedQuickIndex(-1);
+                ic.handItemController?.UnEquipItemServer();
+                return;
+            }
 
             ic.ServerSetSelectedQuickIndex(Mathf.Max(-1, quickIndex));
 
             string itemId = null;
 
-            if (quickIndex >= 0 && TryGetPlayerContainers(Object.InputAuthority, out var quick, out _))
+            if (quickIndex >= 0 && _invServer.TryResolveGlobalIndex(actor, quickIndex, out var container, out int slotIndex))
             {
-                var slots = quick.Slots;
-                if (slots != null && quickIndex < slots.Length)
+                var slots = container.Slots;
+                if (slots != null && slotIndex >= 0 && slotIndex < slots.Length)
                 {
-                    var s = slots[quickIndex];
+                    var s = slots[slotIndex];
                     itemId = InventorySlotStateAccessor.ReadId(s);
                 }
             }
@@ -654,6 +812,37 @@ namespace Game
             else
                 ic.handItemController?.EquipItemServer(itemId);
         }
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
+        public void RPC_RefreshSelectedQuick(RpcInfo info = default)
+        {
+            var actor = info.Source;
+            if (actor == PlayerRef.None) actor = Object.InputAuthority;
+            if (actor != Object.InputAuthority) return;
+        
+            var ic = GetComponent<InteractionController>();
+            if (ic == null || _invServer == null) return;
+        
+            int selected = ic.SelectedQuickIndexNet;
+        
+            string itemId = null;
+        
+            if (selected >= 0 && _invServer.TryResolveGlobalIndex(actor, selected, out var container, out int slotIndex))
+            {
+                var slots = container.Slots;
+                if (slots != null && slotIndex >= 0 && slotIndex < slots.Length)
+                {
+                    var s = slots[slotIndex];
+                    itemId = InventorySlotStateAccessor.ReadId(s);
+                }
+            }
+        
+            if (string.IsNullOrEmpty(itemId))
+                ic.handItemController?.UnEquipItemServer();
+            else
+                ic.handItemController?.EquipItemServer(itemId);
+        }
+        
+
         public bool TryGetPlayerContainers(PlayerRef player, out PlayerInventoryServer quick, out PlayerInventoryServer main)
         {
             quick = null; main = null;
@@ -673,8 +862,81 @@ namespace Game
             }
             return quick != null && main != null;
         }
-      
 
+        public void ServerRefreshHandsFromSelectedQuick(PlayerRef actor)
+        {
+            if (Runner == null) return;
+            if (!Runner.TryGetPlayerObject(actor, out var playerNO) || playerNO == null) return;
+
+            var ic = playerNO.GetComponentInChildren<InteractionController>(true);
+            if (ic == null) return;
+
+            int sel = ic.SelectedQuickIndexNet;
+            if (sel < 0)
+            {
+                ic.handItemController?.UnEquipItemServer();
+                return;
+            }
+
+            if (!_invServer.TryResolveGlobalIndex(actor, sel, out var container, out int slotIndex))
+            {
+                ic.handItemController?.UnEquipItemServer();
+                return;
+            }
+
+            var slots = container.Slots;
+            if (slots == null || slotIndex < 0 || slotIndex >= slots.Length)
+            {
+                ic.handItemController?.UnEquipItemServer();
+                return;
+            }
+
+            var id = InventorySlotStateAccessor.ReadId(slots[slotIndex]);
+            var cnt = InventorySlotStateAccessor.ReadCount(slots[slotIndex]);
+
+            if (string.IsNullOrEmpty(id) || cnt <= 0)
+                ic.handItemController?.UnEquipItemServer();
+            else
+                ic.handItemController?.EquipItemServer(id);
+        }
+
+
+
+        public void ServerDropOverflow(string itemId, int count, int ammo)
+        {
+            if (!Object.HasStateAuthority || Runner == null || _db == null) return;
+
+            if (!TryGetNetworkPrefab(_db.Get(itemId), out var pickablePrefab,
+                "PickableNetwork", "PickupNetwork", "WorldDrop", "WorldPrefab",
+                "PickablePrefab", "PickupPrefab", "WorldPickable", "Prefab"))
+                return;
+
+            var pos = _ic != null ? _ic.GetDropPointPosition() : transform.position + transform.forward;
+            var fwd = _ic != null ? _ic.GetDropForward() : transform.forward;
+            var dir = fwd.sqrMagnitude > 0f ? fwd.normalized : Vector3.forward;
+            var rot = Quaternion.LookRotation(dir);
+
+            var spawned = Runner.Spawn(
+                pickablePrefab, pos, rot, PlayerRef.None,
+                onBeforeSpawned: (runner, netObj) =>
+                {
+                    var pick = netObj.GetComponentInChildren<PickableItem>(true);
+                    if (pick != null)
+                    {
+                        pick.ServerInit(itemId, count, ammo);
+                    }
+                    else
+                    {
+                        TryInitWorldItemDeep(netObj.gameObject, itemId, count, ammo);
+                    }
+                });
+
+            if (spawned != null && spawned.TryGetComponent<Rigidbody>(out var rb))
+            {
+                float force = _ic != null ? _ic.ThrowForce : 5f;
+                rb.AddForce(dir * force, ForceMode.VelocityChange);
+            }
+        }
 
     }
 }

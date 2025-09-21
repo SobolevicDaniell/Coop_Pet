@@ -16,6 +16,10 @@ namespace Game.Network
 
         [Header("Prefabs")]
         [SerializeField] private InventorySlotUI _slotPrefab;
+        [SerializeField] private GameObject _deathBoxPrefab;
+        [SerializeField] private GameObject _playerObjectPrefab;
+        [SerializeField] private GameObject _avatarPrefab;
+
 
         [Header("UI Panels")]
         [SerializeField] private InventoryPanel _playerInventoryPanel;
@@ -23,18 +27,19 @@ namespace Game.Network
 
         [Header("Config")]
         [SerializeField] private PlayerStatsSO _playerStats;
-        
+
 
         public override void InstallBindings()
         {
             Container.BindInstance(_playerPrefab).WithId("PlayerPrefab");
+            Container.BindInstance(_deathBoxPrefab).WithId("DeathBoxPrefab");
+            Container.BindInstance(_playerObjectPrefab).WithId("PlayerObjectPrefab");
+            Container.BindInstance(_avatarPrefab).WithId("AvatarPrefab");
+
 
             Container.Bind<ItemDatabaseSO>()
                 .FromInstance(_itemDatabase)
                 .AsSingle();
-
-            // Container.BindInterfacesAndSelfTo<InventoryService>()
-            //     .AsSingle();
 
             Container.Bind<UIController>()
                 .FromComponentInHierarchy()
@@ -81,7 +86,7 @@ namespace Game.Network
                 .To<ZenjectObjectProvider>()
                 .AsSingle();
 
-            Container.Bind<NetworkCallbacks>()
+            Container.Bind<GameplayCallbacks>()
                 .FromComponentInHierarchy()
                 .AsSingle();
 
@@ -90,13 +95,13 @@ namespace Game.Network
                 .FromInstance(_slotPrefab)
                 .AsSingle();
 
-            Container.Bind<Startup>()
-                .FromComponentInHierarchy()
-                .AsSingle();
+            // Container.Bind<Startup>()
+            //     .FromComponentInHierarchy()
+            //     .AsSingle();
 
-            Container.Bind<MenuController>()
-                .FromComponentInHierarchy()
-                .AsSingle();
+            // Container.Bind<MenuController>()
+            //     .FromComponentInHierarchy()
+            //     .AsSingle();
 
             Container.Bind<PlayerStatsSO>()
                 .FromInstance(_playerStats)
@@ -127,9 +132,13 @@ namespace Game.Network
                     .AsSingle();
             }
 
-            // Container.Bind<InventoryClientModel>().AsSingle();
-            // Container.Bind<InventoryClientFacade>().AsSingle();
-
+            var store = FindObjectOfType<LaunchRequestStore>(true);
+            if (store != null)
+            {
+                Container.Bind<LaunchRequestStore>()
+                         .FromInstance(store)
+                         .AsSingle();
+            }
 
 
         }

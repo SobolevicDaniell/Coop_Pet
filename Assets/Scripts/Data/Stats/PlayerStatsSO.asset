@@ -12,7 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 32ae9ff3e655d7d47aed0725ff2d2deb, type: 3}
   m_Name: PlayerStatsSO
   m_EditorClassIdentifier: Assembly-CSharp::Game.PlayerStatsSO
-  health: 100
-  speed: 30
+  maxHealth: 100
   inventorySlotsCount: 24
   quickSlotsCount: 10
+  keyboardLookSensitivity: 100
+  mouseLookSensitivity: 10

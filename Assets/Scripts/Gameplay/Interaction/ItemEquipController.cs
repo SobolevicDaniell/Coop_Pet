@@ -11,62 +11,65 @@ namespace Game
         public void Initialize(HandItemBehaviorFactory factory, ItemDatabaseSO itemDatabase, InteractionController interactionController)
         {
             _factory = factory;
-            _db      = itemDatabase;
-            _ic      = interactionController;
+            _db = itemDatabase;
+            _ic = interactionController;
         }
 
         public void Equip(int slotIdx, InventorySlot[] quickSlots)
         {
             if (_ic == null) return;
-
+        
             _ic.ClearBehavior();
-
+        
             if (quickSlots == null || slotIdx < 0 || slotIdx >= quickSlots.Length)
             {
                 _ic.handItemController?.RequestUnEquip();
-                if (_ic.Object.HasInputAuthority) _ic.netSelectedQuickSlot = -1;
-                // Важно: скажем и серверу снять выделение
-                _ic.playerRpcHandler?.RPC_RequestEquipQuickSlot(-1);
+                if (_ic.SelectedQuickIndexNet != -1)
+                    _ic.playerRpcHandler?.RPC_RequestEquipQuickSlot(-1);
                 return;
             }
-
+        
             var slot = quickSlots[slotIdx];
+            bool alreadySelected = _ic.SelectedQuickIndexNet == slotIdx;
+        
             if (slot == null || string.IsNullOrEmpty(slot.Id))
             {
                 _ic.handItemController?.RequestUnEquip();
-                if (_ic.Object.HasInputAuthority) _ic.netSelectedQuickSlot = -1;
-                _ic.playerRpcHandler?.RPC_RequestEquipQuickSlot(-1);
+                if (alreadySelected)
+                    _ic.playerRpcHandler?.RPC_RefreshSelectedQuick();
+                else
+                    _ic.playerRpcHandler?.RPC_RequestEquipQuickSlot(slotIdx);
                 return;
             }
-
+        
             string itemId = slot.Id;
-
-            // Экип модели
-            _ic.handItemController?.RequestEquip(itemId);
-
-            // Создаём поведение
+        
             var behavior = _factory.Create(_ic, itemId, slotIdx);
             behavior.OnEquip();
             _ic.SetCurrentBehavior(behavior);
-
-            if (_ic.Object.HasInputAuthority)
-                _ic.netSelectedQuickSlot = slotIdx;
-
-            // КРИТИЧНО: сразу подтвердим серверу выбранный индекс
-            _ic.playerRpcHandler?.RPC_RequestEquipQuickSlot(slotIdx);
+        
+            if (alreadySelected)
+                _ic.playerRpcHandler?.RPC_RefreshSelectedQuick();
+            else
+                _ic.playerRpcHandler?.RPC_RequestEquipQuickSlot(slotIdx);
         }
-
-        public void ValidateEquipped(int selectedQuickSlot, InventorySlot[] quickSlots)
+        
+        
+        
+        
+        
+                public void ValidateEquipped(int selectedQuickSlot, InventorySlot[] quickSlots)
         {
             if (quickSlots == null || selectedQuickSlot < 0 || selectedQuickSlot >= quickSlots.Length)
             {
                 Equip(-1, quickSlots);
                 return;
             }
-
-            var slot = quickSlots[selectedQuickSlot];
-            if (slot == null || string.IsNullOrEmpty(slot.Id))
-                Equip(-1, quickSlots);
+        
+            Equip(selectedQuickSlot, quickSlots);
         }
+
+
+
     }
 }

@@ -108,7 +108,6 @@ namespace Game
             TryDropFromQuickSlot(origin, forward, true);
         }
 
-        // PickDropController.cs
         public void TryDropFromQuickSlot(Vector3 origin, Vector3 forward, bool dropAll)
         {
             if (_ic == null || !_ic.Object.HasInputAuthority || _rpc == null || _inventory == null || _db == null) return;
@@ -121,13 +120,11 @@ namespace Game
             if (slot == null || string.IsNullOrEmpty(slot.Id) || slot.Count <= 0) return;
 
             var item = _db.Get(slot.Id);
-            int dropCount = dropAll ? slot.Count : ((item != null && item.MaxStack <= 1) ? slot.Count : 1);
+            if (item == null) return;
 
-            var fwd = forward.sqrMagnitude > 0f ? forward.normalized : Vector3.forward;
+            int dropCount = dropAll ? slot.Count : 1;
 
-            // ВАЖНО: передаём на сервер ИНДЕКС СЛОТА и КОЛ-ВО.
-            // НЕ меняем слот локально — дождёмся ContainerDelta.
-            _rpc.RPC_RequestDrop(origin, fwd, idx, dropCount);
+            _rpc.RPC_RequestDrop(origin, forward, idx, dropCount);
         }
 
 

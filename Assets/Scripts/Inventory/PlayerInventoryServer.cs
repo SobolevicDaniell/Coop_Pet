@@ -30,21 +30,29 @@ namespace Game
         {
             if (!Object.HasStateAuthority) return;
 
-            var so = _statsSerialized != null ? _statsSerialized : _statsDI;
+            var so = _statsDI != null ? _statsDI : _statsSerialized;
             var cap = ResolveCapacityFromSO(so, _kind);
             if (cap <= 0) cap = 1;
 
-            _slots = new InventorySlotState[cap];
+            var owner = Object.InputAuthority;
+            switch (_kind)
+            {
+                case ContainerType.PlayerMain:
+                    Id = ContainerId.PlayerMainOf(owner);
+                    break;
+                case ContainerType.PlayerQuick:
+                    Id = ContainerId.PlayerQuickOf(owner);
+                    break;
+                default:
+                    Id = ContainerId.OfObject(_kind, Object.Id);
+                    break;
+            }
 
-            Id = _kind == ContainerType.PlayerQuick
-                ? ContainerId.PlayerQuickOf(Object.InputAuthority)
-                : ContainerId.PlayerMainOf(Object.InputAuthority);
+            if (_slots == null || _slots.Length != cap)
+                _slots = new InventorySlotState[cap];
 
+            _version = 0;
             _registry?.Register(this);
-
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            Debug.Log($"[INV][Server] Spawned {Id.type} for {Id.ownerRef}, capacity={_slots.Length}, SO={(so ? so.name : "null")}");
-#endif
         }
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
@@ -66,7 +74,7 @@ namespace Game
 
             // Всё остальное — по вашей текущей логике (сундуки/чужие контейнеры и т.п.)
             return false;
-        }
+        } 
         public bool CanAccept(int slotIndex, InventorySlotState incoming) => true;
 
         public void SetSlot(int index, InventorySlotState state)

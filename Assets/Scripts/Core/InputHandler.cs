@@ -1,14 +1,13 @@
 using Fusion;
 using UnityEngine;
 using System;
+using Zenject;
 
-public class InputHandler : MonoBehaviour
+public sealed class InputHandler : MonoBehaviour
 {
-    [SerializeField] private float keyboardLookSensitivity;
-    [SerializeField] private float mouseLookSensitivity;
+    [Inject] private Game.PlayerStatsSO _stats;
 
-    private InputData _networkInput;
-    private bool _lmbHeld;                       // изменено: трекинг удержания ЛКМ
+    private bool _lmbHeld;
 
     public bool InventoryOpen { get; private set; }
 
@@ -24,70 +23,81 @@ public class InputHandler : MonoBehaviour
 
     private void Update()
     {
-        if (!Application.isPlaying) return;      // изменено: защита в редакторе
+        if (!Application.isPlaying) return;
 
         if (Input.GetKeyDown(KeyCode.Tab))
         {
             OnInventoryToggle?.Invoke();
-            if (_lmbHeld) { _lmbHeld = false; OnUseUp?.Invoke(); } // изменено: сброс удержания
+            if (_lmbHeld) { _lmbHeld = false; OnUseUp?.Invoke(); }
         }
 
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             OnGlobalUiCloseRequested?.Invoke();
-            if (_lmbHeld) { _lmbHeld = false; OnUseUp?.Invoke(); } // изменено: сброс удержания
+            if (_lmbHeld) { _lmbHeld = false; OnUseUp?.Invoke(); }
         }
 
-        if (InventoryOpen)
+        if (!InventoryOpen)
         {
-            _networkInput = new InputData();
-            return;                                // изменено: не обрабатываем остальные нажатия
+            if (Input.GetKeyDown(KeyCode.E)) OnInteractPressed?.Invoke();
+            if (Input.GetKeyDown(KeyCode.R)) OnReloadPressed?.Invoke();
+
+            if (Input.GetMouseButtonDown(0))
+            {
+                if (!_lmbHeld) { _lmbHeld = true; OnUseDown?.Invoke(); }
+            }
+            if (Input.GetMouseButtonUp(0))
+            {
+                if (_lmbHeld) { _lmbHeld = false; OnUseUp?.Invoke(); }
+            }
+
+            if (Input.GetKeyDown(KeyCode.Q)) OnQuickDropPressed?.Invoke();
+            if (Input.GetKeyDown(KeyCode.F)) OnPlacePressed?.Invoke();
         }
-
-        _networkInput.movement = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
-
-        float mouseX = Input.GetAxis("Mouse X") * mouseLookSensitivity;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseLookSensitivity;
-
-        float keyboardX = 0f;
-        float keyboardY = 0f;
-
-        if (Input.GetKey(KeyCode.RightArrow)) keyboardX += keyboardLookSensitivity * Time.deltaTime;
-        if (Input.GetKey(KeyCode.LeftArrow))  keyboardX -= keyboardLookSensitivity * Time.deltaTime;
-        if (Input.GetKey(KeyCode.UpArrow))    keyboardY += keyboardLookSensitivity * Time.deltaTime;
-        if (Input.GetKey(KeyCode.DownArrow))  keyboardY -= keyboardLookSensitivity * Time.deltaTime;
-
-        _networkInput.mouseX = mouseX + keyboardX;
-        _networkInput.mouseY = mouseY + keyboardY;
-
-        _networkInput.jump = Input.GetKey(KeyCode.Space);
-
-        if (Input.GetKeyDown(KeyCode.E)) OnInteractPressed?.Invoke();
-        if (Input.GetKeyDown(KeyCode.R)) OnReloadPressed?.Invoke();
-
-        if (Input.GetMouseButtonDown(0))
-        {
-            if (!_lmbHeld) { _lmbHeld = true; OnUseDown?.Invoke(); } // изменено
-        }
-        if (Input.GetMouseButtonUp(0))
-        {
-            if (_lmbHeld) { _lmbHeld = false; OnUseUp?.Invoke(); }   // изменено
-        }
-
-        if (Input.GetKeyDown(KeyCode.Q)) OnQuickDropPressed?.Invoke();
-        if (Input.GetKeyDown(KeyCode.F)) OnPlacePressed?.Invoke();
     }
 
     public void ProvideNetworkInput(NetworkRunner runner, NetworkInput input)
     {
-        input.Set(_networkInput);
+        var data = new InputData();
+
+        if (!InventoryOpen)
+        {
+            float x = 0f;
+            float y = 0f;
+
+            if (Input.GetKey(KeyCode.A)) x -= 1f;
+            if (Input.GetKey(KeyCode.D)) x += 1f;
+            if (Input.GetKey(KeyCode.W)) y += 1f;
+            if (Input.GetKey(KeyCode.S)) y -= 1f;
+
+            data.movement = new Vector2(x, y);
+            if (data.movement.sqrMagnitude > 1f)
+                data.movement.Normalize();
+
+            float mouseDeltaX = Input.GetAxisRaw("Mouse X") * _stats.mouseLookSensitivity;
+            float mouseDeltaY = Input.GetAxisRaw("Mouse Y") * _stats.mouseLookSensitivity;
+
+            float dt = runner != null ? runner.DeltaTime : Time.deltaTime;
+            float keyDeltaX = 0f;
+            float keyDeltaY = 0f;
+            if (Input.GetKey(KeyCode.RightArrow)) keyDeltaX += _stats.keyboardLookSensitivity * dt;
+            if (Input.GetKey(KeyCode.LeftArrow))  keyDeltaX -= _stats.keyboardLookSensitivity * dt;
+            if (Input.GetKey(KeyCode.UpArrow))    keyDeltaY += _stats.keyboardLookSensitivity * dt;
+            if (Input.GetKey(KeyCode.DownArrow))  keyDeltaY -= _stats.keyboardLookSensitivity * dt;
+
+            data.mouseX = mouseDeltaX + keyDeltaX;
+            data.mouseY = mouseDeltaY + keyDeltaY;
+            data.jump   = Input.GetKey(KeyCode.Space);
+        }
+
+        input.Set(data);
     }
 
     public void SetInventoryOpen(bool open)
     {
-        if (open == InventoryOpen) return;        // изменено: защита от лишних вызовов
+        if (open == InventoryOpen) return;
         InventoryOpen = open;
-        if (InventoryOpen && _lmbHeld)            // изменено: отпускание ЛКМ при открытии UI
+        if (InventoryOpen && _lmbHeld)
         {
             _lmbHeld = false;
             OnUseUp?.Invoke();
