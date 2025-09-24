@@ -1820,6 +1820,81 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 6514978066204742452, guid: 997c04ccefe81f54cb735f794c4d9e23, type: 3}
   m_PrefabInstance: {fileID: 1698304371}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &462338682
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 462338683}
+  - component: {fileID: 462338685}
+  - component: {fileID: 462338684}
+  m_Layer: 9
+  m_Name: Background
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &462338683
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 462338682}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1171185065292990889}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 0, y: 0}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &462338684
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 462338682}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.65882355}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 0}
+  m_Type: 0
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!222 &462338685
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 462338682}
+  m_CullTransparentMesh: 1
 --- !u!1001 &467407752
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2134,7 +2209,7 @@ GameObject:
   - component: {fileID: 512695818}
   - component: {fileID: 512695817}
   - component: {fileID: 512695816}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: ButtonRespawn
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5884,7 +5959,7 @@ GameObject:
   - component: {fileID: 1670636885}
   - component: {fileID: 1670636887}
   - component: {fileID: 1670636886}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -8680,7 +8755,7 @@ GameObject:
   - component: {fileID: 5629066140453476125}
   - component: {fileID: 6309634130161238189}
   - component: {fileID: 4425277262788007925}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: Image
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -8706,7 +8781,7 @@ GameObject:
   - component: {fileID: 1721710703456065536}
   - component: {fileID: 1845699402698905356}
   - component: {fileID: 6931517712231340863}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: Text_E
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -8724,7 +8799,7 @@ GameObject:
   - component: {fileID: 4629688911779490364}
   - component: {fileID: 455543522776341339}
   - component: {fileID: 2263528299883290022}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: Dot
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -8759,6 +8834,7 @@ GameObject:
   - component: {fileID: 7929578627924910801}
   - component: {fileID: 7929578627924910802}
   - component: {fileID: 7929578627924910803}
+  - component: {fileID: 7929578627924910804}
   m_Layer: 0
   m_Name: Startup
   m_TagString: Untagged
@@ -8895,7 +8971,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4752587523966917431}
   - component: {fileID: 8414635394594482815}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: HealthBar
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -8958,6 +9034,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 462338683}
   - {fileID: 7059041090139642285}
   - {fileID: 3702772846294375708}
   - {fileID: 6554709687756094945}
@@ -9049,7 +9126,7 @@ GameObject:
   - component: {fileID: 5486182291728976631}
   - component: {fileID: 42125062110975550}
   - component: {fileID: 3964393227789890372}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -9116,6 +9193,7 @@ MonoBehaviour:
   _dot: {fileID: 126318341881970865}
   _healthBar: {fileID: 1004207652870270390}
   _drugIcon: {fileID: 9189862799231348396}
+  _background: {fileID: 462338682}
   _uiCamera: {fileID: 3127729310628119747}
   _inputHandler: {fileID: 8168390958574330339}
   _defaultPhase: 1
@@ -9312,7 +9390,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2505331318510916897}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: InteractionText
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -9760,7 +9838,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1171185065292990889}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: GameHUD
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -9922,7 +10000,7 @@ GameObject:
   - component: {fileID: 4276934316308564320}
   - component: {fileID: 4353443141389747833}
   - component: {fileID: 7533605555373387821}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: DragIcon
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -9940,7 +10018,7 @@ GameObject:
   - component: {fileID: 4069015931023011919}
   - component: {fileID: 1770340234032013000}
   - component: {fileID: 7744485124367724123}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: Background
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -9979,7 +10057,7 @@ GameObject:
   m_Component:
   - component: {fileID: 627279532965793207}
   - component: {fileID: 4345338529098324636}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: 'HP '
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -10396,7 +10474,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1089832861096899963}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: Fill Area
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -10468,6 +10546,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 39ad697e2a6e9ac49b53b52a76f6e3f7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.Network.RunnerPhysicsBootstrap
+--- !u!114 &7929578627924910804
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 381530598049631214}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 141731ac025b1ea4eb064bad79231db9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.InventoryClientFacade
 --- !u!20 &8057586874756168628
 Camera:
   m_ObjectHideFlags: 0
@@ -10546,8 +10636,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43073b4c1b8ba934581e9df5297195ff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InputHandler
-  keyboardLookSensitivity: 700
-  mouseLookSensitivity: 5
 --- !u!1 &8263644465463599700
 GameObject:
   m_ObjectHideFlags: 0
@@ -10557,7 +10645,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5849872378789478955}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: 'Crosshair '
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -10576,7 +10664,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 74dfa67b6d022744eb3c532644e3d5eb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.UI.OtherInventoryPanel
-  _slotsParent: {fileID: 6554709687756094945}
+  _contentRoot: {fileID: 6554709687756094945}
 --- !u!114 &8414635394594482815
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10681,7 +10769,7 @@ GameObject:
   - component: {fileID: 4010355654420041241}
   - component: {fileID: 1392318134447592381}
   - component: {fileID: 6810702579210123877}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: Fill
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -10702,6 +10790,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Game.UI.InventoryTransferController
   _dragIcon: {fileID: 7533605555373387821}
   _canvas: {fileID: 1786340504198714173}
+  _slotsLayers:
+    serializedVersion: 2
+    m_Bits: 1024
 --- !u!1 &8748342280587077596
 GameObject:
   m_ObjectHideFlags: 0
@@ -10712,7 +10803,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6111335980907130527}
   - component: {fileID: 8748342280587077597}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: DeathScreen
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -10789,7 +10880,7 @@ GameObject:
   - component: {fileID: 5114425030900725385}
   - component: {fileID: 8596260247779174176}
   - component: {fileID: 2988803026787677791}
-  m_Layer: 0
+  m_Layer: 5
   m_Name: DragOverlayCanvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}

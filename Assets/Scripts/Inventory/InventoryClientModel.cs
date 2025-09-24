@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Fusion;
 using UnityEngine;
 
 namespace Game
@@ -61,5 +62,29 @@ namespace Game
                 cb?.Invoke(ok, message);
             }
         }
+        public bool TryResolveExistingId(ContainerId probe, out ContainerId resolved)
+        {
+            if (_snapshots.ContainsKey(probe))
+            {
+                resolved = probe;
+                return true;
+            }
+
+            foreach (var kv in _snapshots)
+            {
+                var key = kv.Key;
+                if (key.type != probe.type) continue;
+
+                bool objMatch = !Equals(probe.objectId, default(NetworkId)) && Equals(key.objectId, probe.objectId);
+                if (objMatch) { resolved = key; return true; }
+
+                bool ownerMatch = !Equals(probe.ownerRef, default(PlayerRef)) && Equals(key.ownerRef, probe.ownerRef);
+                if (ownerMatch) { resolved = key; return true; }
+            }
+
+            resolved = default;
+            return false;
+        }
+
     }
 }

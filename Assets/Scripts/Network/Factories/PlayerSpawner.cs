@@ -12,6 +12,11 @@ namespace Game.Network
         private readonly GameObject _playerObjectPrefab;
         private readonly DiContainer _container;
 
+        [Inject] private InventoryServerService _inventoryServer;
+        [Inject] private InventoryViewService _views;
+        [Inject] private InventoryContainerRegistry _registry;
+
+
         private readonly Dictionary<PlayerRef, NetworkObject> _avatars = new();
         private readonly Dictionary<PlayerRef, NetworkObject> _playerObjects = new();
 
@@ -106,6 +111,8 @@ namespace Game.Network
                 (r, obj) =>
                 {
                     _container.InjectGameObject(obj.gameObject);
+                    var marker = obj.GetComponent<DeathMarker>();
+                    if (marker != null) marker.Initialize(owner);
                     spawned = obj;
                 });
             return spawned;
@@ -126,11 +133,104 @@ namespace Game.Network
         public void RespawnPlayer(NetworkRunner runner, PlayerRef player)
         {
             if (!runner.IsServer) return;
-            if (IsAvatarSpawned(player)) return;
 
-            SpawnAvatar(runner, player);
+            EnsurePlayerObject(runner, player);
 
-            
+            if (_inventoryServer != null)
+            {
+                _inventoryServer.ServerClearPlayerContainers(player, out var deltas);
+
+                var routerOwner = runner.TryGetPlayerObject(player, out var po)
+                    ? po.GetComponent<InventoryRpcRouter>()
+                    : null;
+
+                if (routerOwner != null && deltas != null)
+                {
+                    for (int i = 0; i < deltas.Count; i++)
+                        routerOwner.BroadcastDeltaFromServer(deltas[i]);
+                }
+            }
+
+            if (!IsAvatarSpawned(player))
+                SpawnAvatar(runner, player);
+
+            _views?.RemoveAllForViewer(player);
+
+            ServerPostRespawnSync(runner, player);
         }
+
+        private void ServerPostRespawnSync(NetworkRunner runner, PlayerRef player)
+        {
+            if (!runner.TryGetPlayerObject(player, out var po) || po == null) return;
+
+            var viewer = player;
+
+            var quick = new ContainerId { type = ContainerType.PlayerQuick, ownerRef = viewer, objectId = default };
+            var main = new ContainerId { type = ContainerType.PlayerMain, ownerRef = viewer, objectId = default };
+
+            _views.AddViewer(viewer, quick);
+            _views.AddViewer(viewer, main);
+
+            if (_registry != null && _registry.TryGet(quick, out var cq) && cq != null)
+            {
+                _views.SendSnapshotTo(viewer, new ContainerSnapshot
+                {
+                    id = quick,
+                    version = cq.Version,
+                    slots = CloneSlots(cq.Slots)
+                });
+            }
+
+            if (_registry != null && _registry.TryGet(main, out var cm) && cm != null)
+            {
+                _views.SendSnapshotTo(viewer, new ContainerSnapshot
+                {
+                    id = main,
+                    version = cm.Version,
+                    slots = CloneSlots(cm.Slots)
+                });
+            }
+        }
+
+        private static InventorySlotState[] CloneSlots(InventorySlotState[] src)
+        {
+            if (src == null) return null;
+            var arr = new InventorySlotState[src.Length];
+            for (int i = 0; i < src.Length; i++)
+                arr[i] = src[i]?.Clone();
+            return arr;
+        }
+        private static void BuildSnapshotArrays(InventorySlotState[] slots,
+    out int capacity, out string[] itemIds, out int[] counts, out int[] ammo, out int[] durability)
+        {
+            var s = slots ?? System.Array.Empty<InventorySlotState>();
+            capacity = s.Length;
+
+            itemIds = new string[capacity];
+            counts = new int[capacity];
+            ammo = new int[capacity];
+            durability = new int[capacity];
+
+            for (int i = 0; i < capacity; i++)
+            {
+                var e = s[i];
+                if (e == null)
+                {
+                    itemIds[i] = string.Empty;
+                    counts[i] = 0;
+                    ammo[i] = 0;
+                    durability[i] = 0;
+                }
+                else
+                {
+                    itemIds[i] = e.itemId ?? string.Empty;
+                    counts[i] = e.count;
+                    var st = e.itemState;
+                    ammo[i] = st != null ? st.ammo : 0;
+                    durability[i] = st != null ? st.durability : 0;
+                }
+            }
+        }
+
     }
 }

@@ -12,7 +12,7 @@ namespace Game
         // базовые операции контейнера
         bool CanPlayerAccess(PlayerRef player);
         bool CanAccept(int slotIndex, InventorySlotState incoming);
-        void SetSlot(int slotIndex, InventorySlotState state); // без валидации
+        void SetSlot(int slotIndex, InventorySlotState state);
         void IncrementVersion();
     }
 }

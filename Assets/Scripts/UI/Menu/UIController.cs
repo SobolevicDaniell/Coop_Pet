@@ -23,6 +23,7 @@ namespace Game.UI
         [SerializeField] private GameObject _dot;
         [SerializeField] private GameObject _healthBar;
         [SerializeField] private GameObject _drugIcon;
+        [SerializeField] private GameObject _background;
         [SerializeField] private GameObject _uiCamera;
         [SerializeField] private InputHandler _inputHandler;
         [SerializeField] private UiPhase _defaultPhase = UiPhase.Gameplay;
@@ -54,19 +55,20 @@ namespace Game.UI
             Debug.Log($"UI Phase changed-> {phase}");
 
             // var hud = phase == UiPhase.Gameplay || phase == UiPhase.Inventory || phase == UiPhase.OtherInventory|| phase == UiPhase.Death;
-            var showQuick = phase == UiPhase.Gameplay || phase == UiPhase.Inventory;
-            var showInv = phase == UiPhase.Inventory;
+            var showQuick = phase == UiPhase.Gameplay || phase == UiPhase.Inventory || phase == UiPhase.OtherInventory;
+            var showInv = phase == UiPhase.Inventory || phase == UiPhase.OtherInventory;
             var showOtherInv = phase == UiPhase.OtherInventory;
             var showDeath = phase == UiPhase.Death;
             var showPrompt = phase == UiPhase.Gameplay;
             var showDot = phase == UiPhase.Gameplay;
             var drugIcon = phase == UiPhase.Inventory || phase == UiPhase.OtherInventory;
-            var healthBar = phase == UiPhase.Gameplay || phase == UiPhase.Inventory;
+            var healthBar = phase == UiPhase.Gameplay || phase == UiPhase.Inventory || phase == UiPhase.OtherInventory;
             var uiCam = phase == UiPhase.Death || phase == UiPhase.Loading;
 
             // if (_gameHud != null) _gameHud.SetActive(hud);
             if (_quickSlotPanel != null) _quickSlotPanel.SetActive(showQuick);
             if (_inventoryPanel != null) _inventoryPanel.SetActive(showInv);
+            if (_background != null) _background.SetActive(showInv);
             if (_otherInventoryPanel != null) _otherInventoryPanel.SetActive(showOtherInv);
             if (_deathScreen != null) _deathScreen.SetActive(showDeath);
             if (_interactionPrompt != null) _interactionPrompt.SetActive(showPrompt);

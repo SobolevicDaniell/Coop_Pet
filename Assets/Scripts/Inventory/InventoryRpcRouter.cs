@@ -11,10 +11,13 @@ namespace Game
     {
         private static readonly Dictionary<PlayerRef, InventoryRpcRouter> _byPlayer = new();
 
-        // На сервере (StateAuthority)
+        [Inject] private InventoryContainerRegistry _registry;
+        [Inject] private InventoryViewService _views;
         [Inject(Optional = true)] private InventoryServerService _server;
         [Inject(Optional = true)] private InventorySessionServer _session;
         [Inject(Optional = true)] private InventorySnapshotBuilder _snapshots;
+        [Inject(Optional = true)] private InventoryClientFacade _clientFacade;
+
 
         // На клиенте
         [Inject(Optional = true)] private InventoryClientModel _clientModel;
@@ -25,31 +28,91 @@ namespace Game
 
         public override void Spawned()
         {
-            _byPlayer[Object.InputAuthority] = this;
+            var key = Object != null ? Object.InputAuthority : PlayerRef.None;
+            if (key != PlayerRef.None)
+                _byPlayer[key] = this;
+
+            if (Object != null && Object.HasInputAuthority)
+            {
+                if (_clientFacade != null)
+                    _clientFacade.SetLocal(Object.InputAuthority, this);
+
+
+                StartCoroutine(RetryFullResync());
+            }
+        }
+
+
+        public IEnumerator RetryFullResync()
+        {
+            while (Object == null || !Object.HasInputAuthority)
+                yield return null;
+
+            RPC_RequestFullResync();
+        }
+
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void RPC_RequestFullResync(RpcInfo info = default)
+        {
+            var viewer = info.Source;
+            if (viewer == PlayerRef.None) viewer = Object.InputAuthority;
+
+            var quick = new ContainerId { type = ContainerType.PlayerQuick, ownerRef = viewer, objectId = default };
+            var main = new ContainerId { type = ContainerType.PlayerMain, ownerRef = viewer, objectId = default };
+
+            if (_registry.TryGet(quick, out var cq) && cq != null)
+            {
+                _views.AddViewer(viewer, quick);
+                _views.SendSnapshotTo(viewer, new ContainerSnapshot
+                {
+                    id = quick,
+                    version = cq.Version,
+                    slots = CloneSlots(cq.Slots)
+                });
+            }
+
+            if (_registry.TryGet(main, out var cm) && cm != null)
+            {
+                _views.AddViewer(viewer, main);
+                _views.SendSnapshotTo(viewer, new ContainerSnapshot
+                {
+                    id = main,
+                    version = cm.Version,
+                    slots = CloneSlots(cm.Slots)
+                });
+            }
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
-            _byPlayer.Remove(Object.InputAuthority);
+            var key = Object != null ? Object.InputAuthority : PlayerRef.None;
+            if (key != PlayerRef.None)
+                _byPlayer.Remove(key);
         }
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        public void RPC_RequestOpenContainer(int type, PlayerRef owner, NetworkId objectId, RpcInfo info = default)
+        public void RPC_RequestOpenContainer(int type, PlayerRef ownerRef, NetworkId objectId, RpcInfo info = default)
         {
-            var viewer = info.Source != PlayerRef.None ? info.Source : Object.InputAuthority;
-            var id = DecodeId(type, owner, objectId);
-            id = NormalizeOwnedId(id, viewer);
+            var viewer = info.Source;
+            if (viewer == PlayerRef.None) viewer = Object.InputAuthority;
 
-            if (_server != null && _server.TryOpenContainer(viewer, id, out var snap, out var reason))
+            var id = NormalizeOwnedId(new ContainerId
             {
-                BuildSnapshotArrays(snap, out var capacity, out var itemIds, out var counts, out var ammo, out var durability);
-                var (t, o, n) = EncodeId(snap.id);
-                RPC_PushSnapshot(t, o, n, snap.version, capacity, itemIds, counts, ammo, durability);
-                RPC_ContainerReply(true, viewer);
-                return;
-            }
+                type = (ContainerType)type,
+                ownerRef = ownerRef,
+                objectId = objectId
+            }, viewer);
 
-            RPC_ContainerReply(false, viewer);
+            if (!_registry.TryGet(id, out var c) || c == null) return;
+            if (!c.CanPlayerAccess(viewer)) return;
+
+            _views.AddViewer(viewer, id);
+            _views.SendSnapshotTo(viewer, new ContainerSnapshot
+            {
+                id = id,
+                version = c.Version,
+                slots = CloneSlots(c.Slots)
+            });
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
@@ -59,24 +122,30 @@ namespace Game
             _lastOk = ok;
         }
 
-        public IEnumerator RetryOpenContainer(int type, PlayerRef owner, NetworkId objectId, int attempts = 30, float delay = 0.1f)
+        public IEnumerator RetryOpenContainer(int type, PlayerRef ownerRef, NetworkId objectId)
         {
-            _lastOk = false;
-            for (int i = 0; i < attempts; i++)
-            {
-                RPC_RequestOpenContainer(type, owner, objectId);
-                yield return new UnityEngine.WaitForSeconds(delay);
-                if (_lastOk) yield break;
-            }
+            while (Object == null || !Object.HasInputAuthority)
+                yield return null;
+
+            RPC_RequestOpenContainer(type, ownerRef, objectId);
         }
 
 
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        public void RPC_RequestCloseContainer(int type, PlayerRef owner, NetworkId objectId, RpcInfo info = default)
+        public void RPC_RequestCloseContainer(int type, PlayerRef ownerRef, NetworkId objectId, RpcInfo info = default)
         {
-            var id = DecodeId(type, owner, objectId);
-            _session?.Close(info.Source, id);
+            var viewer = info.Source;
+            if (viewer == PlayerRef.None) viewer = Object.InputAuthority;
+
+            var id = NormalizeOwnedId(new ContainerId
+            {
+                type = (ContainerType)type,
+                ownerRef = ownerRef,
+                objectId = objectId
+            }, viewer);
+
+            _views.RemoveViewer(viewer, id);
         }
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
@@ -101,10 +170,10 @@ namespace Game
                 return;
             }
 
+            RPC_OpAck(clientReqId, true, "ok");
+
             if (fromDelta != null) BroadcastDeltaFromServer(fromDelta);
             if (toDelta != null) BroadcastDeltaFromServer(toDelta);
-
-            RPC_OpAck(clientReqId, true, "ok");
 
             var rpc = GetComponent<PlayerRpcHandler>();
             if (rpc != null) rpc.ServerRefreshHandsFromSelectedQuick(actor);
@@ -114,45 +183,33 @@ namespace Game
         private ContainerId NormalizeOwnedId(ContainerId id, PlayerRef actor)
         {
             if (id.type == ContainerType.PlayerQuick || id.type == ContainerType.PlayerMain)
+            {
                 id.ownerRef = actor;
+                id.objectId = default;
+            }
             return id;
         }
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestPickup(string itemId, int amount, int ammo, int clientReqId, RpcInfo info = default)
         {
-            if (_server == null) return;
+            if (_server == null) { RPC_OpAck(clientReqId, false, "no_server"); return; }
 
             var actor = info.Source;
             if (actor == PlayerRef.None) actor = Object.InputAuthority;
 
-            var ok = _server.TryAddItemToPlayer(
-                actor, itemId, amount, ammo,
-                out var left,
-                out var deltas,
-                out var reason);
-
-            if (deltas != null)
-            {
-                foreach (var d in deltas)
-                    BroadcastDeltaFromServer(d);
-            }
+            var ok = _server.TryAddItemToPlayer(actor, itemId, amount, ammo, out var left, out var deltas, out var reason);
 
             var rpc = GetComponent<PlayerRpcHandler>();
             if (rpc != null) rpc.ServerRefreshHandsFromSelectedQuick(actor);
 
-            if (left > 0)
-            {
-                if (rpc != null) rpc.ServerDropOverflow(itemId, left, ammo);
-            }
+            if (left > 0 && rpc != null) rpc.ServerDropOverflow(itemId, left, ammo);
 
             RPC_OpAck(clientReqId, ok && left == 0, reason ?? ((ok && left == 0) ? "ok" : "not_enough_space"));
-
-
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
-        private void RPC_PushSnapshot(
+        public void RPC_PushSnapshot(
     int type, PlayerRef owner, NetworkId objectId, int version,
     int capacity, string[] itemIds, int[] counts, int[] ammo, int[] durability, RpcInfo info = default)
         {
@@ -174,25 +231,22 @@ namespace Game
             var snap = new ContainerSnapshot { id = id, version = version, slots = slots };
 
             if (_clientService != null) _clientService.ApplySnapshot(snap);
-
             if (_clientModel != null) _clientModel.ApplySnapshot(snap);
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
-        private void RPC_PushDelta(
+        public void RPC_PushDelta(
     int type, PlayerRef owner, NetworkId objectId,
     int fromVersion, int toVersion,
     int[] indices, string[] itemIds, int[] counts, int[] ammo, int[] durability, RpcInfo info = default)
         {
-            var id = DecodeId(type, owner, objectId);
-
+            var id = new ContainerId { type = (ContainerType)type, ownerRef = owner, objectId = objectId };
             int n = indices != null ? indices.Length : 0;
             var changes = new SlotChange[n];
 
             for (int k = 0; k < n; k++)
             {
                 int idx = indices[k];
-
                 string idStr = (itemIds != null && k < itemIds.Length) ? itemIds[k] : null;
                 int cnt = (counts != null && k < counts.Length) ? counts[k] : 0;
                 int amm = (ammo != null && k < ammo.Length) ? ammo[k] : 0;
@@ -213,10 +267,11 @@ namespace Game
                 changes = changes
             };
 
-            if (_clientService != null) _clientService.ApplyDelta(delta);
-
-            if (_clientModel != null) _clientModel.ApplyDelta(delta);
+            _clientService?.ApplyDelta(delta);
+            _clientModel?.ApplyDelta(delta);
         }
+
+
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
         private void RPC_OpAck(int clientReqId, bool ok, string message, RpcInfo info = default)
@@ -354,24 +409,22 @@ namespace Game
         {
             return new ContainerId { type = (ContainerType)type, ownerRef = owner, objectId = objectId };
         }
-        // Внутри InventoryRpcRouter
-        // InventoryRpcRouter.cs
         public void BroadcastDeltaFromServer(ContainerDelta delta)
         {
             if (delta == null) return;
 
-            // Подготовим массивы для RPC
             BuildDeltaArrays(delta,
                 out var indices, out var itemIds, out var counts, out var ammo, out var durability);
 
-            var (t, o, n) = EncodeId(delta.id);
+            var t = (int)delta.id.type;
+            var o = delta.id.ownerRef;
+            var n = delta.id.objectId;
 
-            // 1) Если серверный сервис заинжектился — используем список watcher'ов
             if (_server != null)
             {
                 foreach (var watcher in _server.Watchers(delta.id))
                 {
-                    if (_byPlayer.TryGetValue(watcher, out var router))
+                    if (_byPlayer.TryGetValue(watcher, out var router) && router != null)
                     {
                         router.RPC_PushDelta(
                             t, o, n,
@@ -380,13 +433,10 @@ namespace Game
                         );
                     }
                 }
-                return;
             }
 
-            // 2) Фолбэк: шлём хотя бы владельцу контейнера (ownerRef),
-            // даже если _server не заинжектился на этой стороне.
             var owner = delta.id.ownerRef;
-            if (_byPlayer.TryGetValue(owner, out var ownerRouter))
+            if (_byPlayer.TryGetValue(owner, out var ownerRouter) && ownerRouter != null)
             {
                 ownerRouter.RPC_PushDelta(
                     t, o, n,
@@ -395,6 +445,17 @@ namespace Game
                 );
             }
         }
+
+        private static InventorySlotState[] CloneSlots(InventorySlotState[] src)
+        {
+            if (src == null) return null;
+            var arr = new InventorySlotState[src.Length];
+            for (int i = 0; i < src.Length; i++)
+                arr[i] = src[i]?.Clone();
+            return arr;
+        }
+
+        
 
 
 

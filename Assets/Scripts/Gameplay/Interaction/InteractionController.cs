@@ -24,7 +24,7 @@ namespace Game
         [Inject] private HandItemBehaviorFactory _factory;
         [Inject] private ItemDatabaseSO _db;
         [Inject(Optional = true)] private UIHealthView _uiHealth;
-        [Inject] private UIController _uiController;
+        [Inject] private UIController _ui;
         [Inject(Id = "PlayerInventoryPanel")] private InventoryPanel _playerPanel;
         [Inject(Id = "OtherInventoryPanel")] private OtherInventoryPanel _otherPanel;
         [Inject(Optional = true)] private QuickSlotPanel _quickSlotPanel;
@@ -72,7 +72,7 @@ namespace Game
 
         public ItemDatabaseSO db => _db;
         public InventoryService inventory => _inventory;
-        public UIController uiController => _uiController;
+        public UIController uiController => _ui;
         public PlayerRpcHandler playerRpcHandler => _playerRpc;
         public HandItemController handItemController => _handItemController;
         public QuickSlotController quickSlot => _quickSlot;
@@ -108,7 +108,7 @@ namespace Game
             _handItemController?.Construct(_db, _playerRpc, this);
             _placeItem?.Construct(this);
             _itemEquip?.Initialize(_factory, _db, this);
-            _pickDrop?.Construct(this, _playerRpc, _inventory, _playerPanel, _otherPanel, _db, _uiController, _prompt, null);
+            _pickDrop?.Construct(this, _playerRpc, _inventory, _playerPanel, _otherPanel, _db, _ui, _prompt, null);
 
             if (Object.HasInputAuthority && _inventory != null)
                 _inventory.OnQuickSlotsChanged += OnQuickSlotsChanged;
@@ -169,7 +169,7 @@ namespace Game
             if (Runner != null && Runner.TryGetPlayerObject(Object.InputAuthority, out var po) && po != null)
                 poId = po.Id;
 
-            _inventoryFacade?.SetLocal(Object.InputAuthority, _router);
+            _inventoryFacade?.SetLocal(Object.InputAuthority, _router, poId);
 
             StartCoroutine(_router.RetryOpenContainer((int)ContainerType.PlayerQuick, Object.InputAuthority, poId));
             StartCoroutine(_router.RetryOpenContainer((int)ContainerType.PlayerMain, Object.InputAuthority, poId));
@@ -233,16 +233,16 @@ namespace Game
         private void ToggleInventory()
         {
             if (!Object.HasInputAuthority) return;
-            if (_uiController.Phase == UiPhase.Death || _uiController.Phase == UiPhase.Loading || _uiController.Phase == UiPhase.Hidden) return;
+            if (_ui.Phase == UiPhase.Death || _ui.Phase == UiPhase.Loading || _ui.Phase == UiPhase.Hidden) return;
 
-            if (_uiController.InventoryOpened)
+            if (_ui.InventoryOpened)
             {
-                _uiController.SetPhase(UiPhase.Gameplay);
+                _ui.SetPhase(UiPhase.Gameplay);
                 _pickDrop.CloseOpenedInventories();
             }
             else
             {
-                _uiController.SetPhase(UiPhase.Inventory);
+                _ui.SetPhase(UiPhase.Inventory);
                 _pickDrop.OpenPlayerInventory();
             }
         }
@@ -250,9 +250,9 @@ namespace Game
         private void CloseInventory()
         {
             if (!Object.HasInputAuthority) return;
-            if (_uiController.Phase == UiPhase.Death || _uiController.Phase == UiPhase.Loading || _uiController.Phase == UiPhase.Hidden) return;
+            if (_ui.Phase == UiPhase.Death || _ui.Phase == UiPhase.Loading || _ui.Phase == UiPhase.Hidden) return;
 
-            _uiController.SetPhase(UiPhase.Gameplay);
+            _ui.SetPhase(UiPhase.Gameplay);
             _pickDrop.CloseOpenedInventories();
         }
 
@@ -291,5 +291,42 @@ namespace Game
             if (!Object.HasStateAuthority) return;
             SelectedQuickIndexNet = idx;
         }
+        public bool TryOpenContainerAtCrosshair()
+        {
+            if (_inventoryFacade == null) return false;
+            var cam = camera;
+            if (cam == null) return false;
+            var origin = cam.transform.position;
+            var dir = cam.transform.forward;
+
+            if (!Physics.Raycast(origin, dir, out var hit, range, ~0, QueryTriggerInteraction.Collide)) return false;
+
+            var no = hit.collider.GetComponentInParent<NetworkObject>();
+            if (no == null) return false;
+
+            var corpse = no.GetComponent<CorpseInventoryServer>();
+            if (corpse != null)
+            {
+                var id = ContainerId.OfObject(ContainerType.Corpse, no.Id);
+                _inventoryFacade.Open(id);
+                _otherPanel.ShowRemote(id);
+                _ui?.SetPhase(Game.UI.UiPhase.OtherInventory);
+                return true;
+            }
+
+            var chest = no.GetComponent<ChestInventoryServer>();
+            if (chest != null)
+            {
+                var id = ContainerId.OfObject(ContainerType.Chest, no.Id);
+                _inventoryFacade.Open(id);
+                _otherPanel.ShowRemote(id);
+                _ui?.SetPhase(Game.UI.UiPhase.OtherInventory);
+                return true;
+            }
+
+            return false;
+        }
+
+
     }
 }

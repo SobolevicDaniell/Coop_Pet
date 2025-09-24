@@ -8,7 +8,6 @@ namespace Game
     {
         [Inject] private InputHandler _input;
         [Inject(Optional = true)] private InventoryClientFacade _inventoryFacade;
-        [Inject(Optional = true)] private ContainerViewSessionClient _view;
         [Inject(Optional = true)] private InventoryService _inventory;
 
         [SerializeField] private float _wheelCooldown = 0.12f;
@@ -23,10 +22,6 @@ namespace Game
         private float _nextWheelTime;
         private float _nextDropTime;
         private bool _isFiring;
-
-        private int _slotCount;
-        private bool _quickCountFixed;
-        private bool _subscribedQuickCount;
 
         public override void Spawned()
         {
@@ -56,7 +51,7 @@ namespace Game
 
             if (_inventoryFacade != null)
             {
-                _inventoryFacade.SetLocal(Object.InputAuthority, router);
+                _inventoryFacade.SetLocal(Object.InputAuthority, router, poId);
                 _inventoryFacade.OpenLocalQuick();
                 _inventoryFacade.OpenLocalMain();
             }
@@ -65,13 +60,6 @@ namespace Game
                 StartCoroutine(router.RetryOpenContainer((int)ContainerType.PlayerQuick, Object.InputAuthority, poId));
                 StartCoroutine(router.RetryOpenContainer((int)ContainerType.PlayerMain, Object.InputAuthority, poId));
             }
-        }
-
-        public override void Despawned(NetworkRunner runner, bool hasState)
-        {
-            if (_subscribedQuickCount && _view != null)
-                _view.OnContainerChanged -= OnContainerChanged_OnceForQuick;
-            _subscribedQuickCount = false;
         }
 
         private void OnEnable()
@@ -206,6 +194,7 @@ namespace Game
         private void OnInteract()
         {
             if (!HasInputAuthority) return;
+            if (_ic != null && _ic.TryOpenContainerAtCrosshair()) return;
             _pickDrop?.TryPickAtCrosshair();
         }
 
@@ -249,56 +238,6 @@ namespace Game
             }
 
             _pickDrop?.TryPlaceFromQuickSlot(pos, rot);
-        }
-
-        private void OnContainerChanged_OnceForQuick(ContainerId id)
-        {
-            if (_quickCountFixed || _inventoryFacade == null) return;
-            if (!id.Equals(_inventoryFacade.localQuick)) return;
-
-            var cap = _inventoryFacade.GetLocalQuickCapacity();
-            if (cap <= 0) return;
-
-            _slotCount = cap;
-            _quickCountFixed = true;
-
-            if (_subscribedQuickCount && _view != null)
-                _view.OnContainerChanged -= OnContainerChanged_OnceForQuick;
-
-            _subscribedQuickCount = false;
-        }
-
-        private void GetDropPoint(out Vector3 pos, out Vector3 fwd)
-        {
-            Transform t = null;
-            if (_ic != null)
-            {
-                var root = _ic.transform;
-                t = FindChildRecursive(root, "DropPoint");
-            }
-            if (t == null)
-            {
-                var cam = Camera.main != null ? Camera.main.transform : null;
-                if (cam != null) { pos = cam.position + cam.forward * 0.2f; fwd = cam.forward; return; }
-                var fallback = (_ic != null) ? _ic.transform : transform;
-                pos = fallback.position + fallback.forward * 0.5f + Vector3.up * 1.4f;
-                fwd = fallback.forward;
-                return;
-            }
-            pos = t.position;
-            fwd = t.forward;
-        }
-
-        private Transform FindChildRecursive(Transform root, string name)
-        {
-            if (root.name == name) return root;
-            for (int i = 0; i < root.childCount; i++)
-            {
-                var c = root.GetChild(i);
-                var r = FindChildRecursive(c, name);
-                if (r != null) return r;
-            }
-            return null;
         }
     }
 }

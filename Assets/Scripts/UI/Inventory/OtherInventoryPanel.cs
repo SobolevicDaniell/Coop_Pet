@@ -1,18 +1,34 @@
-using UnityEngine;
-using Zenject;
 using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+using TMPro;
+using Zenject;
 
 namespace Game.UI
 {
-    public class OtherInventoryPanel : MonoBehaviour, IInventoryPanelUI
+    public sealed class OtherInventoryPanel : MonoBehaviour, IInventoryPanelUI
     {
-        [SerializeField] private Transform _slotsParent;
+        [SerializeField] private RectTransform _contentRoot;
 
-        public PanelKind Kind => PanelKind.Chest;
-        private IInventory _inventory;
+        [Inject(Optional = true)] private InventoryClientFacade _facade;
+        [Inject(Optional = true)] private InventoryService _inv;
+
+
         private ItemDatabaseSO _database;
         private InventorySlotUI _slotPrefab;
-        private InventorySlotUI[] _slotsUI;
+
+        private ContainerId _currentId;
+        private int _lastVersion = -1;
+        private readonly List<InventorySlotUI> _slots = new();
+        private bool _subscribed;
+
+        public PanelKind Kind => PanelKind.Chest;
+        public ContainerId CurrentId => _currentId;
+
+
+
 
         public event Action<InventorySlotUI> OnSlotBeginDrag;
         public event Action<InventorySlotUI> OnSlotEndDrag;
@@ -26,76 +42,192 @@ namespace Game.UI
             _slotPrefab = slotPrefab;
         }
 
-        public void SetInventory(ChestInventory chestInventory, ItemDatabaseSO database)
+        private void OnEnable()
         {
-            if (_inventory != null)
-                _inventory.OnInventoryChanged -= Refresh;
-
-            _inventory = chestInventory;
-            _database = database;
-
-            CreateSlots(chestInventory.GetInventorySlots().Length);
-            _inventory.OnInventoryChanged += Refresh;
-            Refresh();
+            TrySubscribe();
         }
 
-        private void CreateSlots(int count)
+        private void OnDisable()
         {
-            foreach (Transform child in _slotsParent)
-                Destroy(child.gameObject);
+            TryUnsubscribe();
+            Clear();
+            _currentId = default;
+            _lastVersion = -1;
+        }
 
-            _slotsUI = new InventorySlotUI[count];
-            for (int i = 0; i < count; i++)
+        private void HandleBeginDrag(InventorySlotUI slot) { OnSlotBeginDrag?.Invoke(slot); }
+        private void HandleEndDrag(InventorySlotUI slot) { OnSlotEndDrag?.Invoke(slot); }
+        private void HandleSlotEnter(InventorySlotUI slot) { OnSlotEnter?.Invoke(slot); }
+        private void HandleSlotExit(InventorySlotUI slot) { OnSlotExit?.Invoke(slot); }
+
+
+        public void ShowRemote(ContainerId id)
+        {
+            _currentId = id;
+            _lastVersion = -1;
+
+            if (_facade != null)
+                _facade.Open(id);
+
+            EnsureCapacityPlaceholders();
+            RebuildNow();
+        }
+
+
+        public void HideRemote()
+        {
+            _currentId = default;
+            _lastVersion = -1;
+            Clear();
+        }
+
+        private void TrySubscribe()
+        {
+            if (_facade == null || _subscribed) return;
+            _facade.OnContainerChanged += OnFacadeContainerChanged;
+            _subscribed = true;
+        }
+
+        private void TryUnsubscribe()
+        {
+            if (_facade == null || !_subscribed) return;
+            _facade.OnContainerChanged -= OnFacadeContainerChanged;
+            _subscribed = false;
+        }
+
+        private void OnFacadeContainerChanged(ContainerId id)
+        {
+            if (!Matches(_currentId, id)) return;
+            RebuildNow();
+        }
+
+        private void EnsureCapacityPlaceholders()
+        {
+            if (_facade == null) return;
+            if (_currentId.Equals(default)) return;
+
+            int cap = _facade.GetCapacityImmediate(_currentId);
+            if (cap <= 0) return;
+
+            if (_slots.Count == cap) return;
+
+            Clear();
+
+            for (int i = 0; i < cap; i++)
             {
-                var slot = Instantiate(_slotPrefab, _slotsParent);
-                slot.Init(i, _inventory, this);
-                slot.SetActive(false);
-                SubscribeSlot(slot);
-                _slotsUI[i] = slot;
+                var slot = Instantiate(_slotPrefab, _contentRoot);
+                slot.gameObject.SetActive(true);
+                slot.Init(i, _inv, this);
+                slot.OnBeginDrag += HandleBeginDrag;
+                slot.OnEndDrag += HandleEndDrag;
+                slot.OnEnter += HandleSlotEnter;
+                slot.OnExit += HandleSlotExit;
+                _slots.Add(slot);
             }
         }
 
-        private void SubscribeSlot(InventorySlotUI slot)
+        private void RebuildNow()
         {
-            slot.OnBeginDrag += slotUI => OnSlotBeginDrag?.Invoke(slotUI);
-            slot.OnEndDrag += slotUI => OnSlotEndDrag?.Invoke(slotUI);
-            slot.OnEnter += slotUI => OnSlotEnter?.Invoke(slotUI);
-            slot.OnExit += slotUI => OnSlotExit?.Invoke(slotUI);
+            if (_facade == null) return;
+            if (_currentId.Equals(default)) return;
+
+            if (!_facade.TryGetSnapshotResolved(_currentId, out var resolvedId, out var version, out var slots))
+                return;
+
+            if (!resolvedId.Equals(_currentId))
+                _currentId = resolvedId;
+
+            if (version == _lastVersion && slots != null && _slots.Count == slots.Length)
+            {
+                for (int i = 0; i < slots.Length; i++)
+                {
+                    var sid = InventorySlotStateAccessor.ReadId(slots[i]);
+                    var cnt = InventorySlotStateAccessor.ReadCount(slots[i]);
+                    var st = InventorySlotStateAccessor.ReadState(slots[i]); // добавить эту строку
+
+                    ItemSO item = null;
+                    if (!string.IsNullOrEmpty(sid) && _database != null)
+                        item = _database.Get(sid);
+
+                    _slots[i].Set(item, cnt, st); // передаём st вместо null
+                }
+
+                return;
+            }
+
+            _lastVersion = version;
+
+            int need = slots != null ? slots.Length : 0;
+            if (need <= 0)
+            {
+                EnsureCapacityPlaceholders();
+                return;
+            }
+
+            if (_slots.Count != need)
+            {
+                Clear();
+                for (int i = 0; i < need; i++)
+                {
+                    var slot = Instantiate(_slotPrefab, _contentRoot);
+                    slot.gameObject.SetActive(true);
+                    slot.Init(i, _inv, this);
+                    slot.OnBeginDrag += HandleBeginDrag;
+                    slot.OnEndDrag += HandleEndDrag;
+                    slot.OnEnter += HandleSlotEnter;
+                    slot.OnExit += HandleSlotExit;
+                    _slots.Add(slot);
+                }
+            }
+            for (int i = 0; i < need; i++)
+            {
+                var sid = InventorySlotStateAccessor.ReadId(slots[i]);
+                var cnt = InventorySlotStateAccessor.ReadCount(slots[i]);
+                var st = InventorySlotStateAccessor.ReadState(slots[i]); // добавить
+
+                ItemSO item = null;
+                if (!string.IsNullOrEmpty(sid) && _database != null)
+                    item = _database.Get(sid);
+
+                _slots[i].Set(item, cnt, st); // передаём st
+            }
+
+        }
+
+        private bool Matches(ContainerId a, ContainerId b)
+        {
+            if (a.type != b.type) return false;
+
+            bool eq = a.Equals(b);
+            bool objMatch = !Equals(a.objectId, default(Fusion.NetworkId)) && Equals(a.objectId, b.objectId);
+            bool ownerMatch = !Equals(a.ownerRef, default(Fusion.PlayerRef)) && Equals(a.ownerRef, b.ownerRef);
+
+            return eq || objMatch || ownerMatch;
+        }
+
+        private void Clear()
+        {
+            for (int i = 0; i < _slots.Count; i++)
+            {
+                var s = _slots[i];
+                if (s == null) continue;
+                s.OnBeginDrag -= HandleBeginDrag;
+                s.OnEndDrag -= HandleEndDrag;
+                s.OnEnter -= HandleSlotEnter;
+                s.OnExit -= HandleSlotExit;
+                if (s.gameObject != null) Destroy(s.gameObject);
+            }
+            _slots.Clear();
         }
 
         public void RefreshPanel()
         {
-            if (_inventory != null)
-                Refresh();
+            RebuildNow();
         }
-
-
-        private void Refresh()
-        {
-            if (_inventory == null || _slotsUI == null) return;
-
-            var slots = _inventory.GetInventorySlots();
-            for (int i = 0; i < _slotsUI.Length; i++)
-            {
-                var slotUI = _slotsUI[i];
-                var slotData = slots[i];
-                var item = slotData.Id != null ? _database.Get(slotData.Id) : null;
-                slotUI.Set(item, slotData.Count);
-            }
-        }
-
 
         public void ClearInventory()
         {
-            if (_inventory != null)
-                _inventory.OnInventoryChanged -= Refresh;
-
-            _inventory = null;
-
-            if (_slotsUI == null) return;
-
-            foreach (var slotUI in _slotsUI)
-                slotUI.Set(null, 0);
+            Clear();
         }
     }
 }

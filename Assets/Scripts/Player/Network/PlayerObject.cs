@@ -24,6 +24,7 @@ namespace Game
             if (player == PlayerRef.None) return;
 
             _spawner.RespawnPlayer(Runner, player);
+            
         }
 
 
@@ -39,5 +40,8 @@ namespace Game
             if (_ui != null) _ui.SetPhase(UiPhase.Gameplay);
             Debug.Log("RPC_ShowGameplay");
         }
+
+
+
     }
 }

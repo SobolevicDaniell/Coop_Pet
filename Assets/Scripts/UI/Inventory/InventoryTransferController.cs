@@ -13,6 +13,8 @@ namespace Game.UI
         [SerializeField] private Image _dragIcon;
         [SerializeField] private Canvas _canvas;
 
+
+
         private InventoryPanel _playerPanel;
         private QuickSlotPanel _quickPanel;
         private OtherInventoryPanel _otherPanel;
@@ -31,8 +33,12 @@ namespace Game.UI
         private InventorySlotUI _hoverSlot;
         private IInventoryPanelUI _hoverPanel;
 
+
+
         private bool _subscribed;
-        private int _uiLayer = -1;
+
+        [SerializeField] private LayerMask _slotsLayers;
+
 
         public void Initialize(InventoryService inv,
                        InventoryPanel playerPanel,
@@ -60,7 +66,7 @@ namespace Game.UI
                 _dragIcon.raycastTarget = false;
             }
 
-            _uiLayer = LayerMask.NameToLayer("UI");
+            
         }
 
         private Game.InteractionController FindLocalInteractionController()
@@ -173,7 +179,6 @@ namespace Game.UI
             }
         }
 
-        // Scripts/UI/Inventory/InventoryTransferController.cs
         void OnEndDrag(InventorySlotUI _)
         {
             if (_dragIcon != null) _dragIcon.enabled = false;
@@ -182,7 +187,9 @@ namespace Game.UI
             if (_hoverSlot == null || _hoverPanel == null)
                 TryPickSlotUnderPointer(out _hoverSlot, out _hoverPanel);
 
-            if (!IsPointerOverUILayer())
+            var overSlot = _hoverSlot != null && _hoverPanel != null;
+
+            if (!overSlot)
             {
                 TryWorldDropFromSource();
                 ResetDrag();
@@ -190,20 +197,42 @@ namespace Game.UI
             }
 
             EnsureFacadeReady();
-            if (_facade == null ||
-                _facade.localQuick.ownerRef == PlayerRef.None ||
-                _facade.localMain.ownerRef == PlayerRef.None)
-            { ResetDrag(); return; }
-
-            if (_hoverSlot == null || _hoverPanel == null) { ResetDrag(); return; }
+            if (_facade == null)
+            {
+                ResetDrag();
+                return;
+            }
 
             ContainerId fromId, toId;
-            if (_srcPanel.Kind == PanelKind.Quick) fromId = _facade.localQuick;
-            else if (_srcPanel.Kind == PanelKind.Player) fromId = _facade.localMain;
+
+            if (_srcPanel.Kind == PanelKind.Quick)
+            {
+                if (!TryResolveLocal(ContainerType.PlayerQuick, out fromId)) { ResetDrag(); return; }
+            }
+            else if (_srcPanel.Kind == PanelKind.Player)
+            {
+                if (!TryResolveLocal(ContainerType.PlayerMain, out fromId)) { ResetDrag(); return; }
+            }
+            else if (_srcPanel.Kind == PanelKind.Chest)
+            {
+                if (_otherPanel == null || _otherPanel.CurrentId.Equals(default)) { ResetDrag(); return; }
+                fromId = _otherPanel.CurrentId;
+            }
             else { ResetDrag(); return; }
 
-            if (_hoverPanel.Kind == PanelKind.Quick) toId = _facade.localQuick;
-            else if (_hoverPanel.Kind == PanelKind.Player) toId = _facade.localMain;
+            if (_hoverPanel.Kind == PanelKind.Quick)
+            {
+                if (!TryResolveLocal(ContainerType.PlayerQuick, out toId)) { ResetDrag(); return; }
+            }
+            else if (_hoverPanel.Kind == PanelKind.Player)
+            {
+                if (!TryResolveLocal(ContainerType.PlayerMain, out toId)) { ResetDrag(); return; }
+            }
+            else if (_hoverPanel.Kind == PanelKind.Chest)
+            {
+                if (_otherPanel == null || _otherPanel.CurrentId.Equals(default)) { ResetDrag(); return; }
+                toId = _otherPanel.CurrentId;
+            }
             else { ResetDrag(); return; }
 
             int fromIdx = _srcSlot.SlotIndex;
@@ -211,7 +240,6 @@ namespace Game.UI
 
             if (!IsIndexValid(_srcPanel.Kind, fromIdx) || !IsIndexValid(_hoverPanel.Kind, toIdx))
             {
-                Debug.LogWarning($"[DnD] invalid index: from {fromId.type}:{fromIdx}, to {toId.type}:{toIdx}. caps quick={GetQuickLen()}, main={GetMainLen()}");
                 ResetDrag();
                 return;
             }
@@ -222,19 +250,28 @@ namespace Game.UI
             if (_srcPanel.Kind == PanelKind.Quick)
             {
                 var qs = _inv.GetQuickSlots();
-                amount = Mathf.Max(1, (qs != null && fromIdx < qs.Length && qs[fromIdx] != null) ? qs[fromIdx].Count : 1);
+                amount = Mathf.Max(1, (qs != null && fromIdx >= 0 && fromIdx < qs.Length && qs[fromIdx] != null) ? qs[fromIdx].Count : 1);
+            }
+            else if (_srcPanel.Kind == PanelKind.Player)
+            {
+                var inv = _inv.GetInventorySlots();
+                amount = Mathf.Max(1, (inv != null && fromIdx >= 0 && fromIdx < inv.Length && inv[fromIdx] != null) ? inv[fromIdx].Count : 1);
             }
             else
             {
-                var inv = _inv.GetInventorySlots();
-                amount = Mathf.Max(1, (inv != null && fromIdx < inv.Length && inv[fromIdx] != null) ? inv[fromIdx].Count : 1);
+                amount = 1;
+                if (_otherPanel != null && !_otherPanel.CurrentId.Equals(default))
+                {
+                    if (_facade.TryGetSnapshotResolved(_otherPanel.CurrentId, out var _, out var _, out var chestSlots) &&
+                        chestSlots != null && fromIdx >= 0 && fromIdx < chestSlots.Length && chestSlots[fromIdx] != null)
+                    {
+                        var cnt = chestSlots[fromIdx].count;
+                        amount = Mathf.Max(1, cnt);
+                    }
+                }
             }
 
-            _facade.Transfer(fromId, fromIdx, toId, toIdx, amount, (ok, msg) =>
-            {
-                Debug.Log($"[DnD] transfer ack: ok={ok}, msg={msg}, from={fromId.type}:{fromIdx} -> to={toId.type}:{toIdx}, amount={amount}");
-            });
-
+            _facade.Transfer(fromId, fromIdx, toId, toIdx, amount, (ok, msg) => { });
             ResetDrag();
         }
 
@@ -249,59 +286,73 @@ namespace Game.UI
 
         void TryWorldDropFromSource()
         {
-            if (_ic == null || _rpc == null || _inv == null) return;
+            if (_ic == null || _rpc == null) return;
 
             int localIdx = _srcSlot.SlotIndex;
 
-            Game.InventorySlot slotRef = null;
             if (_srcPanel.Kind == PanelKind.Quick)
             {
+                if (_inv == null) return;
                 var qs = _inv.GetQuickSlots();
-                if (qs != null && localIdx >= 0 && localIdx < qs.Length)
-                    slotRef = qs[localIdx];
-            }
-            else if (_srcPanel.Kind == PanelKind.Player)
-            {
-                var inv = _inv.GetInventorySlots();
-                if (inv != null && localIdx >= 0 && localIdx < inv.Length)
-                    slotRef = inv[localIdx];
-            }
+                if (qs == null || localIdx < 0 || localIdx >= qs.Length) return;
+                var slotRef = qs[localIdx];
+                if (slotRef == null || string.IsNullOrEmpty(slotRef.Id) || slotRef.Count <= 0) return;
 
-            if (slotRef == null || string.IsNullOrEmpty(slotRef.Id) || slotRef.Count <= 0)
+                GetDropPoint(out var pos, out var fwd);
+                _rpc.RPC_RequestDrop(pos, fwd, localIdx, slotRef.Count);
                 return;
+            }
 
-            int quickCap = GetQuickLen();
-            int fromG = (_srcPanel.Kind == PanelKind.Quick) ? localIdx : quickCap + localIdx;
+            if (_srcPanel.Kind == PanelKind.Player)
+            {
+                if (_inv == null) return;
+                var inv = _inv.GetInventorySlots();
+                if (inv == null || localIdx < 0 || localIdx >= inv.Length) return;
+                var slotRef = inv[localIdx];
+                if (slotRef == null || string.IsNullOrEmpty(slotRef.Id) || slotRef.Count <= 0) return;
 
-            GetDropPoint(out var pos, out var fwd);
+                GetDropPoint(out var pos, out var fwd);
+                int quickCap = GetQuickLen();
+                _rpc.RPC_RequestDrop(pos, fwd, quickCap + localIdx, slotRef.Count);
+                return;
+            }
 
-            _rpc.RPC_RequestDrop(pos, fwd, fromG, slotRef.Count);
+            if (_srcPanel.Kind == PanelKind.Chest)
+            {
+                EnsureFacadeReady();
+                if (_facade == null || _otherPanel == null) return;
+
+                var probe = _otherPanel.CurrentId;
+                if (probe.Equals(default)) return;
+
+                if (!_facade.TryGetSnapshotResolved(probe, out var resolvedId, out var version, out var slots)) return;
+                if (slots == null || localIdx < 0 || localIdx >= slots.Length) return;
+
+                var s = slots[localIdx];
+                if (s == null) return;
+
+                var idStr = InventorySlotStateAccessor.ReadId(s);
+                if (string.IsNullOrEmpty(idStr)) return;
+
+                int amount = Mathf.Max(1, InventorySlotStateAccessor.ReadCount(s));
+
+                GetDropPoint(out var pos, out var fwd);
+                _rpc.RPC_RequestDropFromContainer(pos, fwd, localIdx, amount, (byte)resolvedId.type, resolvedId.ownerRef, resolvedId.objectId);
+                return;
+            }
         }
 
         private void GetDropPoint(out Vector3 pos, out Vector3 fwd)
         {
-            pos = Vector3.zero; fwd = Vector3.forward;
-            if (_ic == null) return;
-
-            var t = _ic.dropPoint != null ? _ic.dropPoint : null;
-            if (t != null)
+            if (_ic != null)
             {
-                pos = t.position;
-                fwd = t.forward.sqrMagnitude > 0f ? t.forward.normalized : _ic.transform.forward;
+                pos = _ic.GetDropPointPosition();
+                fwd = _ic.transform.forward;
             }
             else
             {
-                var cam = _ic.camera != null ? _ic.camera.transform : null;
-                if (cam != null)
-                {
-                    pos = cam.position + cam.forward * 0.2f;
-                    fwd = cam.forward;
-                }
-                else
-                {
-                    pos = _ic.transform.position + _ic.transform.forward * 0.5f + Vector3.up * 1.4f;
-                    fwd = _ic.transform.forward;
-                }
+                pos = Vector3.zero;
+                fwd = Vector3.forward;
             }
         }
 
@@ -382,6 +433,7 @@ namespace Game.UI
 
 
         private static readonly List<RaycastResult> _rayResults = new List<RaycastResult>(16);
+
         private bool TryPickSlotUnderPointer(out InventorySlotUI slot, out IInventoryPanelUI panel)
         {
             slot = null; panel = null;
@@ -393,48 +445,43 @@ namespace Game.UI
             _rayResults.Clear();
             es.RaycastAll(ev, _rayResults);
 
+            bool maskConfigured = _slotsLayers.value != 0;
+
             for (int i = 0; i < _rayResults.Count; i++)
             {
-                var go = _rayResults[i].gameObject;
+                var rr = _rayResults[i];
+                if (!(rr.module is GraphicRaycaster)) continue;
+
+                var go = rr.gameObject;
                 if (!go) continue;
 
-                slot = go.GetComponentInParent<InventorySlotUI>();
-                if (slot != null)
+                var s = go.GetComponentInParent<InventorySlotUI>();
+                if (s == null) continue;
+
+                if (maskConfigured)
                 {
-                    panel = slot.ParentPanel ?? go.GetComponentInParent<IInventoryPanelUI>();
-                    return true;
+                    if (!AnyParentMatches(go.transform, _slotsLayers) && !AnyParentMatches(s.transform, _slotsLayers))
+                        continue;
                 }
+
+                slot = s;
+                panel = s.ParentPanel ?? go.GetComponentInParent<IInventoryPanelUI>();
+                return true;
             }
+
             return false;
         }
 
-        bool IsPointerOverUILayer()
+        private static bool AnyParentMatches(Transform t, LayerMask mask)
         {
-            var es = EventSystem.current;
-            if (es == null) return false;
-
-            var ev = new PointerEventData(es) { position = Input.mousePosition };
-            _rayResults.Clear();
-            es.RaycastAll(ev, _rayResults);
-
-            if (_rayResults.Count == 0) return false;
-
-            if (_uiLayer >= 0)
+            while (t != null)
             {
-                for (int i = 0; i < _rayResults.Count; i++)
-                {
-                    var rr = _rayResults[i];
-                    var go = rr.gameObject;
-                    if (go == null) continue;
-                    if (go.layer == _uiLayer) return true;
-                    if (rr.module is GraphicRaycaster) return true;
-                }
-                return false;
+                if ((mask.value & (1 << t.gameObject.layer)) != 0)
+                    return true;
+                t = t.parent;
             }
-
-            return true; // нет выделенного слоя — достаточно любого хита по UI
+            return false;
         }
-
 
         private void EnsureFacadeReady()
         {
@@ -444,32 +491,57 @@ namespace Game.UI
                 _facade.localQuick.ownerRef == PlayerRef.None ||
                 _facade.localMain.ownerRef == PlayerRef.None;
 
-            if (needBind)
+            if (!needBind) return;
+
+            InventoryRpcRouter router = null;
+
+            if (_ic != null)
             {
-                InventoryRpcRouter router = null;
-
-                if (_ic != null)
+                router = _ic.GetComponent<InventoryRpcRouter>();
+                if (router == null) router = _ic.GetComponentInParent<InventoryRpcRouter>();
+                if (router == null && _ic.Object != null)
                 {
-                    router = _ic.GetComponent<InventoryRpcRouter>();
-                    if (router == null) router = _ic.GetComponentInParent<InventoryRpcRouter>();
-
-                    if (router == null && _ic.Runner != null && _ic.Object != null)
-                    {
-                        if (_ic.Runner.TryGetPlayerObject(_ic.Object.InputAuthority, out var po) && po != null)
-                            router = po.GetComponentInChildren<InventoryRpcRouter>(true);
-                    }
+                    if (router == null && _ic.Runner != null && _ic.Runner.TryGetPlayerObject(_ic.Object.InputAuthority, out var po) && po != null)
+                        router = po.GetComponentInChildren<InventoryRpcRouter>(true);
                 }
-
-                if (router == null)
-                {
-                    var all = FindObjectsOfType<InventoryRpcRouter>(true);
-                    for (int i = 0; i < all.Length && router == null; i++)
-                        if (all[i].Object != null && all[i].Object.HasInputAuthority) router = all[i];
-                }
-
-                if (router != null && _ic != null && _ic.Object != null)
-                    _facade.SetLocal(_ic.Object.InputAuthority, router);
             }
+
+            if (router == null)
+            {
+                var all = FindObjectsOfType<InventoryRpcRouter>(true);
+                for (int i = 0; i < all.Length && router == null; i++)
+                    if (all[i].Object != null && all[i].Object.HasInputAuthority) router = all[i];
+            }
+
+            if (router != null && _ic != null && _ic.Object != null)
+            {
+                var poId = default(NetworkId);
+                if (router.Runner != null && router.Runner.TryGetPlayerObject(_ic.Object.InputAuthority, out var po) && po != null)
+                    poId = po.Id;
+
+                _facade.SetLocal(_ic.Object.InputAuthority, router, poId);
+            }
+        }
+
+        private bool TryResolveLocal(ContainerType type, out ContainerId id)
+        {
+            var owner = PlayerRef.None;
+            if (_facade != null)
+            {
+                if (type == ContainerType.PlayerQuick) owner = _facade.localQuick.ownerRef;
+                else if (type == ContainerType.PlayerMain) owner = _facade.localMain.ownerRef;
+            }
+            if (owner == PlayerRef.None && _ic != null && _ic.Object != null)
+                owner = _ic.Object.InputAuthority;
+
+            if (owner == PlayerRef.None)
+            {
+                id = default;
+                return false;
+            }
+
+            id = new ContainerId { type = type, ownerRef = owner, objectId = default };
+            return true;
         }
 
         private int GetQuickLen()
@@ -498,13 +570,24 @@ namespace Game.UI
             return _stats != null ? Mathf.Max(0, _stats.inventorySlotsCount) : 0;
         }
 
+        private int GetOtherLen()
+        {
+            if (_otherPanel == null) return 0;
+            var id = _otherPanel.CurrentId;
+            if (id.Equals(default)) return 0;
+            return _facade != null ? _facade.GetCapacityImmediate(id) : 0;
+        }
+
+
 
         private bool IsIndexValid(PanelKind kind, int idx)
         {
             if (idx < 0) return false;
             if (kind == PanelKind.Quick) return idx < GetQuickLen();
             if (kind == PanelKind.Player) return idx < GetMainLen();
+            if (kind == PanelKind.Chest) return idx < GetOtherLen();
             return false;
         }
+
     }
 }

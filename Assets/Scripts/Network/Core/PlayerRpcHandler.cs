@@ -11,7 +11,6 @@ namespace Game
     [RequireComponent(typeof(NetworkObject))]
     public sealed class PlayerRpcHandler : NetworkBehaviour
     {
-        // [SerializeField] private NetworkObject defaultBulletPrefab;
 
         private InteractionController _ic;
         private ItemDatabaseSO _db;
@@ -25,10 +24,16 @@ namespace Game
         public override void Spawned()
         {
             _invRouter = ResolveServerRouter();
+
             if (Object.HasStateAuthority)
             {
                 var ic = GetComponent<InteractionController>();
                 ic?.ServerSetSelectedQuickIndex(-1);
+            }
+
+            if (Object.HasInputAuthority && _invRouter != null)
+            {
+                StartCoroutine(_invRouter.RetryFullResync());
             }
         }
 
@@ -812,20 +817,21 @@ namespace Game
             else
                 ic.handItemController?.EquipItemServer(itemId);
         }
+
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
         public void RPC_RefreshSelectedQuick(RpcInfo info = default)
         {
             var actor = info.Source;
             if (actor == PlayerRef.None) actor = Object.InputAuthority;
             if (actor != Object.InputAuthority) return;
-        
+
             var ic = GetComponent<InteractionController>();
             if (ic == null || _invServer == null) return;
-        
+
             int selected = ic.SelectedQuickIndexNet;
-        
+
             string itemId = null;
-        
+
             if (selected >= 0 && _invServer.TryResolveGlobalIndex(actor, selected, out var container, out int slotIndex))
             {
                 var slots = container.Slots;
@@ -835,13 +841,13 @@ namespace Game
                     itemId = InventorySlotStateAccessor.ReadId(s);
                 }
             }
-        
+
             if (string.IsNullOrEmpty(itemId))
                 ic.handItemController?.UnEquipItemServer();
             else
                 ic.handItemController?.EquipItemServer(itemId);
         }
-        
+
 
         public bool TryGetPlayerContainers(PlayerRef player, out PlayerInventoryServer quick, out PlayerInventoryServer main)
         {
@@ -934,6 +940,75 @@ namespace Game
             if (spawned != null && spawned.TryGetComponent<Rigidbody>(out var rb))
             {
                 float force = _ic != null ? _ic.ThrowForce : 5f;
+                rb.AddForce(dir * force, ForceMode.VelocityChange);
+            }
+        }
+
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
+        public void RPC_RequestDropFromContainer(Vector3 pos, Vector3 fwd, int slotIndex, int count, byte type, PlayerRef ownerRef, NetworkId objectId, RpcInfo info = default)
+        {
+            var actor = info.Source;
+            if (actor == PlayerRef.None) actor = Object.InputAuthority;
+            if (actor != Object.InputAuthority) return;
+
+            if (!Object.HasStateAuthority || Runner == null || _invServer == null || _db == null) return;
+
+            var ic = _ic ??= GetComponent<InteractionController>();
+            if (ic == null) return;
+
+            var cid = new ContainerId { type = (ContainerType)type, ownerRef = ownerRef, objectId = objectId };
+
+            IInventoryContainer container = null;
+            if (!_invServer.TryResolveContainerAny(cid, out container)) return;
+            if (!container.CanPlayerAccess(actor)) return;
+
+            var slots = container.Slots;
+            if (slots == null || slotIndex < 0 || slotIndex >= slots.Length) return;
+
+            var slot = slots[slotIndex];
+            var itemId = InventorySlotStateAccessor.ReadId(slot);
+            if (string.IsNullOrEmpty(itemId)) return;
+
+            var st = InventorySlotStateAccessor.ReadState(slot);
+            int ammo = st?.ammo ?? 0;
+
+            int currentCount = Mathf.Max(1, InventorySlotStateAccessor.ReadCount(slot));
+            int dropCount = Mathf.Clamp(count > 0 ? count : currentCount, 1, currentCount);
+
+            if (!_invServer.TryRemove(actor, cid, slotIndex, dropCount, out var deltas)) return;
+
+            var router = ResolveServerRouter();
+            if (router != null && deltas != null)
+            {
+                for (int i = 0; i < deltas.Count; i++)
+                    router.BroadcastDeltaFromServer(deltas[i]);
+            }
+
+            var so = _db.Get(itemId);
+            if (so == null) return;
+
+            if (!TryGetNetworkPrefab(so, out var pickablePrefab,
+                "PickableNetwork", "PickupNetwork", "WorldDrop", "WorldPrefab",
+                "PickablePrefab", "PickupPrefab", "WorldPickable", "Prefab"))
+                return;
+
+            var dir = fwd.sqrMagnitude > 0f ? fwd.normalized : Vector3.forward;
+            var rot = Quaternion.LookRotation(dir);
+
+            var spawned = Runner.Spawn(
+                pickablePrefab, pos, rot, PlayerRef.None,
+                onBeforeSpawned: (runner, netObj) =>
+                {
+                    var pick = netObj.GetComponentInChildren<PickableItem>(true);
+                    if (pick != null)
+                        pick.ServerInit(itemId, dropCount, ammo);
+                    else
+                        TryInitWorldItemDeep(netObj.gameObject, itemId, dropCount, ammo);
+                });
+
+            if (spawned != null && spawned.TryGetComponent<Rigidbody>(out var rb))
+            {
+                float force = ic != null ? ic.ThrowForce : 5f;
                 rb.AddForce(dir * force, ForceMode.VelocityChange);
             }
         }

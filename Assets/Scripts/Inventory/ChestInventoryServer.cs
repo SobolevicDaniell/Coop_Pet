@@ -14,18 +14,21 @@ namespace Game
 
         [Inject(Optional = true)] private InventoryContainerRegistry _registry;
 
+        [Networked] public int SlotsCapacity { get; private set; }
+
         public ContainerId Id { get; private set; }
         public int Version => _version;
-        public int Capacity => _slots.Length;
+        public int Capacity => _size;
         public InventorySlotState[] Slots => _slots;
 
         public override void Spawned()
         {
             if (!Object.HasStateAuthority) return;
-
-            _slots = new InventorySlotState[_size];
+            if (_size < 0) _size = 0;
+            if (_slots == null || _slots.Length != _size) _slots = new InventorySlotState[_size];
             Id = ContainerId.OfObject(ContainerType.Chest, Object.Id);
-
+            _version = 0;
+            SlotsCapacity = _size;
             _registry?.Register(this);
         }
 
@@ -35,9 +38,8 @@ namespace Game
             _registry?.Unregister(Id);
         }
 
-        public bool CanPlayerAccess(PlayerRef player) => true; // TODO: дистанция/замки
+        public bool CanPlayerAccess(PlayerRef player) => true;
         public bool CanAccept(int slotIndex, InventorySlotState incoming) => true;
-
         public void SetSlot(int slotIndex, InventorySlotState state) => _slots[slotIndex] = state;
         public void IncrementVersion() => _version++;
     }

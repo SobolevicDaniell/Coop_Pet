@@ -94,6 +94,8 @@ namespace Game.Network
                 .WithId("InventorySlotPrefab")
                 .FromInstance(_slotPrefab)
                 .AsSingle();
+                
+            Container.Bind<InventoryViewService>().AsSingle().NonLazy();
 
             // Container.Bind<Startup>()
             //     .FromComponentInHierarchy()

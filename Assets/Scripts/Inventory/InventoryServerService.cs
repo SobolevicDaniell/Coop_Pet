@@ -11,6 +11,8 @@ namespace Game
     {
         private readonly ItemDatabaseSO _db;
 
+        [Inject] private InventoryViewService _views;
+
         [Inject(Optional = true)] private InventorySnapshotBuilder _snapshots;
         [Inject(Optional = true)] private NetworkRunner _runner;
         [Inject(Optional = true)] private NetworkRunnerProvider _runnerProvider;
@@ -64,192 +66,128 @@ namespace Game
         {
             if (_watchers.TryGetValue(id, out var set) && set != null && set.Count > 0)
                 return set;
-            return new[] { id.ownerRef };
+            return System.Array.Empty<PlayerRef>();
         }
 
         public bool TryTransfer(
-    PlayerRef actor,
-    ContainerId fromId, int fromIdx,
-    ContainerId toId,   int toIdx,
-    int amount,
-    out ContainerDelta fromDelta, out ContainerDelta toDelta, out bool swapped,
-    out string reason)
-{
-    reason = null; swapped = false; fromDelta = null; toDelta = null;
+     PlayerRef actor,
+     ContainerId fromId, int fromIdx,
+     ContainerId toId, int toIdx,
+     int amount,
+     out ContainerDelta fromDelta, out ContainerDelta toDelta, out bool swapped, out string reason)
+        {
+            fromDelta = null;
+            toDelta = null;
+            swapped = false;
+            reason = "unknown";
 
-    // 👇 страховка: даже если пришёл owner=None, поправим на сервере
-    if ((fromId.type == ContainerType.PlayerQuick || fromId.type == ContainerType.PlayerMain) && fromId.ownerRef == PlayerRef.None)
-        fromId.ownerRef = actor;
-    if ((toId.type == ContainerType.PlayerQuick || toId.type == ContainerType.PlayerMain) && toId.ownerRef == PlayerRef.None)
-        toId.ownerRef = actor;
+            if (!_registry.TryGet(fromId, out var from) || from == null) { reason = "from_not_found"; return false; }
+            if (!_registry.TryGet(toId, out var to) || to == null) { reason = "to_not_found"; return false; }
 
-    if (!TryResolveContainer(fromId, out var from))
-    { reason = "no_from_container"; return false; }
+            if (!from.CanPlayerAccess(actor) || !to.CanPlayerAccess(actor)) { reason = "no_access"; return false; }
+            if (fromIdx < 0 || fromIdx >= from.Capacity || toIdx < 0 || toIdx >= to.Capacity) { reason = "bad_index"; return false; }
 
-    if (!TryResolveContainer(toId, out var to))
-    { reason = "no_to_container"; return false; }
+            var sFrom = from.Slots[fromIdx]?.Clone();
+            var sTo = to.Slots[toIdx]?.Clone();
 
-    // дальше — как было...
+            var fromIdStr = InventorySlotStateAccessor.ReadId(sFrom);
+            var fromCnt = InventorySlotStateAccessor.ReadCount(sFrom);
+            if (string.IsNullOrEmpty(fromIdStr) || fromCnt <= 0) { reason = "empty"; return false; }
 
+            int move = Mathf.Clamp(amount <= 0 ? 1 : amount, 1, fromCnt);
 
-            bool HasAccess(IInventoryContainer c)
+            var toIdStr = InventorySlotStateAccessor.ReadId(sTo);
+            var toCnt = InventorySlotStateAccessor.ReadCount(sTo);
+
+            InventorySlotState newFrom;
+            InventorySlotState newTo;
+
+            if (string.IsNullOrEmpty(toIdStr))
             {
-                // Владелец своих контейнеров всегда имеет доступ
-                if ((c.Id.type == ContainerType.PlayerQuick || c.Id.type == ContainerType.PlayerMain) &&
-                    c.Id.ownerRef == actor)
-                    return true;
-
-                // Для прочих — штатная проверка (сундуки/чужие)
-                return c.CanPlayerAccess(actor);
-            }
-
-            if (!HasAccess(from))
-            {
-                reason = "no_access_from";
-                return false;
-            }
-            if (!HasAccess(to))
-            {
-                reason = "no_access_to";
-                return false;
-            }
-
-            var fSlots = from.Slots;
-            var tSlots = to.Slots;
-            if (fSlots == null || tSlots == null) { reason = "null_slots"; return false; }
-            if (fromIdx < 0 || fromIdx >= fSlots.Length) { reason = "from_index_oob"; return false; }
-            if (toIdx   < 0 || toIdx   >= tSlots.Length)  { reason = "to_index_oob";   return false; }
-
-            var src = fSlots[fromIdx];
-            var dst = tSlots[toIdx];
-
-            var srcId = InventorySlotStateAccessor.ReadId(src);
-            var dstId = InventorySlotStateAccessor.ReadId(dst);
-            var srcCnt = InventorySlotStateAccessor.ReadCount(src);
-            var dstCnt = InventorySlotStateAccessor.ReadCount(dst);
-
-            if (string.IsNullOrEmpty(srcId) || srcCnt <= 0)
-            {
-                reason = "empty_src";
-                return false;
-            }
-
-            int move = Mathf.Clamp(amount <= 0 ? srcCnt : amount, 1, srcCnt);
-
-            // Цель занята
-            if (!string.IsNullOrEmpty(dstId) && dstCnt > 0)
-            {
-                // Стек к такому же
-                if (dstId == srcId)
+                newFrom = sFrom?.Clone() ?? new InventorySlotState();
+                InventorySlotStateAccessor.WriteCount(newFrom, fromCnt - move);
+                if (InventorySlotStateAccessor.ReadCount(newFrom) <= 0)
                 {
-                    var so = _db != null ? _db.Get(srcId) : null;
-                    int maxStack = Mathf.Max(1, so != null ? so.MaxStack : 999);
-
-                    int free = Mathf.Max(0, maxStack - dstCnt);
-                    if (free <= 0) { reason = "stack_full"; return false; }
-
-                    int put = Mathf.Min(move, free);
-                    if (put <= 0) { reason = "nothing_to_put"; return false; }
-
-                    var newDst = dst?.Clone() ?? new InventorySlotState();
-                    InventorySlotStateAccessor.WriteId(newDst, dstId);
-                    InventorySlotStateAccessor.WriteCount(newDst, dstCnt + put);
-                    if (InventorySlotStateAccessor.ReadState(newDst) == null)
-                        InventorySlotStateAccessor.WriteState(newDst, InventorySlotStateAccessor.ReadState(src)?.Clone());
-
-                    var newSrc = src?.Clone() ?? new InventorySlotState();
-                    InventorySlotStateAccessor.WriteCount(newSrc, srcCnt - put);
-                    if (InventorySlotStateAccessor.ReadCount(newSrc) <= 0)
-                    {
-                        InventorySlotStateAccessor.WriteId(newSrc, null);
-                        InventorySlotStateAccessor.WriteState(newSrc, null);
-                    }
-
-                    int fBefore = from.Version;
-                    int tBefore = to.Version;
-
-                    to.SetSlot(toIdx, newDst);   to.IncrementVersion();
-                    from.SetSlot(fromIdx, newSrc); from.IncrementVersion();
-
-                    fromDelta = new ContainerDelta
-                    {
-                        id = from.Id, fromVersion = fBefore, toVersion = from.Version,
-                        changes = new[] { new SlotChange { index = fromIdx, state = newSrc?.Clone() } }
-                    };
-                    toDelta = new ContainerDelta
-                    {
-                        id = to.Id, fromVersion = tBefore, toVersion = to.Version,
-                        changes = new[] { new SlotChange { index = toIdx, state = newDst?.Clone() } }
-                    };
-                    reason = "ok";
-                    return true;
+                    InventorySlotStateAccessor.WriteId(newFrom, null);
+                    InventorySlotStateAccessor.WriteState(newFrom, null);
                 }
 
-                // Свап с другим — только если переносим всё
-                if (move < srcCnt) { reason = "partial_swap_blocked"; return false; }
-                if (!to.CanAccept(toIdx, src))   { reason = "to_cannot_accept_src";   return false; }
-                if (!from.CanAccept(fromIdx, dst)) { reason = "from_cannot_accept_dst"; return false; }
-
-                int fBeforeSwap = from.Version;
-                int tBeforeSwap = to.Version;
-
-                var srcCopy = src?.Clone();
-                var dstCopy = dst?.Clone();
-
-                to.SetSlot(toIdx, srcCopy);     to.IncrementVersion();
-                from.SetSlot(fromIdx, dstCopy); from.IncrementVersion();
-
-                swapped = true;
-                fromDelta = new ContainerDelta
-                {
-                    id = from.Id, fromVersion = fBeforeSwap, toVersion = from.Version,
-                    changes = new[] { new SlotChange { index = fromIdx, state = dstCopy?.Clone() } }
-                };
-                toDelta = new ContainerDelta
-                {
-                    id = to.Id, fromVersion = tBeforeSwap, toVersion = to.Version,
-                    changes = new[] { new SlotChange { index = toIdx, state = srcCopy?.Clone() } }
-                };
-                reason = "ok";
-                return true;
+                newTo = sTo?.Clone() ?? new InventorySlotState();
+                InventorySlotStateAccessor.WriteId(newTo, fromIdStr);
+                InventorySlotStateAccessor.WriteCount(newTo, move);
+                InventorySlotStateAccessor.WriteState(newTo, InventorySlotStateAccessor.ReadState(sFrom)?.Clone());
             }
-
-            // Цель пустая
-            if (!to.CanAccept(toIdx, src)) { reason = "to_cannot_accept_src"; return false; }
-
-            var moved = src?.Clone();  InventorySlotStateAccessor.WriteCount(moved, move);
-            var left  = src?.Clone();  InventorySlotStateAccessor.WriteCount(left,  srcCnt - move);
-            if (InventorySlotStateAccessor.ReadCount(left) <= 0)
+            else if (toIdStr == fromIdStr)
             {
-                InventorySlotStateAccessor.WriteId(left, null);
-                InventorySlotStateAccessor.WriteState(left, null);
+                newFrom = sFrom?.Clone() ?? new InventorySlotState();
+                InventorySlotStateAccessor.WriteCount(newFrom, fromCnt - move);
+                if (InventorySlotStateAccessor.ReadCount(newFrom) <= 0)
+                {
+                    InventorySlotStateAccessor.WriteId(newFrom, null);
+                    InventorySlotStateAccessor.WriteState(newFrom, null);
+                }
+
+                newTo = sTo?.Clone() ?? new InventorySlotState();
+                InventorySlotStateAccessor.WriteCount(newTo, toCnt + move);
+            }
+            else
+            {
+                if (move != fromCnt) { reason = "partial_swap_not_supported"; return false; }
+
+                if (!from.CanAccept(fromIdx, sTo) || !to.CanAccept(toIdx, sFrom)) { reason = "cannot_accept"; return false; }
+
+                newFrom = sTo?.Clone();
+                newTo = sFrom?.Clone();
+                swapped = true;
             }
 
-            int fBefore2 = from.Version;
-            int tBefore2 = to.Version;
+            int prevFromVer = from.Version;
+            int prevToVer = to.Version;
 
-            to.SetSlot(toIdx, moved);   to.IncrementVersion();
-            from.SetSlot(fromIdx, left); from.IncrementVersion();
+            from.SetSlot(fromIdx, newFrom);
+            from.IncrementVersion();
+
+            to.SetSlot(toIdx, newTo);
+            to.IncrementVersion();
 
             fromDelta = new ContainerDelta
             {
-                id = from.Id, fromVersion = fBefore2, toVersion = from.Version,
-                changes = new[] { new SlotChange { index = fromIdx, state = left?.Clone() } }
+                id = fromId,
+                fromVersion = prevFromVer,
+                toVersion = from.Version,
+                changes = new[] { new SlotChange { index = fromIdx, state = newFrom?.Clone() } }
             };
+
             toDelta = new ContainerDelta
             {
-                id = to.Id, fromVersion = tBefore2, toVersion = to.Version,
-                changes = new[] { new SlotChange { index = toIdx, state = moved?.Clone() } }
+                id = toId,
+                fromVersion = prevToVer,
+                toVersion = to.Version,
+                changes = new[] { new SlotChange { index = toIdx, state = newTo?.Clone() } }
             };
+
+            if (_views != null)
+            {
+                if (fromDelta.changes != null && fromDelta.changes.Length > 0)
+                    _views.BroadcastDelta(fromDelta.id, fromDelta.fromVersion, fromDelta.toVersion, fromDelta.changes);
+                if (toDelta.changes != null && toDelta.changes.Length > 0)
+                    _views.BroadcastDelta(toDelta.id, toDelta.fromVersion, toDelta.toVersion, toDelta.changes);
+            }
+
             reason = "ok";
             return true;
         }
 
 
+        private static InventorySlotState[] CloneSlots(InventorySlotState[] src)
+        {
+            if (src == null) return null;
+            var arr = new InventorySlotState[src.Length];
+            for (int i = 0; i < src.Length; i++)
+                arr[i] = src[i]?.Clone();
+            return arr;
+        }
 
-        // ─────────────────────────────────────────────────────────────────────────────
-        // PICKUP: server-authoritative, возвращает список дельт
-        // ─────────────────────────────────────────────────────────────────────────────
 
         public bool TryAddItemToPlayer(
     PlayerRef player,
@@ -300,6 +238,7 @@ namespace Game
 
             if (list.Count > 0) deltas = list;
             if (left > 0) reason = "Not enough space";
+
             return true;
         }
 
@@ -734,7 +673,7 @@ namespace Game
             return quick != null && main != null;
         }
 
-        private bool TryResolveContainer(ContainerId id, out PlayerInventoryServer container)
+        public bool TryResolveContainer(ContainerId id, out PlayerInventoryServer container)
         {
             container = null;
 
@@ -757,7 +696,7 @@ namespace Game
 
             return false;
         }
-    
+
 
         private NetworkRunner ResolveRunner()
         {
@@ -931,7 +870,7 @@ namespace Game
         {
             deltas = null;
 
-            if (!TryResolveContainer(containerId, out var container)) return false;
+            if (!TryResolveContainerAny(containerId, out var container)) return false;
             if (!container.CanPlayerAccess(player)) return false;
 
             var slots = container.Slots;
@@ -965,9 +904,100 @@ namespace Game
             };
 
             deltas = new List<ContainerDelta>(1) { delta };
+
+            if (_views != null && delta.changes != null && delta.changes.Length > 0)
+                _views.BroadcastDelta(delta.id, delta.fromVersion, delta.toVersion, delta.changes);
+
             return true;
         }
 
+        public bool ServerClearPlayerContainers(PlayerRef player, out List<ContainerDelta> deltas)
+        {
+            deltas = null;
+            if (!TryGetPlayerContainers(player, out var quick, out var main)) return false;
+
+            var list = new List<ContainerDelta>(2);
+
+            void Clear(PlayerInventoryServer c)
+            {
+                if (c == null) return;
+                var before = c.Version;
+                var changes = new List<SlotChange>(c.Capacity);
+                var slots = c.Slots;
+                if (slots == null) return;
+
+                for (int i = 0; i < slots.Length; i++)
+                {
+                    var s = slots[i];
+                    var id = InventorySlotStateAccessor.ReadId(s);
+                    var cnt = InventorySlotStateAccessor.ReadCount(s);
+                    if (!string.IsNullOrEmpty(id) && cnt > 0)
+                    {
+                        var ns = s?.Clone() ?? new InventorySlotState();
+                        InventorySlotStateAccessor.WriteId(ns, null);
+                        InventorySlotStateAccessor.WriteCount(ns, 0);
+                        InventorySlotStateAccessor.WriteState(ns, null);
+
+                        c.SetSlot(i, ns);
+                        c.IncrementVersion();
+                        changes.Add(new SlotChange { index = i, state = ns.Clone() });
+                    }
+                }
+
+                if (changes.Count > 0)
+                {
+                    list.Add(new ContainerDelta
+                    {
+                        id = c.Id,
+                        fromVersion = before,
+                        toVersion = c.Version,
+                        changes = changes.ToArray()
+                    });
+                }
+            }
+
+            Clear(quick);
+            Clear(main);
+
+            deltas = list;
+            return true;
+        }
+
+        public bool TryResolveContainerAny(ContainerId id, out IInventoryContainer container)
+        {
+            container = null;
+
+            if (_registry != null && _registry.TryGet(id, out var c) && c != null)
+            {
+                container = c;
+                return true;
+            }
+
+            if ((id.type == ContainerType.PlayerQuick || id.type == ContainerType.PlayerMain) && id.ownerRef != PlayerRef.None)
+            {
+                if (TryGetPlayerContainers(id.ownerRef, out var quick, out var main))
+                {
+                    container = id.type == ContainerType.PlayerQuick ? quick : main;
+                    if (container != null) return true;
+                }
+            }
+
+            if (!id.objectId.Equals(default))
+            {
+                var runner = ResolveRunner();
+                if (runner != null)
+                {
+                    var no = runner.FindObject(id.objectId);
+                    if (no != null)
+                    {
+                        container = no.GetComponent<IInventoryContainer>() ?? no.GetComponentInChildren<IInventoryContainer>(true);
+                        if (container != null) return true;
+                    }
+                }
+            }
+
+            return false;
+        }
 
     }
 }
