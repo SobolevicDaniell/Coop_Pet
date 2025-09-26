@@ -16,6 +16,8 @@ namespace Game
         [SerializeField] private float _airDrag = 0.5f;
         [SerializeField] private float _jumpImpulse = 8f;
         [SerializeField] private float _gravity = -20f;
+        [Networked] private float _netYaw { get; set; }
+
 
         private float _yaw;
         private float _pitch;
@@ -25,25 +27,31 @@ namespace Game
         public override void Spawned()
         {
             if (_ncc == null) _ncc = GetComponent<NetworkCharacterController>();
-            _yaw = transform.eulerAngles.y;
+            _netYaw = transform.eulerAngles.y;
+            _yaw = _netYaw;
         }
+
 
         private void Simulate(InputData input, float dt)
         {
-            _yaw += input.mouseX;
-            _yaw = Mathf.Repeat(_yaw, 360f);
+            _netYaw = Mathf.Repeat(_netYaw + input.mouseX, 360f);
+            _yaw = _netYaw;
             var rotY = Quaternion.Euler(0f, _yaw, 0f);
 
-            var dirLocal = new Vector3(input.movement.x, 0f, input.movement.y);
-            if (dirLocal.sqrMagnitude > 1f) dirLocal.Normalize();
-            var desiredPlanar = rotY * dirLocal * _moveSpeed;
+            var moveX = Mathf.Clamp(input.movement.x, -1f, 1f);
+            var moveY = Mathf.Clamp(input.movement.y, -1f, 1f);
+            var basisRight = rotY * Vector3.right;
+            var basisForward = rotY * Vector3.forward;
+            var desiredPlanar = (basisRight * moveX + basisForward * moveY);
+            if (desiredPlanar.sqrMagnitude > 1f) desiredPlanar.Normalize();
+            desiredPlanar *= _moveSpeed;
 
             bool grounded = _ncc.Grounded;
 
             if (grounded)
             {
                 _planarVelocity = Vector3.MoveTowards(_planarVelocity, desiredPlanar, _groundAcceleration * dt);
-                if (dirLocal.sqrMagnitude < 0.0001f)
+                if (moveX * moveX + moveY * moveY < 1e-4f)
                     _planarVelocity = Vector3.MoveTowards(_planarVelocity, Vector3.zero, _groundFriction * dt);
                 if (input.jump)
                     _verticalVelocity = _jumpImpulse;
@@ -59,7 +67,6 @@ namespace Game
             var delta = (_planarVelocity + Vector3.up * _verticalVelocity) * dt;
             _ncc.MoveRaw(delta, rotY);
 
-
             if (_ncc.Grounded && _verticalVelocity < 0f)
                 _verticalVelocity = -2f;
 
@@ -74,5 +81,6 @@ namespace Game
             if (GetInput(out InputData input))
                 Simulate(input, Runner.DeltaTime);
         }
+
     }
 }

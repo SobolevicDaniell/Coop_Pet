@@ -19,20 +19,20 @@ namespace Game
         public int Capacity => _slots != null ? _slots.Length : 0;
         public InventorySlotState[] Slots => _slots;
 
-        // private bool _pendingEmptyCheck;
         private int _nonEmptyCount;
-
 
         public override void Spawned()
         {
-            if (!Object.HasStateAuthority) return;
-            if (_slots == null) _slots = System.Array.Empty<InventorySlotState>();
             Id = ContainerId.OfObject(ContainerType.Corpse, Object.Id);
-            _version = 0;
-            _nonEmptyCount = 0;
-            for (int i = 0; i < _slots.Length; i++) if (IsNonEmpty(_slots[i])) _nonEmptyCount++;
-            SlotsCapacity = Capacity;
-            _registry?.Register(this);
+            if (Object.HasStateAuthority)
+            {
+                if (_slots == null) _slots = System.Array.Empty<InventorySlotState>();
+                _version = 0;
+                _nonEmptyCount = 0;
+                for (int i = 0; i < _slots.Length; i++) if (IsNonEmpty(_slots[i])) _nonEmptyCount++;
+                SlotsCapacity = Capacity;
+                _registry?.Register(this);
+            }
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)
@@ -50,7 +50,6 @@ namespace Game
             _nonEmptyCount = 0;
             SlotsCapacity = size;
         }
-        
 
         private static bool IsNonEmpty(InventorySlotState s)
         {
@@ -66,20 +65,6 @@ namespace Game
             if (Runner == null) return;
             if (_nonEmptyCount <= 0) Runner.Despawn(Object);
         }
-
-        // public override void FixedUpdateNetwork()
-        // {
-        //     if (!Object.HasStateAuthority) return;
-        //     if (!_pendingEmptyCheck) return;
-        //     _pendingEmptyCheck = false;
-        //     if (IsEmpty()) Runner.Despawn(Object);
-        // }
-
-        // public void RequestEmptyCheck()
-        // {
-        //     if (!Object.HasStateAuthority) return;
-        //     _pendingEmptyCheck = true;
-        // }
 
         private bool IsEmpty()
         {
@@ -98,6 +83,7 @@ namespace Game
 
         public bool CanPlayerAccess(PlayerRef player) => true;
         public bool CanAccept(int slotIndex, InventorySlotState incoming) => true;
+
         public void SetSlot(int slotIndex, InventorySlotState state)
         {
             var prev = _slots[slotIndex];
@@ -108,10 +94,10 @@ namespace Game
             else if (!was && now) _nonEmptyCount++;
             TryDespawnWhenEmpty();
         }
+
         public void IncrementVersion()
         {
             _version++;
-            // if (Object.HasStateAuthority) _pendingEmptyCheck = true;
         }
 
         public void ServerInitFromPlayer(PlayerRef owner)
@@ -252,6 +238,5 @@ namespace Game
                 dst.Add(s.Clone());
             }
         }
-
     }
 }

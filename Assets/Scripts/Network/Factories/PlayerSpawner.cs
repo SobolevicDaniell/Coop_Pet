@@ -16,6 +16,10 @@ namespace Game.Network
         [Inject] private InventoryViewService _views;
         [Inject] private InventoryContainerRegistry _registry;
 
+        [Networked] public int SlotsCapacity { get; private set; }
+        [Networked] public Vector3 SpawnPos { get; private set; }
+        [Networked] public Quaternion SpawnRot { get; private set; }
+
 
         private readonly Dictionary<PlayerRef, NetworkObject> _avatars = new();
         private readonly Dictionary<PlayerRef, NetworkObject> _playerObjects = new();
@@ -102,6 +106,7 @@ namespace Game.Network
 
         public NetworkObject SpawnDeathBox(NetworkRunner runner, PlayerRef owner, Vector3 position, Quaternion rotation)
         {
+            if (!runner.IsServer) return null;
             NetworkObject spawned = null;
             runner.Spawn(
                 _deathBoxPrefab.GetComponent<NetworkObject>(),
@@ -111,8 +116,12 @@ namespace Game.Network
                 (r, obj) =>
                 {
                     _container.InjectGameObject(obj.gameObject);
+                    obj.transform.SetPositionAndRotation(position, rotation);
                     var marker = obj.GetComponent<DeathMarker>();
                     if (marker != null) marker.Initialize(owner);
+                    var spatial = obj.GetComponent<CorpseSpatial>();
+                    if (spatial != null) spatial.ServerSetSpawnPose(position, rotation);
+                    var corpse = obj.GetComponent<CorpseInventoryServer>();
                     spawned = obj;
                 });
             return spawned;
