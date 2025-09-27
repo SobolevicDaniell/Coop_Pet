@@ -337,11 +337,12 @@ namespace Game.UI
                 int amount = Mathf.Max(1, InventorySlotStateAccessor.ReadCount(s));
 
                 GetDropPoint(out var pos, out var fwd);
-                _rpc.RPC_RequestDropFromContainer(pos, fwd, localIdx, amount, (byte)resolvedId.type, resolvedId.ownerRef, resolvedId.objectId);
+                _facade.RequestDropFromContainer(pos, fwd, (int)resolvedId.type, localIdx, 0, resolvedId.ownerRef, resolvedId.objectId);
                 return;
             }
-        }
 
+        }
+        
         private void GetDropPoint(out Vector3 pos, out Vector3 fwd)
         {
             if (_ic != null)

@@ -944,8 +944,8 @@ namespace Game
             }
         }
 
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
-        public void RPC_RequestDropFromContainer(Vector3 pos, Vector3 fwd, int slotIndex, int count, byte type, PlayerRef ownerRef, NetworkId objectId, RpcInfo info = default)
+        [Rpc(RpcSources.InputAuthority | RpcSources.StateAuthority, RpcTargets.StateAuthority)]
+        public void RPC_RequestDropFromContainer(Vector3 pos, Vector3 dir, int type, int slotIndex, byte flags, PlayerRef ownerRef, NetworkId objectId, RpcInfo info = default)
         {
             var actor = info.Source;
             if (actor == PlayerRef.None) actor = Object.InputAuthority;
@@ -973,7 +973,12 @@ namespace Game
             int ammo = st?.ammo ?? 0;
 
             int currentCount = Mathf.Max(1, InventorySlotStateAccessor.ReadCount(slot));
-            int dropCount = Mathf.Clamp(count > 0 ? count : currentCount, 1, currentCount);
+
+            const byte DROP_ONE = 1 << 0;
+            const byte DROP_HALF = 1 << 1;
+            int dropCount = currentCount;
+            if ((flags & DROP_ONE) != 0) dropCount = 1;
+            else if ((flags & DROP_HALF) != 0) dropCount = Mathf.Max(1, currentCount / 2);
 
             if (!_invServer.TryRemove(actor, cid, slotIndex, dropCount, out var deltas)) return;
 
@@ -992,8 +997,8 @@ namespace Game
                 "PickablePrefab", "PickupPrefab", "WorldPickable", "Prefab"))
                 return;
 
-            var dir = fwd.sqrMagnitude > 0f ? fwd.normalized : Vector3.forward;
-            var rot = Quaternion.LookRotation(dir);
+            var forward = dir.sqrMagnitude > 0f ? dir.normalized : Vector3.forward;
+            var rot = Quaternion.LookRotation(forward);
 
             var spawned = Runner.Spawn(
                 pickablePrefab, pos, rot, PlayerRef.None,
@@ -1009,7 +1014,7 @@ namespace Game
             if (spawned != null && spawned.TryGetComponent<Rigidbody>(out var rb))
             {
                 float force = ic != null ? ic.ThrowForce : 5f;
-                rb.AddForce(dir * force, ForceMode.VelocityChange);
+                rb.AddForce(forward * force, ForceMode.VelocityChange);
             }
         }
 

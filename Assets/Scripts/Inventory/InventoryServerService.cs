@@ -70,11 +70,11 @@ namespace Game
         }
 
         public bool TryTransfer(
-     PlayerRef actor,
-     ContainerId fromId, int fromIdx,
-     ContainerId toId, int toIdx,
-     int amount,
-     out ContainerDelta fromDelta, out ContainerDelta toDelta, out bool swapped, out string reason)
+    PlayerRef actor,
+    ContainerId fromId, int fromIdx,
+    ContainerId toId, int toIdx,
+    int amount,
+    out ContainerDelta fromDelta, out ContainerDelta toDelta, out bool swapped, out string reason)
         {
             fromDelta = null;
             toDelta = null;
@@ -86,58 +86,89 @@ namespace Game
 
             if (!from.CanPlayerAccess(actor) || !to.CanPlayerAccess(actor)) { reason = "no_access"; return false; }
             if (fromIdx < 0 || fromIdx >= from.Capacity || toIdx < 0 || toIdx >= to.Capacity) { reason = "bad_index"; return false; }
+            if (fromId.Equals(toId) && fromIdx == toIdx) { reason = "same_slot"; return false; }
 
-            var sFrom = from.Slots[fromIdx]?.Clone();
-            var sTo = to.Slots[toIdx]?.Clone();
+            var sFromSrc = from.Slots[fromIdx];
+            var sToSrc = to.Slots[toIdx];
 
-            var fromIdStr = InventorySlotStateAccessor.ReadId(sFrom);
-            var fromCnt = InventorySlotStateAccessor.ReadCount(sFrom);
-            if (string.IsNullOrEmpty(fromIdStr) || fromCnt <= 0) { reason = "empty"; return false; }
+            var fromItemId = InventorySlotStateAccessor.ReadId(sFromSrc);
+            int fromCnt = Mathf.Max(0, InventorySlotStateAccessor.ReadCount(sFromSrc));
+            if (string.IsNullOrEmpty(fromItemId) || fromCnt <= 0) { reason = "empty"; return false; }
 
-            int move = Mathf.Clamp(amount <= 0 ? 1 : amount, 1, fromCnt);
+            int moveReq = Mathf.Clamp(amount <= 0 ? fromCnt : amount, 1, fromCnt);
 
-            var toIdStr = InventorySlotStateAccessor.ReadId(sTo);
-            var toCnt = InventorySlotStateAccessor.ReadCount(sTo);
+            var toItemId = InventorySlotStateAccessor.ReadId(sToSrc);
+            int toCnt = Mathf.Max(0, InventorySlotStateAccessor.ReadCount(sToSrc));
+            bool toEmpty = string.IsNullOrEmpty(toItemId) || toCnt <= 0;
 
-            InventorySlotState newFrom;
-            InventorySlotState newTo;
-
-            if (string.IsNullOrEmpty(toIdStr))
+            int MaxStackOf(string id)
             {
-                newFrom = sFrom?.Clone() ?? new InventorySlotState();
-                InventorySlotStateAccessor.WriteCount(newFrom, fromCnt - move);
-                if (InventorySlotStateAccessor.ReadCount(newFrom) <= 0)
-                {
-                    InventorySlotStateAccessor.WriteId(newFrom, null);
-                    InventorySlotStateAccessor.WriteState(newFrom, null);
-                }
-
-                newTo = sTo?.Clone() ?? new InventorySlotState();
-                InventorySlotStateAccessor.WriteId(newTo, fromIdStr);
-                InventorySlotStateAccessor.WriteCount(newTo, move);
-                InventorySlotStateAccessor.WriteState(newTo, InventorySlotStateAccessor.ReadState(sFrom)?.Clone());
+                var so = _db != null ? _db.Get(id) as ItemSO : null;
+                return Mathf.Max(1, so != null ? so.MaxStack : 1);
             }
-            else if (toIdStr == fromIdStr)
+
+            InventorySlotState newFrom = sFromSrc?.Clone() ?? new InventorySlotState();
+            InventorySlotState newTo = sToSrc?.Clone() ?? new InventorySlotState();
+
+            if (toEmpty)
             {
-                newFrom = sFrom?.Clone() ?? new InventorySlotState();
-                InventorySlotStateAccessor.WriteCount(newFrom, fromCnt - move);
+                if (!to.CanAccept(toIdx, sFromSrc)) { reason = "cannot_accept"; return false; }
+
+                int cap = MaxStackOf(fromItemId);
+                int moved = Mathf.Min(moveReq, cap);
+
+                InventorySlotStateAccessor.WriteCount(newFrom, fromCnt - moved);
                 if (InventorySlotStateAccessor.ReadCount(newFrom) <= 0)
                 {
                     InventorySlotStateAccessor.WriteId(newFrom, null);
                     InventorySlotStateAccessor.WriteState(newFrom, null);
                 }
 
-                newTo = sTo?.Clone() ?? new InventorySlotState();
-                InventorySlotStateAccessor.WriteCount(newTo, toCnt + move);
+                InventorySlotStateAccessor.WriteId(newTo, fromItemId);
+                InventorySlotStateAccessor.WriteCount(newTo, moved);
+                InventorySlotStateAccessor.WriteState(newTo, InventorySlotStateAccessor.ReadState(sFromSrc)?.Clone());
+            }
+            else if (toItemId == fromItemId)
+            {
+                int cap = MaxStackOf(fromItemId);
+                int space = Mathf.Max(0, cap - toCnt);
+
+                if (cap <= 1 || space <= 0)
+                {
+                    if (moveReq != fromCnt) { reason = "partial_swap_not_supported"; return false; }
+                    if (!from.CanAccept(fromIdx, sToSrc) || !to.CanAccept(toIdx, sFromSrc)) { reason = "cannot_accept"; return false; }
+
+                    var tmpFrom = sToSrc?.Clone();
+                    var tmpTo = sFromSrc?.Clone();
+
+                    newFrom = tmpFrom ?? new InventorySlotState();
+                    newTo = tmpTo ?? new InventorySlotState();
+                    swapped = true;
+                }
+                else
+                {
+                    int moved = Mathf.Min(moveReq, space);
+
+                    InventorySlotStateAccessor.WriteCount(newFrom, fromCnt - moved);
+                    if (InventorySlotStateAccessor.ReadCount(newFrom) <= 0)
+                    {
+                        InventorySlotStateAccessor.WriteId(newFrom, null);
+                        InventorySlotStateAccessor.WriteState(newFrom, null);
+                    }
+
+                    InventorySlotStateAccessor.WriteCount(newTo, toCnt + moved);
+                }
             }
             else
             {
-                if (move != fromCnt) { reason = "partial_swap_not_supported"; return false; }
+                if (moveReq != fromCnt) { reason = "partial_swap_not_supported"; return false; }
+                if (!from.CanAccept(fromIdx, sToSrc) || !to.CanAccept(toIdx, sFromSrc)) { reason = "cannot_accept"; return false; }
 
-                if (!from.CanAccept(fromIdx, sTo) || !to.CanAccept(toIdx, sFrom)) { reason = "cannot_accept"; return false; }
+                var tmpFrom = sToSrc?.Clone();
+                var tmpTo = sFromSrc?.Clone();
 
-                newFrom = sTo?.Clone();
-                newTo = sFrom?.Clone();
+                newFrom = tmpFrom ?? new InventorySlotState();
+                newTo = tmpTo ?? new InventorySlotState();
                 swapped = true;
             }
 

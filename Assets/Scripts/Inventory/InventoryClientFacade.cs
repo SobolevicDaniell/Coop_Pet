@@ -13,8 +13,9 @@ namespace Game
         public event Action<ContainerId> OnContainerChanged;
 
         private PlayerRef _local;
-        private InventoryRpcRouter _router;
+        private InventoryRpcRouter _localRouter;
         private NetworkId _localPlayerObjectId;
+        private PlayerRpcHandler _localRpc;
 
         [Inject(Optional = true)] private InventoryClientModel _clientModel;
 
@@ -33,41 +34,49 @@ namespace Game
                 _clientModel.OnContainerChanged -= HandleModelContainerChanged;
         }
 
-        public void SetLocal(PlayerRef localPlayer, InventoryRpcRouter router)
+        public void SetLocal(PlayerRef local, InventoryRpcRouter router)
         {
-            _local = localPlayer;
-            _router = router;
+            _local = local;
+            _localRouter = router;
+            _localRpc = router != null
+                ? (router.GetComponent<PlayerRpcHandler>() ?? router.GetComponentInChildren<PlayerRpcHandler>(true))
+                : null;
         }
 
         public void SetLocal(PlayerRef localPlayer, InventoryRpcRouter router, NetworkId localPlayerObjectId)
         {
             _local = localPlayer;
-            _router = router;
+            _localRouter = router;
             _localPlayerObjectId = localPlayerObjectId;
+            _localRpc = router != null
+                ? (router.GetComponent<PlayerRpcHandler>() ?? router.GetComponentInChildren<PlayerRpcHandler>(true))
+                : null;
         }
 
         public void OpenLocalQuick()
         {
-            if (_router == null) return;
-            StartCoroutine(_router.RetryOpenContainer((int)ContainerType.PlayerQuick, _local, _localPlayerObjectId));
+            if (_localRouter == null) return;
+            StartCoroutine(_localRouter.RetryOpenContainer((int)ContainerType.PlayerQuick, _local, _localPlayerObjectId));
         }
 
         public void OpenLocalMain()
         {
-            if (_router == null) return;
-            StartCoroutine(_router.RetryOpenContainer((int)ContainerType.PlayerMain, _local, _localPlayerObjectId));
+            if (_localRouter == null) return;
+            StartCoroutine(_localRouter.RetryOpenContainer((int)ContainerType.PlayerMain, _local, _localPlayerObjectId));
         }
 
         public void Open(ContainerId id)
         {
-            if (_router == null) return;
-            StartCoroutine(_router.RetryOpenContainer((int)id.type, id.ownerRef, id.objectId));
+            var r = GetLocalRouter(); if (r == null) return;
+            var t = (int)id.type; var o = id.ownerRef; var n = id.objectId;
+            r.RPC_RequestOpenContainer(t, o, n);
         }
 
         public void Close(ContainerId id)
         {
-            if (_router == null) return;
-            _router.RPC_RequestCloseContainer((int)id.type, id.ownerRef, id.objectId);
+            var r = GetLocalRouter(); if (r == null) return;
+            var t = (int)id.type; var o = id.ownerRef; var n = id.objectId;
+            r.RPC_RequestCloseContainer(t, o, n);
         }
 
         public bool TryGetSnapshot(ContainerId id, out int version, out InventorySlotState[] slots)
@@ -136,29 +145,49 @@ namespace Game
         public ContainerId localQuick => new ContainerId { type = ContainerType.PlayerQuick, ownerRef = _local, objectId = default };
         public ContainerId localMain => new ContainerId { type = ContainerType.PlayerMain, ownerRef = _local, objectId = default };
 
-        public void Transfer(ContainerId fromId, int fromIdx, ContainerId toId, int toIdx, int amount, Action<bool, string> onAck)
+        public void Transfer(ContainerId fromId, int fromIdx, ContainerId toId, int toIdx, int amount, System.Action<bool, string> cb = null)
         {
-            if (_router == null)
-            {
-                onAck?.Invoke(false, "no_router");
-                return;
-            }
-
-            if (amount <= 0) amount = 1;
-
-            int reqId = ++_clientReqSeq;
-
-            _router.RPC_RequestTransfer(
+            var r = GetLocalRouter(); if (r == null) { cb?.Invoke(false, "no_router"); return; }
+            r.RPC_RequestTransfer(
                 (int)fromId.type, fromId.ownerRef, fromId.objectId, fromIdx,
                 (int)toId.type, toId.ownerRef, toId.objectId, toIdx,
-                amount, reqId);
-
-            onAck?.Invoke(true, "sent");
+                amount, 0);
+            cb?.Invoke(true, "sent");
         }
 
         private void HandleModelContainerChanged(ContainerId id)
         {
             OnContainerChanged?.Invoke(id);
+        }
+        private InventoryRpcRouter GetLocalRouter()
+        {
+            if (_localRouter != null && _localRouter.Object != null && _localRouter.Object.HasInputAuthority)
+                return _localRouter;
+
+            var runner = _localRouter != null ? _localRouter.Runner : null;
+            if (runner != null && runner.TryGetPlayerObject(runner.LocalPlayer, out var po) && po != null)
+            {
+                _localRouter = po.GetComponent<InventoryRpcRouter>();
+                if (_localRouter != null)
+                    _localRpc = po.GetComponent<PlayerRpcHandler>() ?? po.GetComponentInChildren<PlayerRpcHandler>(true);
+            }
+            return _localRouter;
+        }
+        private PlayerRpcHandler GetLocalRpc()
+        {
+            if (_localRpc != null && _localRpc.Object != null && _localRpc.Object.HasInputAuthority)
+                return _localRpc;
+
+            var r = GetLocalRouter();
+            _localRpc = r != null
+                ? (r.GetComponent<PlayerRpcHandler>() ?? r.GetComponentInChildren<PlayerRpcHandler>(true))
+                : null;
+            return _localRpc;
+        }
+        public void RequestDropFromContainer(Vector3 pos, Vector3 dir, int type, int slotIndex, byte flags, PlayerRef ownerRef, NetworkId objectId)
+        {
+            var rpc = GetLocalRpc(); if (rpc == null) return;
+            rpc.RPC_RequestDropFromContainer(pos, dir, type, slotIndex, flags, ownerRef, objectId);
         }
         
         

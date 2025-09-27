@@ -32,6 +32,7 @@ namespace Game
                 for (int i = 0; i < _slots.Length; i++) if (IsNonEmpty(_slots[i])) _nonEmptyCount++;
                 SlotsCapacity = Capacity;
                 _registry?.Register(this);
+                InventoryRpcRouter.ServerNotifyContainerRegistered(Id);
             }
         }
 
@@ -39,6 +40,7 @@ namespace Game
         {
             if (!Object.HasStateAuthority) return;
             _registry?.Unregister(Id);
+            InventoryRpcRouter.ServerNotifyContainerUnregistered(Id);
         }
 
         public void ServerInit(int size)

@@ -10,6 +10,9 @@ namespace Game
     public sealed class InventoryRpcRouter : NetworkBehaviour
     {
         private static readonly Dictionary<PlayerRef, InventoryRpcRouter> _byPlayer = new();
+        private static readonly Dictionary<(int type, PlayerRef owner, NetworkId obj), List<PlayerRef>> _pendingOpenByContainer = new();
+
+
 
         [Inject] private InventoryContainerRegistry _registry;
         [Inject] private InventoryViewService _views;
@@ -41,6 +44,9 @@ namespace Game
                 StartCoroutine(RetryFullResync());
             }
         }
+
+        private static (int, PlayerRef, NetworkId) KeyOf(ContainerId id) => ((int)id.type, id.ownerRef, id.objectId);
+
 
 
         public IEnumerator RetryFullResync()
@@ -90,20 +96,31 @@ namespace Game
                 _byPlayer.Remove(key);
         }
 
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        [Rpc(RpcSources.InputAuthority | RpcSources.StateAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestOpenContainer(int type, PlayerRef ownerRef, NetworkId objectId, RpcInfo info = default)
         {
             var viewer = info.Source;
-            if (viewer == PlayerRef.None) viewer = Object.InputAuthority;
-
-            var id = NormalizeOwnedId(new ContainerId
+            if (viewer == PlayerRef.None)
             {
-                type = (ContainerType)type,
-                ownerRef = ownerRef,
-                objectId = objectId
-            }, viewer);
+                var lp = Runner != null ? Runner.LocalPlayer : PlayerRef.None;
+                viewer = lp != PlayerRef.None ? lp : Object.InputAuthority;
+            }
 
-            if (!_registry.TryGet(id, out var c) || c == null) return;
+            var raw = new ContainerId { type = (ContainerType)type, ownerRef = ownerRef, objectId = objectId };
+            var id = NormalizeOwnedId(raw, viewer);
+            var k = ((int)id.type, id.ownerRef, id.objectId);
+
+            if (!_registry.TryGet(id, out var c) || c == null)
+            {
+                if (!_pendingOpenByContainer.TryGetValue(k, out var list))
+                {
+                    list = new List<PlayerRef>(2);
+                    _pendingOpenByContainer[k] = list;
+                }
+                if (!list.Contains(viewer)) list.Add(viewer);
+                return;
+            }
+
             if (!c.CanPlayerAccess(viewer)) return;
 
             _views.AddViewer(viewer, id);
@@ -114,6 +131,7 @@ namespace Game
                 slots = CloneSlots(c.Slots)
             });
         }
+
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
         private void RPC_ContainerReply(bool ok, PlayerRef viewer, RpcInfo info = default)
@@ -132,11 +150,15 @@ namespace Game
 
 
 
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        [Rpc(RpcSources.InputAuthority | RpcSources.StateAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestCloseContainer(int type, PlayerRef ownerRef, NetworkId objectId, RpcInfo info = default)
         {
             var viewer = info.Source;
-            if (viewer == PlayerRef.None) viewer = Object.InputAuthority;
+            if (viewer == PlayerRef.None)
+            {
+                var lp = Runner != null ? Runner.LocalPlayer : PlayerRef.None;
+                viewer = lp != PlayerRef.None ? lp : Object.InputAuthority;
+            }
 
             var id = NormalizeOwnedId(new ContainerId
             {
@@ -148,7 +170,7 @@ namespace Game
             _views.RemoveViewer(viewer, id);
         }
 
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        [Rpc(RpcSources.InputAuthority | RpcSources.StateAuthority, RpcTargets.StateAuthority)]
         public void RPC_RequestTransfer(
     int fromType, PlayerRef fromOwner, NetworkId fromObjectId, int fromIdx,
     int toType, PlayerRef toOwner, NetworkId toObjectId, int toIdx,
@@ -158,7 +180,10 @@ namespace Game
 
             var actor = info.Source;
             if (actor == PlayerRef.None)
-                actor = Object.InputAuthority;
+            {
+                var lp = Runner != null ? Runner.LocalPlayer : PlayerRef.None;
+                actor = lp != PlayerRef.None ? lp : Object.InputAuthority;
+            }
 
             var fromId = NormalizeOwnedId(DecodeId(fromType, fromOwner, fromObjectId), actor);
             var toId = NormalizeOwnedId(DecodeId(toType, toOwner, toObjectId), actor);
@@ -180,14 +205,23 @@ namespace Game
         }
 
 
-        private ContainerId NormalizeOwnedId(ContainerId id, PlayerRef actor)
+        private ContainerId NormalizeOwnedId(ContainerId id, PlayerRef viewer)
         {
-            if (id.type == ContainerType.PlayerQuick || id.type == ContainerType.PlayerMain)
+            switch (id.type)
             {
-                id.ownerRef = actor;
-                id.objectId = default;
+                case ContainerType.PlayerQuick:
+                case ContainerType.PlayerMain:
+                    if (id.ownerRef == PlayerRef.None) id.ownerRef = viewer;
+                    id.objectId = default;
+                    return id;
+
+                case ContainerType.Corpse:
+                    id.ownerRef = PlayerRef.None;
+                    return id;
+
+                default:
+                    return id;
             }
-            return id;
         }
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
@@ -446,16 +480,52 @@ namespace Game
             }
         }
 
+
+
+        public static void ServerNotifyContainerRegistered(ContainerId id)
+        {
+            var k = ((int)id.type, id.ownerRef, id.objectId);
+            if (!_pendingOpenByContainer.TryGetValue(k, out var viewers) || viewers == null || viewers.Count == 0) return;
+
+            for (int i = 0; i < viewers.Count; i++)
+            {
+                var viewer = viewers[i];
+                if (!_byPlayer.TryGetValue(viewer, out var router) || router == null || router.Runner == null) continue;
+                if (router._registry == null || router._views == null) continue;
+                if (!router._registry.TryGet(id, out var c) || c == null) continue;
+                if (!c.CanPlayerAccess(viewer)) continue;
+
+                router._views.AddViewer(viewer, id);
+                router._views.SendSnapshotTo(viewer, new ContainerSnapshot
+                {
+                    id = id,
+                    version = c.Version,
+                    slots = CloneSlots(c.Slots)
+                });
+            }
+
+            _pendingOpenByContainer.Remove(k);
+        }
+
+
+        public static void ServerNotifyContainerUnregistered(ContainerId id)
+        {
+            var k = ((int)id.type, id.ownerRef, id.objectId);
+            _pendingOpenByContainer.Remove(k);
+        }
+
+
         private static InventorySlotState[] CloneSlots(InventorySlotState[] src)
         {
             if (src == null) return null;
-            var arr = new InventorySlotState[src.Length];
-            for (int i = 0; i < src.Length; i++)
-                arr[i] = src[i]?.Clone();
-            return arr;
+            var n = src.Length;
+            var dst = new InventorySlotState[n];
+            for (int i = 0; i < n; i++) dst[i] = src[i]?.Clone();
+            return dst;
         }
 
-        
+
+
 
 
 
