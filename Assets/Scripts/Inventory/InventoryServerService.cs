@@ -87,8 +87,8 @@ namespace Game
 
             if (_registry != null)
             {
-                if (!_registry.TryGet(fromId, out from) || from == null) { from = null; }
-                if (!_registry.TryGet(toId, out to) || to == null) { to = null; }
+                if (!_registry.TryGet(fromId, out from) || from == null) from = null;
+                if (!_registry.TryGet(toId, out to) || to == null) to = null;
             }
             if (from == null && !TryResolveContainerAny(fromId, out from)) { reason = "from_not_found"; return false; }
             if (to == null && !TryResolveContainerAny(toId, out to)) { reason = "to_not_found"; return false; }
@@ -104,7 +104,8 @@ namespace Game
             int fromCnt = Mathf.Max(0, InventorySlotStateAccessor.ReadCount(sFromSrc));
             if (string.IsNullOrEmpty(fromItemId) || fromCnt <= 0) { reason = "empty"; return false; }
 
-            int moveReq = Mathf.Clamp(amount <= 0 ? 1 : amount, 1, fromCnt);
+            // Если amount <= 0 — переносим весь стак из источника
+            int moveReq = Mathf.Clamp(amount <= 0 ? fromCnt : amount, 1, fromCnt);
 
             var toItemId = InventorySlotStateAccessor.ReadId(sToSrc);
             int toCnt = Mathf.Max(0, InventorySlotStateAccessor.ReadCount(sToSrc));
@@ -145,6 +146,7 @@ namespace Game
 
                 if (cap <= 1 || space <= 0)
                 {
+                    // Своп одинаковых предметов без места — только полный своп
                     if (moveReq != fromCnt) { reason = "partial_swap_not_supported"; return false; }
                     if (!from.CanAccept(fromIdx, sToSrc) || !to.CanAccept(toIdx, sFromSrc)) { reason = "cannot_accept"; return false; }
 
@@ -175,6 +177,7 @@ namespace Game
                         InventorySlotStateAccessor.WriteState(newFrom, null);
                     }
 
+                    // newTo уже клон sToSrc, ID сохранится; увеличиваем count
                     InventorySlotStateAccessor.WriteCount(newTo, toCnt + moved);
                     if (InventorySlotStateAccessor.ReadState(newTo) == null)
                         InventorySlotStateAccessor.WriteState(newTo, InventorySlotStateAccessor.ReadState(sToSrc)?.Clone());
@@ -182,6 +185,7 @@ namespace Game
             }
             else
             {
+                // Разные предметы — только полный своп
                 if (moveReq != fromCnt) { reason = "partial_swap_not_supported"; return false; }
                 if (!from.CanAccept(fromIdx, sToSrc) || !to.CanAccept(toIdx, sFromSrc)) { reason = "cannot_accept"; return false; }
 
@@ -200,6 +204,7 @@ namespace Game
                 swapped = true;
             }
 
+            // ── Применение на контейнерах и формирование дельт ─────────────────────
             int prevFromVer = from.Version;
             int prevToVer = to.Version;
 
@@ -209,28 +214,55 @@ namespace Game
             to.SetSlot(toIdx, newTo);
             to.IncrementVersion();
 
-            fromDelta = new ContainerDelta
-            {
-                id = from.Id,
-                fromVersion = prevFromVer,
-                toVersion = from.Version,
-                changes = new[] { new SlotChange { index = fromIdx, state = newFrom?.Clone() } }
-            };
+            bool sameContainer =
+                from.Id.type == to.Id.type &&
+                from.Id.ownerRef == to.Id.ownerRef &&
+                from.Id.objectId.Equals(to.Id.objectId);
 
-            toDelta = new ContainerDelta
+            if (sameContainer)
             {
-                id = to.Id,
-                fromVersion = prevToVer,
-                toVersion = to.Version,
-                changes = new[] { new SlotChange { index = toIdx, state = newTo?.Clone() } }
-            };
+                // Одна атомарная дельта с двумя изменениями и конечной версией после двух инкрементов
+                fromDelta = new ContainerDelta
+                {
+                    id = from.Id,
+                    fromVersion = prevFromVer,
+                    toVersion = from.Version, // уже V+2
+                    changes = new[]
+                    {
+                new SlotChange { index = fromIdx, state = newFrom?.Clone() },
+                new SlotChange { index = toIdx,   state = newTo?.Clone()   },
+            }
+                };
+                toDelta = null;
 
-            if (_views != null)
-            {
-                if (fromDelta.changes != null && fromDelta.changes.Length > 0)
+                if (_views != null && fromDelta.changes != null && fromDelta.changes.Length > 0)
                     _views.BroadcastDelta(fromDelta.id, fromDelta.fromVersion, fromDelta.toVersion, fromDelta.changes);
-                if (toDelta.changes != null && toDelta.changes.Length > 0)
-                    _views.BroadcastDelta(toDelta.id, toDelta.fromVersion, toDelta.toVersion, toDelta.changes);
+            }
+            else
+            {
+                fromDelta = new ContainerDelta
+                {
+                    id = from.Id,
+                    fromVersion = prevFromVer,
+                    toVersion = from.Version,
+                    changes = new[] { new SlotChange { index = fromIdx, state = newFrom?.Clone() } }
+                };
+
+                toDelta = new ContainerDelta
+                {
+                    id = to.Id,
+                    fromVersion = prevToVer,
+                    toVersion = to.Version,
+                    changes = new[] { new SlotChange { index = toIdx, state = newTo?.Clone() } }
+                };
+
+                if (_views != null)
+                {
+                    if (fromDelta.changes != null && fromDelta.changes.Length > 0)
+                        _views.BroadcastDelta(fromDelta.id, fromDelta.fromVersion, fromDelta.toVersion, fromDelta.changes);
+                    if (toDelta.changes != null && toDelta.changes.Length > 0)
+                        _views.BroadcastDelta(toDelta.id, toDelta.fromVersion, toDelta.toVersion, toDelta.changes);
+                }
             }
 
             reason = "ok";
