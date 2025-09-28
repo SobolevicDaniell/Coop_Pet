@@ -551,10 +551,15 @@ namespace Game
                             var b = obj.GetComponent<Bullet>();
                             if (b != null)
                             {
-                                b.Initialize((int)weaponSO.bulletDamage);
+                                b.Initialize(Mathf.RoundToInt(weaponSO.bulletDamage));
                                 b.InitializeVelocity(forward * weaponSO.bulletSpeed);
                                 b.SetMass(Mathf.Max(0.01f, weaponSO.bulletMass));
                             }
+
+                            var dds = obj.GetComponentsInChildren<BulletDamageDealer>(true);
+                            for (int i = 0; i < dds.Length; i++)
+                                dds[i].Configure(Mathf.RoundToInt(weaponSO.bulletDamage), actor);
+
                             if (obj.TryGetComponent<Rigidbody>(out var rb))
                                 rb.linearVelocity = forward * weaponSO.bulletSpeed;
                         });
@@ -567,7 +572,7 @@ namespace Game
                     var damageable = hit.GameObject != null ? hit.GameObject.GetComponentInParent<IDamageable>() : null;
                     if (damageable != null)
                     {
-                        int dmg = weaponSO != null ? (int)weaponSO.bulletDamage : 10;
+                        int dmg = weaponSO != null ? Mathf.RoundToInt(weaponSO.bulletDamage) : 10;
                         var infoDmg = new DamageInfo(dmg, DamageKind.Bullet, hit.Point, forward, actor);
                         damageable.ApplyDamage(infoDmg);
                     }

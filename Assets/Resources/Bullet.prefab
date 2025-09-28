@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 3361081545189104650}
   - component: {fileID: 5504065872355972293}
   - component: {fileID: 8779628799482848319}
+  - component: {fileID: 8192913645041776020}
   m_Layer: 8
   m_Name: Bullet
   m_TagString: Bullet
@@ -56,6 +57,7 @@ MonoBehaviour:
   NetworkedBehaviours:
   - {fileID: 5504065872355972293}
   - {fileID: 8779628799482848319}
+  - {fileID: 8192913645041776020}
   ForceRemoteRenderTimeframe: 0
 --- !u!136 &8876029696999795297
 CapsuleCollider:
@@ -142,12 +144,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51f743a83126aa4da5a43de9ea12b82, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.BulletDamageDealer
-  _damage: 10
   _targetMask:
     serializedVersion: 2
     m_Bits: 64
-  _kind: 1
   _useTriggers: 0
+  _kind: 1
+--- !u!114 &8192913645041776020
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6867856357713228749}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 57576d7f8597afa4dbd4ffdd0744fdc2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.Bullet
+  lifetime: 5
+  drag: 0
+  _Damage: 0
 --- !u!1 &8971805380733566195
 GameObject:
   m_ObjectHideFlags: 0

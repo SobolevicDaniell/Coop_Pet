@@ -1,4 +1,3 @@
-// Assets/Scripts/Combat/BulletDamageDealer.cs
 using Fusion;
 using UnityEngine;
 
@@ -14,10 +13,16 @@ namespace Game
         private int _damage = 1;
         public PlayerRef Source { get; set; } = PlayerRef.None;
 
+        public override void Spawned()
+        {
+            if (Source == PlayerRef.None && Object != null)
+                Source = Object.InputAuthority;
+        }
+
         public void Configure(int damage, PlayerRef source)
         {
             _damage = Mathf.Max(0, damage);
-            Source  = source;
+            Source = source;
         }
 
         public void ApplyInitialPhysics(float mass, Vector3 velocity)
@@ -36,11 +41,13 @@ namespace Game
         {
             if (!Object.HasStateAuthority) return;
 
+            int amount = _damage;
+            var b = GetComponentInParent<Bullet>();
+            if (b == null) b = GetComponentInChildren<Bullet>();
+            if (b != null) amount = b.Damage;
+
             if (IsTarget(other) && other.TryGetComponent<IDamageable>(out var dmg))
-            {
-                var info = new DamageInfo(_damage, _kind, point, dir, Source);
-                dmg.ApplyDamage(info);
-            }
+                dmg.ApplyDamage(new DamageInfo(amount, _kind, point, dir, Source));
 
             if (Runner != null && Object != null) Runner.Despawn(Object);
             else Destroy(gameObject);
