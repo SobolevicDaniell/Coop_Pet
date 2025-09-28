@@ -1,4 +1,6 @@
+using System.Runtime.InteropServices;
 using Fusion;
+using Game.UI;
 using UnityEngine;
 using Zenject;
 
@@ -11,6 +13,7 @@ namespace Game
         private int _version;
 
         [Inject(Optional = true)] private InventoryContainerRegistry _registry;
+        [Inject] private UIController _uiController;
 
         [Networked] public int SlotsCapacity { get; private set; }
 
@@ -65,7 +68,14 @@ namespace Game
         {
             if (!Object.HasStateAuthority) return;
             if (Runner == null) return;
-            if (_nonEmptyCount <= 0) Runner.Despawn(Object);
+            if (_nonEmptyCount <= 0)
+            {
+                Runner.Despawn(Object);
+                if (_uiController.Phase != UiPhase.Spawn)
+                {
+                    _uiController.SetPhase(UiPhase.Inventory);
+                }
+            }
         }
 
         private bool IsEmpty()

@@ -233,7 +233,7 @@ namespace Game
         private void ToggleInventory()
         {
             if (!Object.HasInputAuthority) return;
-            if (_ui.Phase == UiPhase.Death || _ui.Phase == UiPhase.Loading || _ui.Phase == UiPhase.Hidden) return;
+            if (_ui.Phase == UiPhase.Spawn || _ui.Phase == UiPhase.Loading || _ui.Phase == UiPhase.Hidden) return;
 
             if (_ui.InventoryOpened)
             {
@@ -250,7 +250,7 @@ namespace Game
         private void CloseInventory()
         {
             if (!Object.HasInputAuthority) return;
-            if (_ui.Phase == UiPhase.Death || _ui.Phase == UiPhase.Loading || _ui.Phase == UiPhase.Hidden) return;
+            if (_ui.Phase == UiPhase.Spawn || _ui.Phase == UiPhase.Loading || _ui.Phase == UiPhase.Hidden) return;
 
             _ui.SetPhase(UiPhase.Gameplay);
             _pickDrop.CloseOpenedInventories();

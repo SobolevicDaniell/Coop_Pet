@@ -83,6 +83,7 @@ namespace Game.Gameplay
                 {
                     var pickable = spawnedObj.GetComponent<PickableItem>();
                     if (pickable != null) pickable.ServerInit(_itemId, count, 0);
+                    spawnedObj.GetComponent<Rigidbody>().isKinematic = true;
                 }
             );
         }

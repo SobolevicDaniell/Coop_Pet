@@ -15,6 +15,8 @@ namespace Game.Network
         [Inject] private InventoryServerService _inventoryServer;
         [Inject] private InventoryViewService _views;
         [Inject] private InventoryContainerRegistry _registry;
+        [Inject] private ISpawnPointProvider _spawnPoints;
+
 
         [Networked] public int SlotsCapacity { get; private set; }
         [Networked] public Vector3 SpawnPos { get; private set; }
@@ -39,7 +41,11 @@ namespace Game.Network
         public void SpawnAvatar(NetworkRunner runner, PlayerRef player)
         {
             if (_avatars.TryGetValue(player, out var existing) && existing != null) return;
-            var no = _factory.Spawn(player);
+            Vector3 pos = Vector3.zero;
+            Quaternion rot = Quaternion.identity;
+            if (_spawnPoints != null)
+                _spawnPoints.TryGetNext(out pos, out rot);
+            var no = _factory.Spawn(player, pos, rot);
             _avatars[player] = no;
             var po = runner.GetPlayerObject(player);
             if (po != null)

@@ -31,7 +31,7 @@ namespace Game
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
         public void RPC_ShowDeath()
         {
-            if (_ui != null) _ui.SetPhase(UiPhase.Death);
+            if (_ui != null) _ui.SetPhase(UiPhase.Spawn);
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]

@@ -10,7 +10,7 @@ namespace Game.UI
         Gameplay,
         Inventory,
         OtherInventory,
-        Death
+        Spawn
     }
     public class UIController : MonoBehaviour
     {
@@ -24,7 +24,9 @@ namespace Game.UI
         [SerializeField] private GameObject _healthBar;
         [SerializeField] private GameObject _drugIcon;
         [SerializeField] private GameObject _background;
+        [SerializeField] private GameObject _quickbackground;
         [SerializeField] private GameObject _uiCamera;
+        [SerializeField] private GameObject _sceneCamera;
         [SerializeField] private InputHandler _inputHandler;
         [SerializeField] private UiPhase _defaultPhase = UiPhase.Gameplay;
 
@@ -54,23 +56,24 @@ namespace Game.UI
             Phase = phase;
             Debug.Log($"UI Phase changed-> {phase}");
 
-            // var hud = phase == UiPhase.Gameplay || phase == UiPhase.Inventory || phase == UiPhase.OtherInventory|| phase == UiPhase.Death;
             var showQuick = phase == UiPhase.Gameplay || phase == UiPhase.Inventory || phase == UiPhase.OtherInventory;
+            var quickbackground = phase == UiPhase.Gameplay;
             var showInv = phase == UiPhase.Inventory || phase == UiPhase.OtherInventory;
             var showOtherInv = phase == UiPhase.OtherInventory;
-            var showDeath = phase == UiPhase.Death;
+            var showSpawn = phase == UiPhase.Spawn;
             var showPrompt = phase == UiPhase.Gameplay;
             var showDot = phase == UiPhase.Gameplay;
             var drugIcon = phase == UiPhase.Inventory || phase == UiPhase.OtherInventory;
             var healthBar = phase == UiPhase.Gameplay || phase == UiPhase.Inventory || phase == UiPhase.OtherInventory;
-            var uiCam = phase == UiPhase.Death || phase == UiPhase.Loading;
+            var uiCam = phase == UiPhase.Loading;
+            var sceneCamera = phase == UiPhase.Spawn;
 
-            // if (_gameHud != null) _gameHud.SetActive(hud);
             if (_quickSlotPanel != null) _quickSlotPanel.SetActive(showQuick);
+            if (_quickbackground != null) _quickbackground.SetActive(quickbackground);
             if (_inventoryPanel != null) _inventoryPanel.SetActive(showInv);
             if (_background != null) _background.SetActive(showInv);
             if (_otherInventoryPanel != null) _otherInventoryPanel.SetActive(showOtherInv);
-            if (_deathScreen != null) _deathScreen.SetActive(showDeath);
+            if (_deathScreen != null) _deathScreen.SetActive(showSpawn);
             if (_interactionPrompt != null) _interactionPrompt.SetActive(showPrompt);
             if (_healthBar != null) _healthBar.SetActive(healthBar);
             if (_dot != null) _dot.SetActive(showDot);
@@ -83,8 +86,16 @@ namespace Game.UI
                 var al = _uiCamera.GetComponentInChildren<AudioListener>(true);
                 if (al != null) al.enabled = uiCam;
             }
+            if (_sceneCamera != null)
+            {
+                _sceneCamera.SetActive(sceneCamera);
+                var cam = _sceneCamera.GetComponentInChildren<Camera>(true);
+                if (cam != null) cam.enabled = sceneCamera;
+                var al = _sceneCamera.GetComponentInChildren<AudioListener>(true);
+                if (al != null) al.enabled = sceneCamera;
+            }
 
-            var cursor = phase == UiPhase.Inventory || phase == UiPhase.OtherInventory || phase == UiPhase.Death || phase == UiPhase.Loading || phase == UiPhase.Hidden;
+            var cursor = phase == UiPhase.Inventory || phase == UiPhase.OtherInventory || phase == UiPhase.Spawn || phase == UiPhase.Loading || phase == UiPhase.Hidden;
             Cursor.lockState = cursor ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = cursor;
 

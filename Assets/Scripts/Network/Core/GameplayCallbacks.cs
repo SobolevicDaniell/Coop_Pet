@@ -15,6 +15,7 @@ namespace Game.Network
         [Inject] private PlayerSpawner _playerSpawner;
         [Inject] private InputHandler _inputHandler;
         [Inject] private DiContainer _container;
+        [Inject] private UIController uIController;
 
         private void OnEnable()
         {
@@ -31,10 +32,7 @@ namespace Game.Network
             var all = FindObjectsOfType<NetworkObject>();
             for (int i = 0; i < all.Length; i++)
                 _container.InjectGameObject(all[i].gameObject);
-
-            var ui = FindObjectOfType<UIController>(true);
-            if (ui != null && ui.Phase != UiPhase.Death && ui.Phase != UiPhase.Loading)
-                ui.SetPhase(UiPhase.Gameplay);
+            uIController.SetPhase(UiPhase.Spawn);
         }
 
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
@@ -42,6 +40,7 @@ namespace Game.Network
             if (!runner.IsServer) return;
             _playerSpawner.EnsurePlayerObject(runner, player);
             // _playerSpawner.SpawnAvatar(runner, player);
+            
         }
 
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)

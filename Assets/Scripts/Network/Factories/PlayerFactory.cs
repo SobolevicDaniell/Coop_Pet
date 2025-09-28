@@ -1,5 +1,4 @@
 using Fusion;
-using Game.UI;
 using UnityEngine;
 using Zenject;
 
@@ -8,30 +7,38 @@ namespace Game.Network
     public sealed class PlayerFactory : IPlayerFactory
     {
         private readonly NetworkRunner _runner;
-        private readonly GameObject _avatarPrefab;
+        private readonly NetworkObject _avatarPrefab;
         private readonly DiContainer _container;
 
-        public PlayerFactory(NetworkRunner runner, [Inject(Id = "AvatarPrefab")] GameObject avatarPrefab, DiContainer container, [Inject(Optional = true)] UIController uiController)
+        [Inject]
+        public PlayerFactory(
+            NetworkRunner runner,
+            [Inject(Id = "AvatarPrefab")] NetworkObject avatarPrefab,
+            DiContainer container)
         {
             _runner = runner;
             _avatarPrefab = avatarPrefab;
             _container = container;
         }
 
-        public NetworkObject Spawn(PlayerRef player)
+        public NetworkObject Spawn(PlayerRef playerRef)
+        {
+            return Spawn(playerRef, Vector3.zero, Quaternion.identity);
+        }
+
+        public NetworkObject Spawn(PlayerRef playerRef, Vector3 position, Quaternion rotation)
         {
             NetworkObject spawned = null;
             _runner.Spawn(
-                _avatarPrefab.GetComponent<NetworkObject>(),
-                Vector3.zero,
-                Quaternion.identity,
-                inputAuthority: player,
+                _avatarPrefab,
+                position,
+                rotation,
+                inputAuthority: playerRef,
                 onBeforeSpawned: (r, obj) =>
                 {
                     _container.InjectGameObject(obj.gameObject);
                     spawned = obj;
-                }
-            );
+                });
             return spawned;
         }
     }
