@@ -81,11 +81,20 @@ namespace Game
             swapped = false;
             reason = "unknown";
 
-            if (!_registry.TryGet(fromId, out var from) || from == null) { reason = "from_not_found"; return false; }
-            if (!_registry.TryGet(toId, out var to) || to == null) { reason = "to_not_found"; return false; }
+            if (fromIdx < 0 || toIdx < 0) { reason = "bad_index"; return false; }
+
+            IInventoryContainer from = null, to = null;
+
+            if (_registry != null)
+            {
+                if (!_registry.TryGet(fromId, out from) || from == null) { from = null; }
+                if (!_registry.TryGet(toId, out to) || to == null) { to = null; }
+            }
+            if (from == null && !TryResolveContainerAny(fromId, out from)) { reason = "from_not_found"; return false; }
+            if (to == null && !TryResolveContainerAny(toId, out to)) { reason = "to_not_found"; return false; }
 
             if (!from.CanPlayerAccess(actor) || !to.CanPlayerAccess(actor)) { reason = "no_access"; return false; }
-            if (fromIdx < 0 || fromIdx >= from.Capacity || toIdx < 0 || toIdx >= to.Capacity) { reason = "bad_index"; return false; }
+            if (fromIdx >= from.Capacity || toIdx >= to.Capacity) { reason = "bad_index"; return false; }
             if (fromId.Equals(toId) && fromIdx == toIdx) { reason = "same_slot"; return false; }
 
             var sFromSrc = from.Slots[fromIdx];
@@ -95,7 +104,7 @@ namespace Game
             int fromCnt = Mathf.Max(0, InventorySlotStateAccessor.ReadCount(sFromSrc));
             if (string.IsNullOrEmpty(fromItemId) || fromCnt <= 0) { reason = "empty"; return false; }
 
-            int moveReq = Mathf.Clamp(amount <= 0 ? fromCnt : amount, 1, fromCnt);
+            int moveReq = Mathf.Clamp(amount <= 0 ? 1 : amount, 1, fromCnt);
 
             var toItemId = InventorySlotStateAccessor.ReadId(sToSrc);
             int toCnt = Mathf.Max(0, InventorySlotStateAccessor.ReadCount(sToSrc));
@@ -103,12 +112,13 @@ namespace Game
 
             int MaxStackOf(string id)
             {
-                var so = _db != null ? _db.Get(id) as ItemSO : null;
+                if (string.IsNullOrEmpty(id) || _db == null) return 1;
+                var so = _db.Get(id) as ItemSO;
                 return Mathf.Max(1, so != null ? so.MaxStack : 1);
             }
 
-            InventorySlotState newFrom = sFromSrc?.Clone() ?? new InventorySlotState();
-            InventorySlotState newTo = sToSrc?.Clone() ?? new InventorySlotState();
+            var newFrom = sFromSrc?.Clone() ?? new InventorySlotState();
+            var newTo = sToSrc?.Clone() ?? new InventorySlotState();
 
             if (toEmpty)
             {
@@ -138,15 +148,24 @@ namespace Game
                     if (moveReq != fromCnt) { reason = "partial_swap_not_supported"; return false; }
                     if (!from.CanAccept(fromIdx, sToSrc) || !to.CanAccept(toIdx, sFromSrc)) { reason = "cannot_accept"; return false; }
 
-                    var tmpFrom = sToSrc?.Clone();
-                    var tmpTo = sFromSrc?.Clone();
+                    var toCount = InventorySlotStateAccessor.ReadCount(sToSrc);
+                    var toState = InventorySlotStateAccessor.ReadState(sToSrc)?.Clone();
+                    var fromState = InventorySlotStateAccessor.ReadState(sFromSrc)?.Clone();
 
-                    newFrom = tmpFrom ?? new InventorySlotState();
-                    newTo = tmpTo ?? new InventorySlotState();
+                    InventorySlotStateAccessor.WriteId(newFrom, toItemId);
+                    InventorySlotStateAccessor.WriteCount(newFrom, toCount);
+                    InventorySlotStateAccessor.WriteState(newFrom, toState);
+
+                    InventorySlotStateAccessor.WriteId(newTo, fromItemId);
+                    InventorySlotStateAccessor.WriteCount(newTo, fromCnt);
+                    InventorySlotStateAccessor.WriteState(newTo, fromState);
+
                     swapped = true;
                 }
                 else
                 {
+                    if (!to.CanAccept(toIdx, sFromSrc)) { reason = "cannot_accept"; return false; }
+
                     int moved = Mathf.Min(moveReq, space);
 
                     InventorySlotStateAccessor.WriteCount(newFrom, fromCnt - moved);
@@ -157,6 +176,8 @@ namespace Game
                     }
 
                     InventorySlotStateAccessor.WriteCount(newTo, toCnt + moved);
+                    if (InventorySlotStateAccessor.ReadState(newTo) == null)
+                        InventorySlotStateAccessor.WriteState(newTo, InventorySlotStateAccessor.ReadState(sToSrc)?.Clone());
                 }
             }
             else
@@ -164,11 +185,18 @@ namespace Game
                 if (moveReq != fromCnt) { reason = "partial_swap_not_supported"; return false; }
                 if (!from.CanAccept(fromIdx, sToSrc) || !to.CanAccept(toIdx, sFromSrc)) { reason = "cannot_accept"; return false; }
 
-                var tmpFrom = sToSrc?.Clone();
-                var tmpTo = sFromSrc?.Clone();
+                var toCount = InventorySlotStateAccessor.ReadCount(sToSrc);
+                var toState = InventorySlotStateAccessor.ReadState(sToSrc)?.Clone();
+                var fromState = InventorySlotStateAccessor.ReadState(sFromSrc)?.Clone();
 
-                newFrom = tmpFrom ?? new InventorySlotState();
-                newTo = tmpTo ?? new InventorySlotState();
+                InventorySlotStateAccessor.WriteId(newFrom, toItemId);
+                InventorySlotStateAccessor.WriteCount(newFrom, toCount);
+                InventorySlotStateAccessor.WriteState(newFrom, toState);
+
+                InventorySlotStateAccessor.WriteId(newTo, fromItemId);
+                InventorySlotStateAccessor.WriteCount(newTo, fromCnt);
+                InventorySlotStateAccessor.WriteState(newTo, fromState);
+
                 swapped = true;
             }
 
@@ -183,7 +211,7 @@ namespace Game
 
             fromDelta = new ContainerDelta
             {
-                id = fromId,
+                id = from.Id,
                 fromVersion = prevFromVer,
                 toVersion = from.Version,
                 changes = new[] { new SlotChange { index = fromIdx, state = newFrom?.Clone() } }
@@ -191,7 +219,7 @@ namespace Game
 
             toDelta = new ContainerDelta
             {
-                id = toId,
+                id = to.Id,
                 fromVersion = prevToVer,
                 toVersion = to.Version,
                 changes = new[] { new SlotChange { index = toIdx, state = newTo?.Clone() } }

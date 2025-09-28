@@ -57,7 +57,7 @@ namespace Game
             RPC_RequestFullResync();
         }
 
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
         public void RPC_RequestFullResync(RpcInfo info = default)
         {
             var viewer = info.Source;
@@ -96,7 +96,7 @@ namespace Game
                 _byPlayer.Remove(key);
         }
 
-        [Rpc(RpcSources.InputAuthority | RpcSources.StateAuthority, RpcTargets.StateAuthority)]
+        [Rpc(RpcSources.InputAuthority | RpcSources.StateAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
         public void RPC_RequestOpenContainer(int type, PlayerRef ownerRef, NetworkId objectId, RpcInfo info = default)
         {
             var viewer = info.Source;
@@ -150,7 +150,7 @@ namespace Game
 
 
 
-        [Rpc(RpcSources.InputAuthority | RpcSources.StateAuthority, RpcTargets.StateAuthority)]
+        [Rpc(RpcSources.InputAuthority | RpcSources.StateAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
         public void RPC_RequestCloseContainer(int type, PlayerRef ownerRef, NetworkId objectId, RpcInfo info = default)
         {
             var viewer = info.Source;
@@ -170,7 +170,7 @@ namespace Game
             _views.RemoveViewer(viewer, id);
         }
 
-        [Rpc(RpcSources.InputAuthority | RpcSources.StateAuthority, RpcTargets.StateAuthority)]
+        [Rpc(RpcSources.InputAuthority | RpcSources.StateAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
         public void RPC_RequestTransfer(
     int fromType, PlayerRef fromOwner, NetworkId fromObjectId, int fromIdx,
     int toType, PlayerRef toOwner, NetworkId toObjectId, int toIdx,
@@ -224,7 +224,7 @@ namespace Game
             }
         }
 
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
         public void RPC_RequestPickup(string itemId, int amount, int ammo, int clientReqId, RpcInfo info = default)
         {
             if (_server == null) { RPC_OpAck(clientReqId, false, "no_server"); return; }

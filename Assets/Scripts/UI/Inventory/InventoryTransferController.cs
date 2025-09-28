@@ -13,8 +13,6 @@ namespace Game.UI
         [SerializeField] private Image _dragIcon;
         [SerializeField] private Canvas _canvas;
 
-
-
         private InventoryPanel _playerPanel;
         private QuickSlotPanel _quickPanel;
         private OtherInventoryPanel _otherPanel;
@@ -24,21 +22,17 @@ namespace Game.UI
         [Inject(Optional = true)] private InventoryClientFacade _facade;
         [Inject(Optional = true)] private PlayerStatsSO _stats;
 
-
         private Game.InteractionController _ic;
-        private Game.PlayerRpcHandler _rpc => _ic != null ? _ic.playerRpcHandler : null;
+        private Game.PlayerRpcHandler _localRpc;
 
         private InventorySlotUI _srcSlot;
         private IInventoryPanelUI _srcPanel;
         private InventorySlotUI _hoverSlot;
         private IInventoryPanelUI _hoverPanel;
 
-
-
         private bool _subscribed;
 
         [SerializeField] private LayerMask _slotsLayers;
-
 
         public void Initialize(InventoryService inv,
                        InventoryPanel playerPanel,
@@ -51,7 +45,7 @@ namespace Game.UI
             _playerPanel = playerPanel;
             _quickPanel = quickPanel;
             _otherPanel = otherPanel;
-            _ic = ic ?? FindLocalInteractionController();
+            _ic = ic ?? ResolveLocalIC();
             _facade = facade ?? _facade;
 
             EnsureFacadeReady();
@@ -65,17 +59,51 @@ namespace Game.UI
                 _dragIcon.enabled = false;
                 _dragIcon.raycastTarget = false;
             }
-
-            
         }
 
-        private Game.InteractionController FindLocalInteractionController()
+        private Game.InteractionController ResolveLocalIC()
         {
+            if (_ic != null && _ic.Object != null && _ic.Object.HasInputAuthority) return _ic;
+
+            var runner = FindObjectOfType<NetworkRunner>();
+            if (runner != null && runner.TryGetPlayerObject(runner.LocalPlayer, out var po) && po != null)
+            {
+                _ic = po.GetComponent<InteractionController>() ?? po.GetComponentInChildren<InteractionController>(true);
+                if (_ic != null) return _ic;
+            }
+
             var all = FindObjectsOfType<Game.InteractionController>(true);
             foreach (var ic in all)
             {
-                try { if (ic.Object != null && ic.Object.HasInputAuthority) return ic; }
-                catch { }
+                if (ic != null && ic.Object != null && ic.Object.HasInputAuthority)
+                {
+                    _ic = ic;
+                    return _ic;
+                }
+            }
+            return null;
+        }
+
+        private Game.PlayerRpcHandler ResolveLocalRpc()
+        {
+            if (_localRpc != null && _localRpc.Object != null && _localRpc.Object.HasInputAuthority) return _localRpc;
+
+            var runner = FindObjectOfType<NetworkRunner>();
+            if (runner != null && runner.TryGetPlayerObject(runner.LocalPlayer, out var po) && po != null)
+            {
+                _localRpc = po.GetComponent<PlayerRpcHandler>() ?? po.GetComponentInChildren<PlayerRpcHandler>(true);
+                if (_localRpc != null) return _localRpc;
+                _ic = po.GetComponentInChildren<InteractionController>(true) ?? _ic;
+            }
+
+            var all = FindObjectsOfType<Game.PlayerRpcHandler>(true);
+            foreach (var h in all)
+            {
+                if (h != null && h.Object != null && h.Object.HasInputAuthority)
+                {
+                    _localRpc = h;
+                    return _localRpc;
+                }
             }
             return null;
         }
@@ -283,10 +311,11 @@ namespace Game.UI
             _hoverPanel = null;
         }
 
-
         void TryWorldDropFromSource()
         {
-            if (_ic == null || _rpc == null) return;
+            _ic = ResolveLocalIC();
+            var rpc = ResolveLocalRpc();
+            if (_ic == null || rpc == null) return;
 
             int localIdx = _srcSlot.SlotIndex;
 
@@ -299,7 +328,7 @@ namespace Game.UI
                 if (slotRef == null || string.IsNullOrEmpty(slotRef.Id) || slotRef.Count <= 0) return;
 
                 GetDropPoint(out var pos, out var fwd);
-                _rpc.RPC_RequestDrop(pos, fwd, localIdx, slotRef.Count);
+                rpc.RPC_RequestDrop(pos, fwd, localIdx, slotRef.Count);
                 return;
             }
 
@@ -313,38 +342,158 @@ namespace Game.UI
 
                 GetDropPoint(out var pos, out var fwd);
                 int quickCap = GetQuickLen();
-                _rpc.RPC_RequestDrop(pos, fwd, quickCap + localIdx, slotRef.Count);
+                rpc.RPC_RequestDrop(pos, fwd, quickCap + localIdx, slotRef.Count);
                 return;
             }
 
             if (_srcPanel.Kind == PanelKind.Chest)
             {
-                EnsureFacadeReady();
-                if (_facade == null || _otherPanel == null) return;
+                TryWorldDropFromOther();
+                return;
+            }
+        }
 
-                var probe = _otherPanel.CurrentId;
-                if (probe.Equals(default)) return;
+        private void TryWorldDropFromOther()
+        {
+            _ic = ResolveLocalIC();
+            var rpc = ResolveLocalRpc();
+            if (_ic == null || rpc == null) return;
+            if (_facade == null || _otherPanel == null) return;
 
-                if (!_facade.TryGetSnapshotResolved(probe, out var resolvedId, out var version, out var slots)) return;
-                if (slots == null || localIdx < 0 || localIdx >= slots.Length) return;
+            var probe = _otherPanel.CurrentId;
+            if (probe.Equals(default)) return;
 
-                var s = slots[localIdx];
-                if (s == null) return;
+            if (!_facade.TryGetSnapshotResolved(probe, out var resolvedId, out var version, out var slots)) return;
 
-                var idStr = InventorySlotStateAccessor.ReadId(s);
-                if (string.IsNullOrEmpty(idStr)) return;
+            int localIdx = _srcSlot.SlotIndex;
+            if (slots == null || localIdx < 0 || localIdx >= slots.Length) return;
 
-                int amount = Mathf.Max(1, InventorySlotStateAccessor.ReadCount(s));
+            var s = slots[localIdx];
+            if (s == null) return;
 
-                GetDropPoint(out var pos, out var fwd);
-                _facade.RequestDropFromContainer(pos, fwd, (int)resolvedId.type, localIdx, 0, resolvedId.ownerRef, resolvedId.objectId);
+            var idStr = InventorySlotStateAccessor.ReadId(s);
+            if (string.IsNullOrEmpty(idStr)) return;
+
+            int amountInContainer = Mathf.Max(1, InventorySlotStateAccessor.ReadCount(s));
+
+            if (!TryFindTargetForItem(idStr, amountInContainer, out var toId, out var toIdx, out var moveAmount))
+            {
+                GetDropPoint(out var pos0, out var fwd0);
+                _facade.RequestDropFromContainer(pos0, fwd0, (int)resolvedId.type, localIdx, 0, resolvedId.ownerRef, resolvedId.objectId);
                 return;
             }
 
+            _facade.Transfer(resolvedId, localIdx, toId, toIdx, moveAmount, (ok, msg) =>
+            {
+                if (!ok) return;
+
+                GetDropPoint(out var pos, out var fwd);
+                int globalIdx = toId.type == ContainerType.PlayerQuick ? toIdx : GetQuickLen() + toIdx;
+                rpc.RPC_RequestDrop(pos, fwd, globalIdx, moveAmount);
+            });
         }
-        
+
+        private bool TryFindTargetForItem(string itemId, int needed, out ContainerId toId, out int toIdx, out int moveAmount)
+        {
+            moveAmount = 0;
+            toIdx = -1;
+            toId = default;
+
+            int max = 1;
+            var so = _db != null ? _db.Get(itemId) as ItemSO : null;
+            if (so != null) max = Mathf.Max(1, so.MaxStack);
+
+            if (TryResolveLocal(ContainerType.PlayerQuick, out var qId))
+            {
+                if (TryFindSlotForItemIn(ContainerType.PlayerQuick, itemId, max, out var idxQ, out var freeQ))
+                {
+                    toId = qId; toIdx = idxQ; moveAmount = Mathf.Min(needed, freeQ);
+                    if (moveAmount > 0) return true;
+                }
+            }
+
+            if (TryResolveLocal(ContainerType.PlayerMain, out var mId))
+            {
+                if (TryFindSlotForItemIn(ContainerType.PlayerMain, itemId, max, out var idxM, out var freeM))
+                {
+                    toId = mId; toIdx = idxM; moveAmount = Mathf.Min(needed, freeM);
+                    if (moveAmount > 0) return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool TryFindSlotForItemIn(ContainerType type, string itemId, int maxStack, out int index, out int freeCapacity)
+        {
+            index = -1;
+            freeCapacity = 0;
+
+            int selected = _ic != null ? _ic.SelectedQuickIndexNet : -1;
+
+            if (type == ContainerType.PlayerQuick && selected >= 0)
+            {
+                if (TryGetLocalSlot(type, selected, out var sid, out var scnt))
+                {
+                    int free = string.IsNullOrEmpty(sid) ? maxStack : (sid == itemId ? Mathf.Max(0, maxStack - scnt) : 0);
+                    if (free > 0) { index = selected; freeCapacity = free; return true; }
+                }
+            }
+
+            int cap = type == ContainerType.PlayerQuick ? GetQuickLen() : GetMainLen();
+
+            for (int i = 0; i < cap; i++)
+            {
+                if (i == selected && type == ContainerType.PlayerQuick) continue;
+                if (TryGetLocalSlot(type, i, out var sid, out var scnt) && sid == itemId)
+                {
+                    int free = Mathf.Max(0, maxStack - scnt);
+                    if (free > 0) { index = i; freeCapacity = free; return true; }
+                }
+            }
+
+            for (int i = 0; i < cap; i++)
+            {
+                if (i == selected && type == ContainerType.PlayerQuick) continue;
+                if (TryGetLocalSlot(type, i, out var sid, out var scnt))
+                {
+                    if (string.IsNullOrEmpty(sid) || scnt <= 0)
+                    {
+                        index = i; freeCapacity = maxStack; return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private bool TryGetLocalSlot(ContainerType type, int idx, out string id, out int count)
+        {
+            id = null; count = 0;
+
+            if (type == ContainerType.PlayerQuick)
+            {
+                var qs = _inv?.GetQuickSlots();
+                if (qs == null || idx < 0 || idx >= qs.Length) return false;
+                var s = qs[idx];
+                id = s?.Id;
+                count = s != null ? s.Count : 0;
+                return true;
+            }
+            else
+            {
+                var inv = _inv?.GetInventorySlots();
+                if (inv == null || idx < 0 || idx >= inv.Length) return false;
+                var s = inv[idx];
+                id = s?.Id;
+                count = s != null ? s.Count : 0;
+                return true;
+            }
+        }
+
         private void GetDropPoint(out Vector3 pos, out Vector3 fwd)
         {
+            _ic = ResolveLocalIC();
             if (_ic != null)
             {
                 pos = _ic.GetDropPointPosition();
@@ -356,7 +505,6 @@ namespace Game.UI
                 fwd = Vector3.forward;
             }
         }
-
 
         private bool TryCalcGlobalIndex(IInventoryPanelUI panel, int localIndex, out int global)
         {
@@ -432,7 +580,6 @@ namespace Game.UI
             }
         }
 
-
         private static readonly List<RaycastResult> _rayResults = new List<RaycastResult>(16);
 
         private bool TryPickSlotUnderPointer(out InventorySlotUI slot, out IInventoryPanelUI panel)
@@ -488,58 +635,60 @@ namespace Game.UI
         {
             if (_facade == null) return;
 
+            _ic = ResolveLocalIC();
+            if (_ic == null || _ic.Object == null) return;
+
+            var wantOwner = _ic.Object.InputAuthority;
+            if (wantOwner == PlayerRef.None) return;
+
             bool needBind =
-                _facade.localQuick.ownerRef == PlayerRef.None ||
-                _facade.localMain.ownerRef == PlayerRef.None;
+                _facade.localQuick.ownerRef != wantOwner ||
+                _facade.localMain.ownerRef != wantOwner;
 
             if (!needBind) return;
 
             InventoryRpcRouter router = null;
 
-            if (_ic != null)
+            router = _ic.GetComponent<InventoryRpcRouter>() ?? _ic.GetComponentInParent<InventoryRpcRouter>();
+            if (router == null && _ic.Runner != null &&
+                _ic.Runner.TryGetPlayerObject(_ic.Object.InputAuthority, out var po1) && po1 != null)
             {
-                router = _ic.GetComponent<InventoryRpcRouter>();
-                if (router == null) router = _ic.GetComponentInParent<InventoryRpcRouter>();
-                if (router == null && _ic.Object != null)
-                {
-                    if (router == null && _ic.Runner != null && _ic.Runner.TryGetPlayerObject(_ic.Object.InputAuthority, out var po) && po != null)
-                        router = po.GetComponentInChildren<InventoryRpcRouter>(true);
-                }
+                router = po1.GetComponentInChildren<InventoryRpcRouter>(true);
             }
 
             if (router == null)
             {
                 var all = FindObjectsOfType<InventoryRpcRouter>(true);
                 for (int i = 0; i < all.Length && router == null; i++)
-                    if (all[i].Object != null && all[i].Object.HasInputAuthority) router = all[i];
+                    if (all[i].Object != null && all[i].Object.InputAuthority == wantOwner)
+                        router = all[i];
             }
 
-            if (router != null && _ic != null && _ic.Object != null)
+            if (router != null)
             {
                 var poId = default(NetworkId);
-                if (router.Runner != null && router.Runner.TryGetPlayerObject(_ic.Object.InputAuthority, out var po) && po != null)
-                    poId = po.Id;
+                if (router.Runner != null &&
+                    router.Runner.TryGetPlayerObject(wantOwner, out var po2) && po2 != null)
+                {
+                    poId = po2.Id;
+                }
 
-                _facade.SetLocal(_ic.Object.InputAuthority, router, poId);
+                _facade.SetLocal(wantOwner, router, poId);
             }
         }
 
         private bool TryResolveLocal(ContainerType type, out ContainerId id)
         {
+            var want = (_ic != null && _ic.Object != null) ? _ic.Object.InputAuthority : PlayerRef.None;
+
             var owner = PlayerRef.None;
             if (_facade != null)
-            {
-                if (type == ContainerType.PlayerQuick) owner = _facade.localQuick.ownerRef;
-                else if (type == ContainerType.PlayerMain) owner = _facade.localMain.ownerRef;
-            }
-            if (owner == PlayerRef.None && _ic != null && _ic.Object != null)
-                owner = _ic.Object.InputAuthority;
+                owner = (type == ContainerType.PlayerQuick) ? _facade.localQuick.ownerRef : _facade.localMain.ownerRef;
 
-            if (owner == PlayerRef.None)
-            {
-                id = default;
-                return false;
-            }
+            if (owner == PlayerRef.None || (want != PlayerRef.None && owner != want))
+                owner = want;
+
+            if (owner == PlayerRef.None) { id = default; return false; }
 
             id = new ContainerId { type = type, ownerRef = owner, objectId = default };
             return true;
@@ -579,8 +728,6 @@ namespace Game.UI
             return _facade != null ? _facade.GetCapacityImmediate(id) : 0;
         }
 
-
-
         private bool IsIndexValid(PanelKind kind, int idx)
         {
             if (idx < 0) return false;
@@ -589,6 +736,5 @@ namespace Game.UI
             if (kind == PanelKind.Chest) return idx < GetOtherLen();
             return false;
         }
-
     }
 }

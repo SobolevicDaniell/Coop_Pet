@@ -41,7 +41,7 @@ namespace Game.Network
         {
             if (!runner.IsServer) return;
             _playerSpawner.EnsurePlayerObject(runner, player);
-            _playerSpawner.SpawnAvatar(runner, player);
+            // _playerSpawner.SpawnAvatar(runner, player);
         }
 
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)

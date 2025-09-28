@@ -9196,7 +9196,7 @@ MonoBehaviour:
   _background: {fileID: 462338682}
   _uiCamera: {fileID: 3127729310628119747}
   _inputHandler: {fileID: 8168390958574330339}
-  _defaultPhase: 1
+  _defaultPhase: 5
 --- !u!1 &2112464849532965420
 GameObject:
   m_ObjectHideFlags: 0
