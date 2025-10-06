@@ -296,6 +296,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _stateAuthorityChangeErrorCorrectionDelta: 1
+  _applyServerRotationToOwner: 0
   gravity: 0
   jumpImpulse: 0
   acceleration: 0
@@ -381,7 +382,7 @@ MonoBehaviour:
   _moveSpeed: 14
   _groundAcceleration: 70
   _groundFriction: 14
-  _airAcceleration: 0
+  _airAcceleration: 3
   _airDrag: 0.5
   _jumpImpulse: 8
   _gravity: -20
@@ -493,8 +494,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43073b4c1b8ba934581e9df5297195ff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InputHandler
-  keyboardLookSensitivity: 1
-  mouseLookSensitivity: 1
 --- !u!114 &-6335083702584605143
 MonoBehaviour:
   m_ObjectHideFlags: 0

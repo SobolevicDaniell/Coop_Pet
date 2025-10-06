@@ -4,7 +4,6 @@ namespace Game
     
     public abstract class ItemSO : ScriptableObject
     {
-        [Header("�������������")]
         public string Id;
         public GameObject Prefab;
 

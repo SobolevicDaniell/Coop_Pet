@@ -78,20 +78,7 @@ namespace Game
             }
         }
 
-        private bool IsEmpty()
-        {
-            var arr = _slots;
-            if (arr == null || arr.Length == 0) return true;
-            for (int i = 0; i < arr.Length; i++)
-            {
-                var s = arr[i];
-                if (s == null) continue;
-                var id = InventorySlotStateAccessor.ReadId(s);
-                var cnt = InventorySlotStateAccessor.ReadCount(s);
-                if (!string.IsNullOrEmpty(id) && cnt > 0) return false;
-            }
-            return true;
-        }
+      
 
         public bool CanPlayerAccess(PlayerRef player) => true;
         public bool CanAccept(int slotIndex, InventorySlotState incoming) => true;
@@ -235,20 +222,6 @@ namespace Game
             }
         }
 
-        private static void PackNonEmpty(InventorySlotState[] src, System.Collections.Generic.List<InventorySlotState> dst)
-        {
-            for (int i = 0; i < src.Length; i++)
-            {
-                var s = src[i];
-                if (s == null) continue;
-
-                var id = InventorySlotStateAccessor.ReadId(s);
-                var cnt = InventorySlotStateAccessor.ReadCount(s);
-
-                if (string.IsNullOrEmpty(id) || cnt <= 0) continue;
-
-                dst.Add(s.Clone());
-            }
-        }
+       
     }
 }

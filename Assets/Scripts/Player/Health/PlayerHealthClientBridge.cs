@@ -26,7 +26,6 @@ namespace Game
             _model.Apply(_lastCur, _lastMax);
         }
 
-        // Без OnChanged: просто отслеживаем изменения на кадре рендера
         public override void Render()
         {
             if (!HasInputAuthority || _model == null || _srv == null) return;

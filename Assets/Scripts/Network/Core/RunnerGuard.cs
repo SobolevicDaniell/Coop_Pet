@@ -5,7 +5,6 @@ using UnityEngine;
 
 namespace Game.Network
 {
-    /// Глобальная защита для Single: держим в процессе 0 или 1 активный Runner.
     public static class RunnerGuard
     {
         public static async Task KillAllExcept(NetworkRunner keep = null)
@@ -21,7 +20,7 @@ namespace Game.Network
                     Debug.Log($"[RunnerGuard] Shutdown runner: {r.name} (id={r.GetInstanceID()})");
                     await r.Shutdown(false);
                 }
-                catch { /* ignore */ }
+                catch { }
             }
         }
 

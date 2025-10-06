@@ -3,7 +3,6 @@ using UnityEngine.EventSystems;
 using TMPro;
 using UnityEngine.UI;
 using System;
-using Game; // чтобы видеть ItemState
 
 namespace Game.UI
 {
@@ -11,7 +10,7 @@ namespace Game.UI
         IPointerDownHandler, IPointerUpHandler, IPointerEnterHandler, IPointerExitHandler
     {
         [SerializeField] private Image _icon;
-        [SerializeField] private Image _activeIcon;        // только подсветка
+        [SerializeField] private Image _activeIcon;
         [SerializeField] private TextMeshProUGUI _countText;
 
         public int SlotIndex { get; private set; }
@@ -29,7 +28,6 @@ namespace Game.UI
         {
             Item = item;
 
-            // ИКОНКА
             if (item != null && _icon != null)
             {
                 _icon.sprite = item.Icon;
@@ -38,29 +36,27 @@ namespace Game.UI
             else if (_icon != null)
             {
                 _icon.sprite = null;
-                _icon.enabled = false; // ← прячем только иконку, НЕ слот
+                _icon.enabled = false;
             }
 
-            // ТЕКСТ
             if (_countText != null)
             {
                 if (item == null)
                 {
-                    _countText.text = string.Empty; // ← очищаем текст
+                    _countText.text = string.Empty;
                 }
                 else if (item is WeaponSO)
                 {
                     int ammo = state != null ? Mathf.Max(0, state.ammo) : 0;
-                    _countText.text = ammo.ToString(); // оружие — просто число
+                    _countText.text = ammo.ToString();
                 }
                 else
                 {
-                    _countText.text = (count > 0) ? $"x{count}" : string.Empty; // не оружие — xN
+                    _countText.text = (count > 0) ? $"x{count}" : string.Empty;
                 }
             }
         }
 
-        // Подсветка выбранного слота (только рамка/акцент)
         public void SetActive(bool active)
         {
             if (_activeIcon != null)
@@ -73,7 +69,6 @@ namespace Game.UI
             ParentInventory = inventory;
             ParentPanel     = panel;
 
-            // При создании — без подсветки
             SetActive(false);
         }
 

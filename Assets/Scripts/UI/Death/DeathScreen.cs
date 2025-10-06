@@ -33,13 +33,7 @@ namespace Game.UI
 
         private void OnChanged(int cur, int max)
         {
-            // if (_ui == null) return;
-            // if (cur <= 0)
-            // {
-            //     PositionCameraAboveDeathBox();
-            //     if (_ui.Phase != UiPhase.Death)
-            //         _ui.SetPhase(UiPhase.Death);
-            // }
+           
         }
 
         private void OnRespawnClicked()

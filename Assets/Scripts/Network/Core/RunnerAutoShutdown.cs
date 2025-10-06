@@ -1,10 +1,8 @@
-using System.Threading.Tasks;
 using Fusion;
 using UnityEngine;
 
 namespace Game.Network
 {
-    /// Страховка: при выключении/удалении Runner делает корректный Shutdown.
     [RequireComponent(typeof(NetworkRunner))]
     public sealed class RunnerAutoShutdown : MonoBehaviour
     {

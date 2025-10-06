@@ -18,7 +18,6 @@ namespace Game
         {
             if (_health == null) return false;
 
-            // Авторитет только у StateAuthority целевого игрока
             if (Object.HasStateAuthority)
             {
                 _health.ApplyDamage(Mathf.Max(0, info.amount));

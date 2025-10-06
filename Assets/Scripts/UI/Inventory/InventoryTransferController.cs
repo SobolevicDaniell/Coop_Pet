@@ -506,79 +506,9 @@ namespace Game.UI
             }
         }
 
-        private bool TryCalcGlobalIndex(IInventoryPanelUI panel, int localIndex, out int global)
-        {
-            global = -1;
-            if (panel == null) return false;
+       
 
-            int quickCap = 0;
-            var qs = _inv?.GetQuickSlots();
-            if (qs != null) quickCap = qs.Length;
-            if (quickCap <= 0 && _facade != null)
-                quickCap = _facade.GetLocalQuickCapacity();
 
-            if (panel.Kind == PanelKind.Quick)
-            {
-                global = localIndex;
-                return true;
-            }
-
-            if (panel.Kind == PanelKind.Player)
-            {
-                global = quickCap + localIndex;
-                return true;
-            }
-
-            return false;
-        }
-
-        private string GetItemIdByGlobalIndex(int gidx)
-        {
-            int quickCap = _inv?.GetQuickSlots()?.Length ?? (_facade != null ? _facade.GetLocalQuickCapacity() : 0);
-            if (gidx < quickCap)
-            {
-                var s = _inv.GetQuickSlots();
-                return (s != null && gidx >= 0 && gidx < s.Length) ? s[gidx]?.Id : null;
-            }
-            else
-            {
-                int i = gidx - quickCap;
-                var s = _inv.GetInventorySlots();
-                return (s != null && i >= 0 && i < s.Length) ? s[i]?.Id : null;
-            }
-        }
-
-        private int GetCountByGlobalIndex(int gidx)
-        {
-            int quickCap = _inv?.GetQuickSlots()?.Length ?? (_facade != null ? _facade.GetLocalQuickCapacity() : 0);
-            if (gidx < quickCap)
-            {
-                var s = _inv.GetQuickSlots();
-                return (s != null && gidx >= 0 && gidx < s.Length && s[gidx] != null) ? s[gidx].Count : 0;
-            }
-            else
-            {
-                int i = gidx - quickCap;
-                var s = _inv.GetInventorySlots();
-                return (s != null && i >= 0 && i < s.Length && s[i] != null) ? s[i].Count : 0;
-            }
-        }
-
-        private Game.ItemState GetStateByGlobalIndex(int gidx)
-        {
-            int quickCap = _inv?.GetQuickSlots()?.Length ?? (_facade != null ? _facade.GetLocalQuickCapacity() : 0);
-            if (gidx < quickCap)
-            {
-                var s = _inv.GetQuickSlots();
-                return (s != null && gidx >= 0 && gidx < s.Length) ? s[gidx]?.State : null;
-            }
-            else
-            {
-                int i = gidx - quickCap;
-                var s = _inv.GetInventorySlots();
-                return (s != null && i >= 0 && i < s.Length) ? s[i]?.State : null;
-            }
-        }
 
         private static readonly List<RaycastResult> _rayResults = new List<RaycastResult>(16);
 
