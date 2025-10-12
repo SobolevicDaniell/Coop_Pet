@@ -163,7 +163,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Game.Bullet
   lifetime: 5
   drag: 0
-  _Damage: 0
+  _Damage: 5
 --- !u!1 &8971805380733566195
 GameObject:
   m_ObjectHideFlags: 0

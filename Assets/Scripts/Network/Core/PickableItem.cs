@@ -5,16 +5,15 @@ namespace Game
 {
     public sealed class PickableItem : NetworkBehaviour
     {
-        [Networked] public NetworkString<_32> ItemIdN { get; set; }
-        [Networked] public int CountN { get; set; }
-        [Networked] public int AmmoN { get; set; }
+        [Networked] public NetworkString<_32> ItemId { get; set; }
+        [Networked] public int Count { get; set; }
+        [Networked] public int Ammo { get; set; }
         [Networked] public bool Consumed { get; set; }
 
         [SerializeField] private string _initItemId;
         [SerializeField] private int _initCount;
         [SerializeField] private int _initAmmo;
         private bool _applied;
-        private bool _consumedLocal;
 
         public void Initialize(string itemId, int count)
         {
@@ -36,9 +35,9 @@ namespace Game
             _initAmmo = ammo;
             if (Runner != null && HasStateAuthority)
             {
-                ItemIdN = itemId;
-                CountN = count;
-                AmmoN = ammo;
+                ItemId = itemId;
+                Count = count;
+                Ammo = ammo;
                 Consumed = false;
                 _applied = true;
             }
@@ -48,9 +47,9 @@ namespace Game
         {
             if (HasStateAuthority && !_applied)
             {
-                ItemIdN = _initItemId;
-                CountN = _initCount;
-                AmmoN = _initAmmo;
+                ItemId = _initItemId;
+                Count = _initCount;
+                Ammo = _initAmmo;
                 Consumed = false;
                 _applied = true;
             }
@@ -58,30 +57,29 @@ namespace Game
 
         public string GetItemId()
         {
-            return Runner == null ? _initItemId : ItemIdN.ToString();
+            return Runner == null ? _initItemId : ItemId.ToString();
         }
 
         public int GetCount()
         {
-            return Runner == null ? _initCount : CountN;
+            return Runner == null ? _initCount : Count;
         }
 
         public int GetAmmo()
         {
-            return Runner == null ? _initAmmo : AmmoN;
+            return Runner == null ? _initAmmo : Ammo;
         }
 
         public void SetCount(int value)
         {
             _initCount = value;
             if (Runner != null && HasStateAuthority)
-                CountN = value;
+                Count = value;
         }
 
         public bool TryConsumeServer()
         {
             if (!HasStateAuthority) return false;
-            if (Runner == null) { _consumedLocal = true; return true; }
             if (Consumed) return false;
             Consumed = true;
             return true;

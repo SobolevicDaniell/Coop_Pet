@@ -1,11 +1,16 @@
 using Fusion;
 using UnityEngine;
 using Game.UI;
+using System;
 
 namespace Game
 {
     public class PickDropController : MonoBehaviour
     {
+
+        public event Action OnPromptShowRequested;
+        public event Action OnPromptHideRequested;
+
         private InteractionController _ic;
         private PlayerRpcHandler _rpc;
         private InventoryService _inventory;
@@ -16,6 +21,8 @@ namespace Game
         private InteractionPromptView _prompt;
         private Camera _overrideCamera;
 
+        private bool _promptVisible;
+
         public void Construct(
             InteractionController ic,
             PlayerRpcHandler rpc,
@@ -24,7 +31,6 @@ namespace Game
             OtherInventoryPanel otherPanel,
             ItemDatabaseSO db,
             UIController ui,
-            InteractionPromptView prompt,
             Camera camOverride)
         {
             _ic = ic;
@@ -34,7 +40,6 @@ namespace Game
             _otherPanel = otherPanel;
             _db = db;
             _ui = ui;
-            _prompt = prompt;
             _overrideCamera = camOverride;
         }
 
@@ -43,14 +48,35 @@ namespace Game
         public void UpdateRaycast()
         {
             if (_ic == null || !_ic.Object.HasInputAuthority) return;
+
             var cam = Cam;
-            if (cam == null) { _prompt?.Hide(); return; }
+            if (cam == null)
+            {
+                TryHidePrompt();
+                return;
+            }
+
             var center = new Vector3(Screen.width * 0.5f, Screen.height * 0.5f);
             var ray = cam.ScreenPointToRay(center);
-            if (Physics.Raycast(ray, out var hit, _ic.range, ~0, QueryTriggerInteraction.Collide)) { }
-            else { _prompt?.Hide(); }
 
+            if (Physics.Raycast(ray, out var hit, _ic.range, ~0, QueryTriggerInteraction.Collide))
+            {
+                var no = hit.collider.GetComponentInParent<NetworkObject>();
+                bool interactable = false;
 
+                if (no != null)
+                {
+                    if (no.GetComponent<CorpseInventoryServer>() != null) interactable = true;
+                    else if (no.GetComponent<ChestInventoryServer>() != null) interactable = true;
+                    else if (hit.collider.GetComponentInParent<PickableItem>() != null) interactable = true;
+                }
+
+                if (interactable) TryShowPrompt(); else TryHidePrompt();
+            }
+            else
+            {
+                TryHidePrompt();
+            }
         }
 
         public void TryPickAtCrosshair()
@@ -60,18 +86,27 @@ namespace Game
             if (cam == null) return;
 
             var origin = cam.transform.position;
-            var dir = cam.transform.forward;
+            var dir = cam.transform.forward.normalized;
             var range = _ic.range;
 
-            _rpc.RPC_RequestPickAtRay(origin, dir, range);
+            if (Physics.Raycast(origin, dir, out var hit, range, ~0, QueryTriggerInteraction.Collide))
+            {
+                var pick = hit.collider.GetComponentInParent<PickableItem>();
+                if (pick != null)
+                {
+                    var no = pick.GetComponentInParent<NetworkObject>();
+                    if (no != null)
+                    {
+                        Debug.Log($"ClientPickAttempt item={pick.GetItemId()} countN={pick.GetCount()} net={no.Id}");
+                        _rpc.RPC_RequestPickByTarget(no.Id, range);
+                    }
+                }
+            }
         }
 
-        
 
-        public void TryPick()
-        {
-            TryPickAtCrosshair();
-        }
+
+
 
         public void TryDrop()
         {
@@ -132,12 +167,21 @@ namespace Game
         }
 
 
-        public void OpenPlayerInventory()
+        public void OpenPlayerInventory() {}
+
+        public void CloseOpenedInventories() { }
+        private void TryShowPrompt()
         {
+            if (_promptVisible) return;
+            _promptVisible = true;
+            OnPromptShowRequested?.Invoke();
         }
 
-        public void CloseOpenedInventories()
+        private void TryHidePrompt()
         {
+            if (!_promptVisible) return;
+            _promptVisible = false;
+            OnPromptHideRequested?.Invoke();
         }
     }
 }

@@ -91,7 +91,7 @@ namespace Game
         private void Update()
         {
             if (!HasInputAuthority) return;
-            if (_input != null && _input.InventoryOpen) return;
+            if (_input != null && _input.IsBlok) return;
 
             HandleNumberKeys();
             HandleMouseWheel();
@@ -169,7 +169,7 @@ namespace Game
         private void OnUseDown()
         {
             if (!HasInputAuthority) return;
-            if (_input != null && _input.InventoryOpen) return;
+            if (_input != null && _input.IsBlok) return;
             if (_ic != null && _ic.currentBehavior is WeaponBehavior wb && wb.IsValid())
             {
                 _isFiring = true;

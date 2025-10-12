@@ -19,7 +19,7 @@ namespace Game
         [SerializeField] private float _throwForce = 5f;
 
         [Inject(Optional = true)] private InputHandler _input;
-        [Inject] private InteractionPromptView _prompt;
+        // [Inject] private InteractionPromptView _prompt;
         [Inject] private InventoryService _inventory;
         [Inject] private HandItemBehaviorFactory _factory;
         [Inject] private ItemDatabaseSO _db;
@@ -56,6 +56,8 @@ namespace Game
 
         private InventoryRpcRouter _router;
         private bool _routerBound;
+        private UiPhase _savedPhaseBeforeMenu;
+
 
         public Camera camera
         {
@@ -108,7 +110,7 @@ namespace Game
             _handItemController?.Construct(_db, _playerRpc, this);
             _placeItem?.Construct(this);
             _itemEquip?.Initialize(_factory, _db, this);
-            _pickDrop?.Construct(this, _playerRpc, _inventory, _playerPanel, _otherPanel, _db, _ui, _prompt, null);
+            _pickDrop?.Construct(this, _playerRpc, _inventory, _playerPanel, _otherPanel, _db, _ui, null);
 
             if (Object.HasInputAuthority && _inventory != null)
                 _inventory.OnQuickSlotsChanged += OnQuickSlotsChanged;
@@ -116,7 +118,7 @@ namespace Game
             if (_input != null && !_localInitialized)
             {
                 _input.OnInventoryToggle += ToggleInventory;
-                _input.OnGlobalUiCloseRequested += CloseInventory;
+                _input.OnGlobalUiToggleMenu += ToggleMenu;
                 _localInitialized = true;
             }
 
@@ -135,6 +137,11 @@ namespace Game
             var sel = _inventory != null ? _inventory.SelectedQuickSlot : -1;
             if (sel >= 0)
                 _playerRpc?.RPC_RequestEquipQuickSlot(sel);
+
+            _savedPhaseBeforeMenu = _ui.Phase;
+
+            if (Object.HasInputAuthority) _ui?.BindPromptSource(_pickDrop);
+
         }
 
         private InventoryRpcRouter ResolveRouter()
@@ -185,10 +192,11 @@ namespace Game
             if (_localInitialized && _input != null)
             {
                 _input.OnInventoryToggle -= ToggleInventory;
-                _input.OnGlobalUiCloseRequested -= CloseInventory;
+                _input.OnGlobalUiToggleMenu -= ToggleMenu;
             }
 
             _quickSlot?.DisableForLocal();
+            if (Object.HasInputAuthority) _ui?.BindPromptSource(null);
         }
 
         public override void Render()
@@ -246,13 +254,22 @@ namespace Game
             }
         }
 
-        private void CloseInventory()
+        private void ToggleMenu()
         {
             if (!Object.HasInputAuthority) return;
             if (_ui.Phase == UiPhase.Spawn || _ui.Phase == UiPhase.Loading || _ui.Phase == UiPhase.Hidden) return;
 
-            _ui.SetPhase(UiPhase.Gameplay);
-            _pickDrop.CloseOpenedInventories();
+            if (_ui.Phase != UiPhase.Menu)
+            {
+                _savedPhaseBeforeMenu = _ui.Phase;
+                _ui.SetPhase(UiPhase.Menu);
+            }
+            else
+            {
+                _ui.SetPhase(_savedPhaseBeforeMenu);
+                if (_savedPhaseBeforeMenu == UiPhase.Inventory)
+                    _pickDrop?.OpenPlayerInventory();
+            }
         }
 
         private void OnQuickSlotsChanged()
@@ -295,6 +312,7 @@ namespace Game
             if (_inventoryFacade == null) return false;
             var cam = camera;
             if (cam == null) return false;
+
             var origin = cam.transform.position;
             var dir = cam.transform.forward;
 
@@ -309,7 +327,7 @@ namespace Game
                 var id = ContainerId.OfObject(ContainerType.Corpse, no.Id);
                 _inventoryFacade.Open(id);
                 _otherPanel.ShowRemote(id);
-                _ui?.SetPhase(Game.UI.UiPhase.OtherInventory);
+                _ui?.SetPhase(UiPhase.OtherInventory);
                 return true;
             }
 
@@ -319,12 +337,13 @@ namespace Game
                 var id = ContainerId.OfObject(ContainerType.Chest, no.Id);
                 _inventoryFacade.Open(id);
                 _otherPanel.ShowRemote(id);
-                _ui?.SetPhase(Game.UI.UiPhase.OtherInventory);
+                _ui?.SetPhase(UiPhase.OtherInventory);
                 return true;
             }
 
             return false;
         }
+
 
 
     }

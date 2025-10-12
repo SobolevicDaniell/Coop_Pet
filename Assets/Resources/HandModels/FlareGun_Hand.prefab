@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1521464986176827358}
   - component: {fileID: -5191223913549370429}
+  - component: {fileID: 5718080718685319867}
   m_Layer: 0
   m_Name: FlareGun_Hand
   m_TagString: Untagged
@@ -53,6 +54,19 @@ MonoBehaviour:
   - {fileID: 4403035647161153549}
   NetworkedBehaviours: []
   ForceRemoteRenderTimeframe: 0
+--- !u!114 &5718080718685319867
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 564728994018834239}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce7c5e13676b35f42aa1625415e697f2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Game.GunInfo
+  _muzzlePoint: {fileID: 4321074427216671732}
 --- !u!1 &585404159259813942
 GameObject:
   m_ObjectHideFlags: 0
@@ -440,7 +454,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4321074427216671732}
-  - component: {fileID: 3447342223933045353}
   m_Layer: 0
   m_Name: 'MuzzlePoint '
   m_TagString: Untagged
@@ -463,15 +476,3 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1521464986176827358}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &3447342223933045353
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8989246845224965894}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c5a21e63737572c4fa1592d18923ed73, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MuzzlePoint

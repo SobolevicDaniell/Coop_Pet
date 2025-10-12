@@ -1,61 +1,70 @@
 ﻿using Fusion;
 using UnityEngine;
+using Zenject;
+using Game.UI;
 
 namespace Game.Network
 {
     [RequireComponent(typeof(NetworkObject))]
-    public class PlayerCameraController : NetworkBehaviour
+    public sealed class PlayerCameraController : NetworkBehaviour
     {
         [Header("Local Player Camera & Audio")]
         [SerializeField] private Camera _playerCamera;
         [SerializeField] private AudioListener _audioListener;
         [SerializeField] private GameObject faceObject;
 
-        private bool _isLocal;
+        [Inject(Optional = true)] private UIController _ui;
 
-        public object Camera { get; internal set; }
+        private bool _isLocal;
+        private bool _suppressForExit;
 
         public void SetLocal(bool isLocal)
         {
             _isLocal = isLocal;
-            ApplyCursorAndCameras();
+            ApplyCameras();
         }
+
         public override void Spawned()
         {
             if (Object.HasInputAuthority)
             {
-                if (faceObject != null)
-                    faceObject.SetActive(false);
+                _isLocal = true;
+                if (faceObject != null) faceObject.SetActive(false);
             }
+
+            if (_ui != null) _ui.OnExitActivated += OnExitActivated;
+
+            ApplyCameras();
         }
 
-        private void ApplyCursorAndCameras()
+        private void OnDestroy()
         {
+            if (_ui != null) _ui.OnExitActivated -= OnExitActivated;
+        }
 
-            if (_playerCamera != null) _playerCamera.enabled = _isLocal;
-            if (_audioListener != null) _audioListener.enabled = _isLocal;
+        private void OnExitActivated()
+        {
+            _suppressForExit = true;
+            ApplyCameras();
+        }
 
-            if (_isLocal)
+        private void ApplyCameras()
+        {
+            bool enableLocal = _isLocal && !_suppressForExit;
+
+            _playerCamera.gameObject.SetActive(true);
+            _playerCamera.enabled = enableLocal;
+            
+
+            if (_audioListener != null)
             {
-                foreach (var cam in FindObjectsOfType<Camera>())
-                {
-                    if (cam != _playerCamera)
-                    {
-                        cam.enabled = false;
-                        var listener = cam.GetComponent<AudioListener>();
-                        if (listener != null)
-                            listener.enabled = false;
-                    }
-                }
+                _audioListener.enabled = enableLocal;
             }
         }
 
         private void OnApplicationFocus(bool hasFocus)
         {
-            if (hasFocus && _isLocal)
-            {
-                ApplyCursorAndCameras();
-            }
+            if (hasFocus && _isLocal) ApplyCameras();
         }
     }
 }

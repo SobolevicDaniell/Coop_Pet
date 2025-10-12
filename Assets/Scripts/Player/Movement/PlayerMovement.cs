@@ -1,86 +1,112 @@
 using Fusion;
+using Fusion.Addons.SimpleKCC;
 using UnityEngine;
+using Zenject;
 
 namespace Game
 {
-    [RequireComponent(typeof(NetworkCharacterController))]
+    [RequireComponent(typeof(SimpleKCC))]
     public sealed class PlayerMovement : NetworkBehaviour
     {
-        [SerializeField] private NetworkCharacterController _ncc;
+        [SerializeField] private SimpleKCC _kcc;
         [SerializeField] private Transform _cameraRoot;
+        [SerializeField] private Transform _rotationRoot;
 
-        [SerializeField] private float _moveSpeed = 14f;
-        [SerializeField] private float _groundAcceleration = 70f;
-        [SerializeField] private float _groundFriction = 14f;
-        [SerializeField] private float _airAcceleration = 42f;
-        [SerializeField] private float _airDrag = 0.5f;
-        [SerializeField] private float _jumpImpulse = 8f;
-        [SerializeField] private float _gravity = -20f;
-        [Networked] private float _netYaw { get; set; }
+        [Inject] private PlayerStatsSO _stats;
 
+        [Networked] private float Yaw { get; set; }
+        [Networked] private float Pitch { get; set; }
 
-        private float _yaw;
-        private float _pitch;
+        private float _pitchLocal;
         private Vector3 _planarVelocity;
-        private float _verticalVelocity;
 
         public override void Spawned()
         {
-            if (_ncc == null) _ncc = GetComponent<NetworkCharacterController>();
-            _netYaw = transform.eulerAngles.y;
-            _yaw = _netYaw;
-        }
+            if (_kcc == null) _kcc = GetComponent<SimpleKCC>();
+            if (_rotationRoot == null) _rotationRoot = transform;
 
+            float initialYaw = _rotationRoot.eulerAngles.y;
+            if (Object.HasStateAuthority) Yaw = initialYaw;
+            if (Object.HasStateAuthority) Pitch = 0f;
 
-        private void Simulate(InputData input, float dt)
-        {
-            _netYaw = Mathf.Repeat(_netYaw + input.mouseX, 360f);
-            _yaw = _netYaw;
-            var rotY = Quaternion.Euler(0f, _yaw, 0f);
-
-            var moveX = Mathf.Clamp(input.movement.x, -1f, 1f);
-            var moveY = Mathf.Clamp(input.movement.y, -1f, 1f);
-            var basisRight = rotY * Vector3.right;
-            var basisForward = rotY * Vector3.forward;
-            var desiredPlanar = (basisRight * moveX + basisForward * moveY);
-            if (desiredPlanar.sqrMagnitude > 1f) desiredPlanar.Normalize();
-            desiredPlanar *= _moveSpeed;
-
-            bool grounded = _ncc.Grounded;
-
-            if (grounded)
-            {
-                _planarVelocity = Vector3.MoveTowards(_planarVelocity, desiredPlanar, _groundAcceleration * dt);
-                if (moveX * moveX + moveY * moveY < 1e-4f)
-                    _planarVelocity = Vector3.MoveTowards(_planarVelocity, Vector3.zero, _groundFriction * dt);
-                if (input.jump)
-                    _verticalVelocity = _jumpImpulse;
-            }
-            else
-            {
-                _planarVelocity = Vector3.MoveTowards(_planarVelocity, desiredPlanar, _airAcceleration * dt);
-                _planarVelocity *= 1f / (1f + _airDrag * dt);
-            }
-
-            _verticalVelocity += _gravity * dt;
-
-            var delta = (_planarVelocity + Vector3.up * _verticalVelocity) * dt;
-            _ncc.MoveRaw(delta, rotY);
-
-            if (_ncc.Grounded && _verticalVelocity < 0f)
-                _verticalVelocity = -2f;
-
-            _pitch -= input.mouseY;
-            _pitch = Mathf.Clamp(_pitch, -90f, 90f);
-            if (_cameraRoot != null)
-                _cameraRoot.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
+            _pitchLocal = 0f;
+            _planarVelocity = Vector3.zero;
+            _kcc.SetGravity(_stats.gravity);
         }
 
         public override void FixedUpdateNetwork()
         {
-            if (GetInput(out InputData input))
-                Simulate(input, Runner.DeltaTime);
+            if (!GetInput(out InputData input)) return;
+
+            float dt = Runner.DeltaTime;
+
+            if (Object.HasStateAuthority)
+            {
+                if (input.hasAngles != 0)
+                {
+                    Yaw = Mathf.Repeat(input.yawAbs, 360f);
+                    Pitch = Mathf.Clamp(input.pitchAbs, -89f, 89f);
+                }
+                else
+                {
+                    Yaw = Mathf.Repeat(Yaw + input.mouseX, 360f);
+                    Pitch = Mathf.Clamp(Pitch - input.mouseY, -89f, 89f);
+                }
+            }
+
+            if (Object.HasInputAuthority && _cameraRoot != null)
+                _pitchLocal = Mathf.Clamp(_pitchLocal - input.mouseY, -89f, 89f);
+
+            Quaternion rotY = Quaternion.Euler(0f, Yaw, 0f);
+
+            Vector2 mv = input.movement;
+            if (mv.sqrMagnitude > 1f) mv.Normalize();
+
+            Vector3 desiredPlanar = (rotY * Vector3.forward) * mv.y + (rotY * Vector3.right) * mv.x;
+            desiredPlanar *= _stats.moveSpeed;
+
+            if (_kcc.IsGrounded && _kcc.ProjectOnGround(desiredPlanar, out var projected))
+                desiredPlanar = projected;
+
+            if (_kcc.IsGrounded)
+            {
+                _planarVelocity = Vector3.MoveTowards(_planarVelocity, desiredPlanar, _stats.groundAcceleration * dt);
+                if (mv.sqrMagnitude < 1e-4f)
+                {
+                    float mag = _planarVelocity.magnitude;
+                    mag = Mathf.MoveTowards(mag, 0f, _stats.groundFriction * dt);
+                    _planarVelocity = mag > 0f ? _planarVelocity.normalized * mag : Vector3.zero;
+                }
+            }
+            else
+            {
+                Vector3 delta = desiredPlanar - _planarVelocity;
+                float maxDelta = _stats.airAcceleration * dt;
+                if (delta.sqrMagnitude > maxDelta * maxDelta) delta = delta.normalized * maxDelta;
+                _planarVelocity += delta;
+                _planarVelocity *= Mathf.Clamp01(1f - _stats.airDrag * dt);
+            }
+
+            float jumpImpulse = (_kcc.IsGrounded && input.jump) ? _stats.jumpImpulse : 0f;
+
+            _kcc.Move(_planarVelocity, jumpImpulse);
+
+            if (_rotationRoot != null)
+                _rotationRoot.rotation = rotY;
         }
 
+        public override void Render()
+        {
+            if (_rotationRoot != null)
+                _rotationRoot.rotation = Quaternion.Euler(0f, Yaw, 0f);
+
+            if (_cameraRoot != null)
+            {
+                if (Object.HasInputAuthority)
+                    _cameraRoot.localRotation = Quaternion.Euler(_pitchLocal, 0f, 0f);
+                else
+                    _cameraRoot.localRotation = Quaternion.Euler(Pitch, 0f, 0f);
+            }
+        }
     }
 }

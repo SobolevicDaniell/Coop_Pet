@@ -4,7 +4,7 @@ namespace Game.UI
 
     public interface IInventoryPanelUI
     {
-        PanelKind Kind { get; }               // НОВОЕ
+        PanelKind Kind { get; }
         event System.Action<InventorySlotUI> OnSlotBeginDrag;
         event System.Action<InventorySlotUI> OnSlotEndDrag;
         event System.Action<InventorySlotUI> OnSlotEnter;

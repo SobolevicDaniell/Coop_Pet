@@ -8,15 +8,16 @@ using Zenject;
 
 namespace Game.Network
 {
-    public sealed class MenuController : MonoBehaviour
+    public sealed class MainMenuController : MonoBehaviour
     {
-        [Header("UI")]
+        [Header("UI")] 
         [SerializeField] private TMP_InputField _sessionInput;
         [SerializeField] private Button _connectButton;
         [SerializeField] private GameObject _confirmPanel;
         [SerializeField] private TMP_Text _confirmText;
         [SerializeField] private Button _yesButton;
         [SerializeField] private Button _noButton;
+        [SerializeField] private Camera _sceneCamera;
 
         [Header("Config")]
         [SerializeField] private string _levelSceneName = "Level 1";
@@ -50,6 +51,9 @@ namespace Game.Network
 
             EnsureStore();
             EnsureSessionService();
+            _sceneCamera.gameObject.SetActive(true);
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
         }
 
         private void EnsureStore()
@@ -71,7 +75,7 @@ namespace Game.Network
             {
                 if (r == null) continue;
                 try { if (r.IsRunning) return true; }
-                catch { return true; } // на старых версиях — перестраховка
+                catch { return true; }
             }
             return false;
         }
@@ -91,8 +95,6 @@ namespace Game.Network
                     ? _sessionInput.text.Trim()
                     : _defaultSessionName;
 
-                // SINGLE: если уже есть активный Runner в процессе — не лезем в лобби,
-                // сначала спросим, нужно ли остановить текущую сессию и подключиться как клиент.
                 if (HasActiveRunner())
                 {
                     _pendingName = name;
@@ -101,7 +103,7 @@ namespace Game.Network
                     return;
                 }
 
-                // Нет активного Runner — можно безопасно проверить лобби
+               
                 var check = await _sessions.Check(name);
 
                 if (check == SessionCheck.Exists)
@@ -114,14 +116,12 @@ namespace Game.Network
 
                 if (check == SessionCheck.Unknown)
                 {
-                    // Листинг недоступен (или Single-защита сработала) — не блокируем UX
                     _pendingName = name;
                     _pendingAction = PendingAction.JoinClient;
                     ShowConfirm($"Не удалось проверить наличие «{name}». Подключиться как клиент?");
                     return;
                 }
 
-                // NotFound → создаём как Host
                 _pendingAction = PendingAction.StartHost;
                 await LoadGameAs(GameMode.Host, name);
             }
@@ -147,7 +147,6 @@ namespace Game.Network
             switch (act)
             {
                 case PendingAction.ShutdownThenJoinClient:
-                    // Полностью очищаем процесс от других Runner-ов перед заходом клиента
                     await RunnerGuard.KillAllExcept(null);
                     await LoadGameAs(GameMode.Client, name);
                     break;
@@ -167,7 +166,7 @@ namespace Game.Network
 
         private void OnNo()
         {
-            if (_confirmPanel) _confirmPanel.SetActive(false);
+            _confirmPanel.SetActive(false);
             _pendingName = null;
             _pendingAction = PendingAction.None;
         }
@@ -181,7 +180,6 @@ namespace Game.Network
             }
             else
             {
-                // Если панель не настроена — сразу выполняем действие
                 OnYes();
             }
         }
@@ -197,7 +195,6 @@ namespace Game.Network
 
             _store.Set(mode, string.IsNullOrWhiteSpace(sessionName) ? _defaultSessionName : sessionName);
 
-            // На всякий случай — зачистим любые живые Runner-ы
             await RunnerGuard.KillAllExcept(null);
             RunnerGuard.DumpRunners("Menu before load Level1");
 

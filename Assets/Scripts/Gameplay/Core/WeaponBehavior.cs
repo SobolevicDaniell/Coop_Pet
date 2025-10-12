@@ -130,7 +130,10 @@ namespace Game
                 ? _ic.inventory.SelectedQuickSlot
                 : _quickSlotIndex;
 
-            _rpc.RPC_RequestShoot(_itemId, slotIndexToSend, dir, _randSeed, isAuto);
+            Vector3 muzzlePos = muzzle.position;
+            Vector3 muzzleFwd = dir;
+
+            _rpc.RPC_RequestShoot(_itemId, slotIndexToSend, muzzlePos, muzzleFwd, _randSeed, isAuto);
             _randSeed++;
         }
 
@@ -139,15 +142,45 @@ namespace Game
             var netHand = _ic != null ? _ic.GetHandModelNetworkInstance() : null;
             if (netHand != null)
             {
-                var mp = netHand.GetComponentInChildren<MuzzlePoint>(true);
-                if (mp != null) return mp.transform;
+                var gi = netHand.GetComponentInChildren<GunInfo>(true);
+                if (gi != null && gi.MuzzlePoint != null) return gi.MuzzlePoint;
+            }
+
+            var hic = _ic != null ? _ic.handItemController : null;
+            if (hic != null)
+            {
+                var gi2 = hic.GetComponentInChildren<GunInfo>(true);
+                if (gi2 != null && gi2.MuzzlePoint != null) return gi2.MuzzlePoint;
+            }
+
+            if (_ic != null && _ic.camera != null)
+            {
+                var giCam = _ic.camera.GetComponentInChildren<GunInfo>(true);
+                if (giCam != null && giCam.MuzzlePoint != null) return giCam.MuzzlePoint;
             }
 
             if (_ic != null)
             {
-                var localMp = _ic.GetComponentInChildren<MuzzlePoint>(true);
-                if (localMp != null) return localMp.transform;
+                var giLocal = _ic.GetComponentInChildren<GunInfo>(true);
+                if (giLocal != null && giLocal.MuzzlePoint != null) return giLocal.MuzzlePoint;
             }
+
+            Transform best = null;
+            float bestDist = float.MaxValue;
+            var camPos = _ic != null && _ic.camera != null ? _ic.camera.transform.position : (_ic != null ? _ic.transform.position : Vector3.zero);
+            var all = GameObject.FindObjectsOfType<GunInfo>(true);
+            for (int i = 0; i < all.Length; i++)
+            {
+                var gi = all[i];
+                if (gi == null || gi.MuzzlePoint == null) continue;
+                float d = (gi.MuzzlePoint.position - camPos).sqrMagnitude;
+                if (d < bestDist && d < 4.0f)
+                {
+                    bestDist = d;
+                    best = gi.MuzzlePoint;
+                }
+            }
+            if (best != null) return best;
 
             return _ic != null ? _ic.handPoint : null;
         }

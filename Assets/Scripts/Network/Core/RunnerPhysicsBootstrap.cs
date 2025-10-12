@@ -7,8 +7,10 @@ namespace Game.Network
     {
         private void Awake()
         {
-            if (GetComponent<RunnerSimulatePhysics3D>() == null)
-                gameObject.AddComponent<RunnerSimulatePhysics3D>();
+            var sim3D = GetComponent<RunnerSimulatePhysics3D>();
+            if (sim3D == null)
+                sim3D = gameObject.AddComponent<RunnerSimulatePhysics3D>();
+            sim3D.ClientPhysicsSimulation = ClientPhysicsSimulation.SimulateAlways;
         }
     }
 }

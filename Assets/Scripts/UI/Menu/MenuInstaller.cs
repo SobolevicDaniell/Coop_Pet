@@ -11,7 +11,7 @@ namespace Game.Network
             var storeGo = new GameObject("LaunchRequestStore");
             var store = storeGo.AddComponent<LaunchRequestStore>();
             Container.Bind<LaunchRequestStore>().FromInstance(store).AsSingle();
-            Container.Bind<MenuController>().FromComponentInHierarchy().AsSingle();
+            Container.Bind<MainMenuController>().FromComponentInHierarchy().AsSingle();
         }
     }
 }

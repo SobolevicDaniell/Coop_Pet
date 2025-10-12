@@ -143,13 +143,13 @@ namespace Game.UI
                 {
                     var sid = InventorySlotStateAccessor.ReadId(slots[i]);
                     var cnt = InventorySlotStateAccessor.ReadCount(slots[i]);
-                    var st = InventorySlotStateAccessor.ReadState(slots[i]); // добавить эту строку
+                    var st = InventorySlotStateAccessor.ReadState(slots[i]);
 
                     ItemSO item = null;
                     if (!string.IsNullOrEmpty(sid) && _database != null)
                         item = _database.Get(sid);
 
-                    _slots[i].Set(item, cnt, st); // передаём st вместо null
+                    _slots[i].Set(item, cnt, st);
                 }
 
                 return;
@@ -183,13 +183,13 @@ namespace Game.UI
             {
                 var sid = InventorySlotStateAccessor.ReadId(slots[i]);
                 var cnt = InventorySlotStateAccessor.ReadCount(slots[i]);
-                var st = InventorySlotStateAccessor.ReadState(slots[i]); // добавить
+                var st = InventorySlotStateAccessor.ReadState(slots[i]);
 
                 ItemSO item = null;
                 if (!string.IsNullOrEmpty(sid) && _database != null)
                     item = _database.Get(sid);
 
-                _slots[i].Set(item, cnt, st); // передаём st
+                _slots[i].Set(item, cnt, st);
             }
 
         }

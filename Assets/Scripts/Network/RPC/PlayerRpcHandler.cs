@@ -55,24 +55,6 @@ namespace Game
         }
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        public void RPC_EquipItem(string itemId, RpcInfo info = default)
-        {
-            if (!Object.HasStateAuthority) return;
-
-            var ic = _ic ??= GetComponent<InteractionController>();
-            if (ic == null) return;
-
-            if (string.IsNullOrEmpty(itemId))
-            {
-                ic.handItemController?.UnEquipItemServer();
-            }
-            else
-            {
-                ic.handItemController?.EquipItemServer(itemId);
-            }
-        }
-
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
         public void RPC_UnEquipItem(RpcInfo info = default)
         {
             if (!Object.HasStateAuthority) return;
@@ -215,11 +197,10 @@ namespace Game
             }
         }
 
-        
+
 
         private void TryInitWorldItemDeep(GameObject root, string itemId, int count, int ammo)
         {
-            // Если вдруг PickableItem есть где-то в детях — используем его
             var pick = root.GetComponentInChildren<PickableItem>(true);
             if (pick != null)
             {
@@ -228,7 +209,6 @@ namespace Game
                 return;
             }
 
-            // Иначе — проставим совместимые поля любому MonoBehaviour в иерархии
             var comps = root.GetComponentsInChildren<MonoBehaviour>(true);
             for (int i = 0; i < comps.Length; i++)
             {
@@ -240,132 +220,78 @@ namespace Game
             }
         }
 
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        public void RPC_RequestPick(NetworkObject target, RpcInfo info = default)
+
+        private void ServerTryPick(NetworkObject no, PlayerRef actor)
         {
-            if (!Object.HasStateAuthority || _invServer == null || target == null) return;
-
-            var root = target.transform.root != null
-                ? target.transform.root.GetComponent<NetworkObject>()
-                : target;
-            target = root != null ? root : target;
-
-            if (!TryReadWorldItem(target, out var itemId, out var amount, out var ammoFromPickup))
-                return;
-
-            if (_invServer.TryAddItemToPlayer(Object.InputAuthority, itemId, amount, ammoFromPickup, out var left, out var deltas, out var reason))
-            {
-                var extra = ServerPrioritizeSelectedQuick(Object.InputAuthority, itemId);
-                var router = ResolveServerRouter();
-                if (router != null)
-                {
-                    if (deltas != null) for (int i = 0; i < deltas.Count; i++) router.BroadcastDeltaFromServer(deltas[i]);
-                    if (extra != null) for (int i = 0; i < extra.Count; i++) router.BroadcastDeltaFromServer(extra[i]);
-                }
-
-                ServerRefreshHandsFromSelectedQuick(Object.InputAuthority);
-
-                if (left == 0)
-                {
-                    Runner.Despawn(target);
-                }
-                else if (left < amount)
-                {
-                    var pick = target.GetComponentInChildren<PickableItem>(true) ?? target.GetComponentInParent<PickableItem>(true);
-                    if (pick != null) pick.SetCount(left);
-                    else WriteInt(typeof(MonoBehaviour), target, left, "Count", "count", "Stack", "stack");
-                }
-                else
-                {
-                    ServerDropOverflow(itemId, amount, ammoFromPickup);
-                    Runner.Despawn(target);
-                }
-            }
-        }
-
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        public void RPC_RequestPickById(NetworkId targetId, RpcInfo info = default)
-        {
-            if (!Object.HasStateAuthority || _invServer == null) return;
-            if (!Runner.TryFindObject(targetId, out var target) || target == null) return;
-
-            if (!TryReadWorldItem(target, out var itemId, out var amount, out var ammoFromPickup))
-                return;
-
-            if (_invServer.TryAddItemToPlayer(Object.InputAuthority, itemId, amount, ammoFromPickup, out var left, out var deltas, out var reason))
-            {
-                var extra = ServerPrioritizeSelectedQuick(Object.InputAuthority, itemId);
-                var router = ResolveServerRouter();
-                if (router != null)
-                {
-                    if (deltas != null) for (int i = 0; i < deltas.Count; i++) router.BroadcastDeltaFromServer(deltas[i]);
-                    if (extra != null) for (int i = 0; i < extra.Count; i++) router.BroadcastDeltaFromServer(extra[i]);
-                }
-
-                ServerRefreshHandsFromSelectedQuick(Object.InputAuthority);
-
-                if (left == 0)
-                {
-                    Runner.Despawn(target);
-                }
-                else if (left < amount)
-                {
-                    var pick = target.GetComponentInChildren<PickableItem>(true) ?? target.GetComponentInParent<PickableItem>(true);
-                    if (pick != null) pick.SetCount(left);
-                    else WriteInt(typeof(MonoBehaviour), target, left, "Count", "count", "Stack", "stack");
-                }
-                else
-                {
-                    ServerDropOverflow(itemId, amount, ammoFromPickup);
-                    Runner.Despawn(target);
-                }
-            }
-        }
-
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        public void RPC_RequestPickAtRay(Vector3 origin, Vector3 dir, float maxDist, RpcInfo info = default)
-        {
-            if (!Object.HasStateAuthority || _invServer == null) return;
-
-            if (!Physics.Raycast(origin, dir, out var hit, maxDist, ~0, QueryTriggerInteraction.Collide))
-                return;
-
-            var pick = hit.collider.GetComponentInParent<PickableItem>();
-            if (pick == null) return;
-
-            var no = pick.GetComponentInParent<NetworkObject>();
-            if (no == null) return;
+            if (no == null || _invServer == null) return;
 
             if (!TryReadWorldItem(no, out var itemId, out var amount, out var ammo))
                 return;
 
-            if (_invServer.TryAddItemToPlayer(Object.InputAuthority, itemId, amount, ammo, out var left, out var deltas, out var reason))
+            if (_invServer.TryAddItemToPlayer(actor, itemId, amount, ammo, out var left, out var deltas, out var reason))
             {
-                var extra = ServerPrioritizeSelectedQuick(Object.InputAuthority, itemId);
-                var router = ResolveServerRouter();
-                if (router != null)
+                var router = _invRouter ?? ResolveServerRouter();
+                if (router != null && deltas != null)
                 {
-                    if (deltas != null) for (int i = 0; i < deltas.Count; i++) router.BroadcastDeltaFromServer(deltas[i]);
-                    if (extra != null) for (int i = 0; i < extra.Count; i++) router.BroadcastDeltaFromServer(extra[i]);
+                    for (int i = 0; i < deltas.Count; i++)
+                        router.BroadcastDeltaFromServer(deltas[i]);
                 }
 
-                ServerRefreshHandsFromSelectedQuick(Object.InputAuthority);
+                var extra = ServerPrioritizeSelectedQuick(actor, itemId);
+                if (router != null && extra != null)
+                {
+                    for (int i = 0; i < extra.Count; i++)
+                        router.BroadcastDeltaFromServer(extra[i]);
+                }
 
-                if (left == 0)
+                var pick = no.GetComponentInChildren<PickableItem>(true);
+                if (pick == null) return;
+
+                if (left < amount)
                 {
-                    Runner.Despawn(no);
-                }
-                else if (left < amount)
-                {
-                    pick.SetCount(left);
-                }
-                else
-                {
-                    ServerDropOverflow(itemId, amount, ammo);
-                    Runner.Despawn(no);
+                    if (left <= 0)
+                    {
+                        Debug.Log($"ServerPickResult actor={actor} item={itemId} consumed_all");
+                        Runner.Despawn(no);
+                    }
+                    else
+                    {
+                        Debug.Log($"ServerPickResult actor={actor} item={itemId} newCountN={left}");
+                        pick.SetCount(left);
+                    }
                 }
             }
+            else
+            {
+                Debug.Log($"ServerPickFailed actor={actor} item={itemId} reason={reason}");
+            }
         }
+
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
+        public void RPC_RequestPickByTarget(NetworkId targetId, float maxDist, RpcInfo info = default)
+        {
+            if (!Object.HasStateAuthority || _invServer == null || Runner == null) return;
+
+            var actor = info.Source;
+            if (actor == PlayerRef.None) actor = Object.InputAuthority;
+            if (actor != Object.InputAuthority) return;
+
+            if (!Runner.TryFindObject(targetId, out var no) || no == null) return;
+
+            var pick = no.GetComponentInChildren<PickableItem>(true);
+            if (pick == null) return;
+
+            var ic = _ic ??= GetComponent<InteractionController>();
+            float range = ic != null ? ic.range : Mathf.Max(1f, maxDist);
+            var pos = transform.position;
+            if ((no.transform.position - pos).sqrMagnitude > (range + 0.5f) * (range + 0.5f)) return;
+
+            Debug.Log($"ServerPickAttempt actor={actor} item={pick.GetItemId()} countN={pick.GetCount()} net={no.Id}");
+
+            ServerTryPick(no, actor);
+        }
+
+
 
         private List<ContainerDelta> ServerPrioritizeSelectedQuick(PlayerRef actor, string itemId)
         {
@@ -457,7 +383,7 @@ namespace Game
 
 
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
-        public void RPC_RequestShoot(string itemId, int clientSlotIndex, Vector3 dir, int seed, bool isAuto, RpcInfo info = default)
+        public void RPC_RequestShoot(string itemId, int clientSlotIndex, Vector3 clientMuzzlePos, Vector3 clientMuzzleFwd, int seed, bool isAuto, RpcInfo info = default)
         {
             if (!Object.HasStateAuthority || _invServer == null || Runner == null) return;
 
@@ -483,9 +409,9 @@ namespace Game
             if (rate <= 0f) rate = 10f;
             _fireCooldown = TickTimer.CreateFromSeconds(Runner, 1f / Mathf.Max(0.01f, rate));
 
-            Vector3 forward = dir.sqrMagnitude > 1e-12f ? dir.normalized : (ic != null ? ic.transform.forward : Vector3.forward);
-            Transform muzzle = FindMuzzlePointTransformSafe(ic);
-            Vector3 origin = muzzle != null ? muzzle.position : (ic != null ? ic.transform.position + forward * 0.5f : transform.position + forward * 0.5f);
+            Vector3 forward = clientMuzzleFwd.sqrMagnitude > 1e-12f ? clientMuzzleFwd.normalized : (ic != null ? ic.transform.forward : Vector3.forward);
+            Vector3 origin = ResolveMuzzleOriginValidated(ic, clientMuzzlePos, forward);
+
 
             if (weaponSO != null && weaponSO.bulletPrefab != null)
             {
@@ -537,6 +463,22 @@ namespace Game
             RPC_SetSlotAmmo(selected, newAmmo);
         }
 
+        private Vector3 ResolveMuzzleOriginValidated(InteractionController ic, Vector3 clientMuzzlePos, Vector3 forward)
+        {
+            bool fx = float.IsFinite(clientMuzzlePos.x);
+            bool fy = float.IsFinite(clientMuzzlePos.y);
+            bool fz = float.IsFinite(clientMuzzlePos.z);
+            if (fx && fy && fz)
+                return clientMuzzlePos;
+
+            Transform muzzle = FindMuzzlePointTransformSafe(ic);
+            if (muzzle != null) return muzzle.position;
+
+            var basePos = ic != null ? ic.transform.position : transform.position;
+            return basePos + forward * 0.5f;
+        }
+
+
         private Transform FindMuzzlePointTransformSafe(InteractionController ic)
         {
             if (ic == null) return null;
@@ -544,14 +486,29 @@ namespace Game
             var handNetObj = ic.GetHandModelNetworkInstance();
             if (handNetObj != null)
             {
-                var mp = handNetObj.GetComponentInChildren<MuzzlePoint>(true);
-                if (mp != null) return mp.transform;
+                var gi = handNetObj.GetComponentInChildren<GunInfo>(true);
+                if (gi != null && gi.MuzzlePoint != null) return gi.MuzzlePoint;
+            }
+
+            var hic = ic.handItemController != null ? ic.handItemController.transform : null;
+            if (hic != null)
+            {
+                var gi2 = hic.GetComponentInChildren<GunInfo>(true);
+                if (gi2 != null && gi2.MuzzlePoint != null) return gi2.MuzzlePoint;
+            }
+
+            var localGi = ic.GetComponentInChildren<GunInfo>(true);
+            if (localGi != null && localGi.MuzzlePoint != null) return localGi.MuzzlePoint;
+
+            if (ic.camera != null)
+            {
+                var giCam = ic.camera.GetComponentInChildren<GunInfo>(true);
+                if (giCam != null && giCam.MuzzlePoint != null) return giCam.MuzzlePoint;
             }
 
             var localMp = ic.GetComponentInChildren<MuzzlePoint>(true);
             return localMp != null ? localMp.transform : null;
         }
-
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
         private void RPC_SetSlotAmmo(int slotIndex, int ammo, RpcInfo info = default)
@@ -631,83 +588,24 @@ namespace Game
             }
         }
 
-        private bool TryReadWorldItem(NetworkObject obj, out string itemId, out int count, out int ammo)
+        bool TryReadWorldItem(NetworkObject obj, out string itemId, out int count, out int ammo)
         {
-            itemId = null; count = 0; ammo = 0;
+            itemId = null;
+            count = 0;
+            ammo = 0;
             if (obj == null) return false;
 
-            var pick = obj.GetComponentInParent<PickableItem>()
-                       ?? obj.GetComponentInChildren<PickableItem>(true);
-            if (pick != null)
-            {
-                itemId = pick.GetItemId();
-                count = pick.GetCount();
-                ammo = pick.GetAmmo();
-                return !string.IsNullOrEmpty(itemId) && count > 0;
-            }
+            var pick = obj.GetComponentInParent<PickableItem>() ?? obj.GetComponentInChildren<PickableItem>(true);
+            if (pick == null) return false;
 
-            foreach (var c in obj.GetComponentsInChildren<MonoBehaviour>(true))
-            {
-                if (c == null) continue;
-                var tt = c.GetType();
-                itemId = ReadString(tt, c, "ItemId", "itemId", "Id", "id");
-                count = ReadInt(tt, c, "Count", "count", "Stack", "stack");
-                ammo = ReadInt(tt, c, "Ammo", "ammo", "Bullets", "bullets");
-                if (!string.IsNullOrEmpty(itemId) && count > 0) return true;
-            }
+            itemId = pick.GetItemId();
+            count = pick.GetCount();
+            ammo = pick.GetAmmo();
 
-            var t = obj.transform.parent;
-            while (t != null)
-            {
-                var comps = t.GetComponents<MonoBehaviour>();
-                foreach (var c in comps)
-                {
-                    if (c == null) continue;
-                    var tt = c.GetType();
-                    itemId = ReadString(tt, c, "ItemId", "itemId", "Id", "id");
-                    count = ReadInt(tt, c, "Count", "count", "Stack", "stack");
-                    ammo = ReadInt(tt, c, "Ammo", "ammo", "Bullets", "bullets");
-                    if (!string.IsNullOrEmpty(itemId) && count > 0) return true;
-                }
-                t = t.parent;
-            }
-
-            return false;
+            return !string.IsNullOrEmpty(itemId) && count > 0;
         }
 
-        private static string ReadString(Type t, object instance, params string[] names)
-        {
-            foreach (var n in names)
-            {
-                var f = t.GetField(n, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (f != null && f.FieldType == typeof(string)) return (string)f.GetValue(instance);
-
-                var p = t.GetProperty(n, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (p != null && p.CanRead && p.PropertyType == typeof(string)) return (string)p.GetValue(instance);
-            }
-            return null;
-        }
-
-        private static int ReadInt(Type t, object instance, params string[] names)
-        {
-            foreach (var n in names)
-            {
-                var f = t.GetField(n, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (f != null && f.FieldType == typeof(int)) return (int)f.GetValue(instance);
-
-                var p = t.GetProperty(n, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (p != null && p.CanRead && p.PropertyType == typeof(int)) return (int)p.GetValue(instance);
-            }
-            return 0;
-        }
-
-        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-        public void RPC_RequestDamageSelf(int amount)
-        {
-            var hp = GetComponent<PlayerHealthServer>();
-            if (hp != null) hp.ApplyDamage(Mathf.Max(0, amount));
-        }
-
+        
         [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsServer)]
         public void RPC_RequestEquipQuickSlot(int quickIndex, RpcInfo info = default)
         {

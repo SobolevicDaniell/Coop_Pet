@@ -1,4 +1,3 @@
-// Assets/Scripts/Gameplay/InteractionPromptView.cs
 using UnityEngine;
 
 namespace Game

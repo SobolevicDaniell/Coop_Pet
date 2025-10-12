@@ -9,7 +9,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8242928057390901023}
-  - component: {fileID: 7269561849463876639}
   m_Layer: 0
   m_Name: 'MuzzlePoint '
   m_TagString: Untagged
@@ -32,18 +31,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 9121670924383485184}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &7269561849463876639
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 93857462480567606}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c5a21e63737572c4fa1592d18923ed73, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MuzzlePoint
 --- !u!1001 &8726874495964388075
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -114,7 +101,7 @@ PrefabInstance:
       objectReference: {fileID: 2100000, guid: c588de1bd0ae27543958b38850e54921, type: 2}
     - target: {fileID: 919132149155446097, guid: 33269b2b610f4c245a712795c1927939, type: 3}
       propertyPath: m_Name
-      value: AK_Gan
+      value: AK_Gan_Hand
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -126,6 +113,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 33269b2b610f4c245a712795c1927939, type: 3}
       insertIndex: -1
       addedObject: {fileID: 8456801128687615435}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 33269b2b610f4c245a712795c1927939, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2746533451229925485}
   m_SourcePrefab: {fileID: 100100000, guid: 33269b2b610f4c245a712795c1927939, type: 3}
 --- !u!1 &8493084986966190010 stripped
 GameObject:
@@ -150,6 +140,19 @@ MonoBehaviour:
   NestedObjects: []
   NetworkedBehaviours: []
   ForceRemoteRenderTimeframe: 0
+--- !u!114 &2746533451229925485
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8493084986966190010}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce7c5e13676b35f42aa1625415e697f2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GunInfo
+  _muzzlePoint: {fileID: 8242928057390901023}
 --- !u!4 &9121670924383485184 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 33269b2b610f4c245a712795c1927939, type: 3}

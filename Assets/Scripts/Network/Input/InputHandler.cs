@@ -2,6 +2,7 @@ using Fusion;
 using UnityEngine;
 using System;
 using Zenject;
+using Game.UI;
 
 public sealed class InputHandler : MonoBehaviour
 {
@@ -10,7 +11,11 @@ public sealed class InputHandler : MonoBehaviour
     private bool _lmbHeld;
     private InputData _lastInput;
 
-    public bool InventoryOpen { get; private set; }
+    private float _yawAbsLocal;
+    private float _pitchAbsLocal;
+    private bool _anglesInitialized;
+
+    public bool IsBlok { get; private set; }
 
     public event Action OnInteractPressed;
     public event Action OnReloadPressed;
@@ -20,9 +25,9 @@ public sealed class InputHandler : MonoBehaviour
     public event Action OnUseDown;
     public event Action OnUseUp;
     public event Action OnInventoryToggle;
-    public event Action OnGlobalUiCloseRequested;
+    public event Action OnGlobalUiToggleMenu;
 
-    private void Update()
+    void Update()
     {
         if (!Application.isPlaying) return;
 
@@ -33,12 +38,9 @@ public sealed class InputHandler : MonoBehaviour
         }
 
         if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            OnGlobalUiCloseRequested?.Invoke();
-            if (_lmbHeld) { _lmbHeld = false; OnUseUp?.Invoke(); }
-        }
+            OnGlobalUiToggleMenu?.Invoke();
 
-        if (!InventoryOpen)
+        if (!IsBlok)
         {
             if (Input.GetKeyDown(KeyCode.E)) OnInteractPressed?.Invoke();
             if (Input.GetKeyDown(KeyCode.R)) OnReloadPressed?.Invoke();
@@ -57,57 +59,76 @@ public sealed class InputHandler : MonoBehaviour
         }
     }
 
-    public void ProvideNetworkInput(NetworkRunner runner, NetworkInput input)
+    public void BlockLook(UiPhase phase)
     {
-        var data = new InputData();
-
-        if (!InventoryOpen)
-        {
-            float x = 0f;
-            float y = 0f;
-
-            if (Input.GetKey(KeyCode.A)) x -= 1f;
-            if (Input.GetKey(KeyCode.D)) x += 1f;
-            if (Input.GetKey(KeyCode.W)) y += 1f;
-            if (Input.GetKey(KeyCode.S)) y -= 1f;
-
-            data.movement = new Vector2(x, y);
-            if (data.movement.sqrMagnitude > 1f)
-                data.movement = data.movement.normalized;
-
-            float mouseDeltaX = Input.GetAxisRaw("Mouse X") * _stats.mouseLookSensitivity;
-            float mouseDeltaY = Input.GetAxisRaw("Mouse Y") * _stats.mouseLookSensitivity;
-
-            float dt = runner != null ? runner.DeltaTime : Time.deltaTime;
-            float keyDeltaX = 0f;
-            float keyDeltaY = 0f;
-            if (Input.GetKey(KeyCode.RightArrow)) keyDeltaX += _stats.keyboardLookSensitivity * dt;
-            if (Input.GetKey(KeyCode.LeftArrow))  keyDeltaX -= _stats.keyboardLookSensitivity * dt;
-            if (Input.GetKey(KeyCode.UpArrow))    keyDeltaY += _stats.keyboardLookSensitivity * dt;
-            if (Input.GetKey(KeyCode.DownArrow))  keyDeltaY -= _stats.keyboardLookSensitivity * dt;
-
-            data.mouseX = mouseDeltaX + keyDeltaX;
-            data.mouseY = mouseDeltaY + keyDeltaY;
-            data.jump   = Input.GetKey(KeyCode.Space);
-        }
-
-        _lastInput = data;
-        input.Set(data);
-    }
-
-    public InputData GetLastInputData()
-    {
-        return _lastInput;
-    }
-
-    public void SetInventoryOpen(bool open)
-    {
-        if (open == InventoryOpen) return;
-        InventoryOpen = open;
-        if (InventoryOpen && _lmbHeld)
+        bool block = phase == UiPhase.Inventory || phase == UiPhase.OtherInventory || phase == UiPhase.Menu || phase == UiPhase.Exit;
+        if (block == IsBlok) return;
+        IsBlok = block;
+        if (IsBlok && _lmbHeld)
         {
             _lmbHeld = false;
             OnUseUp?.Invoke();
         }
+    }
+
+    public InputData GetLastInputData() => _lastInput;
+
+    public void ProvideNetworkInput(NetworkRunner runner, NetworkInput input)
+    {
+        var data = new InputData();
+
+        float x = 0f;
+        float y = 0f;
+        if (Input.GetKey(KeyCode.A)) x -= 1f;
+        if (Input.GetKey(KeyCode.D)) x += 1f;
+        if (Input.GetKey(KeyCode.W)) y += 1f;
+        if (Input.GetKey(KeyCode.S)) y -= 1f;
+        data.movement = new Vector2(x, y);
+        if (data.movement.sqrMagnitude > 1f) data.movement = data.movement.normalized;
+
+        data.jump = Input.GetKey(KeyCode.Space);
+
+        float mouseDeltaX = 0f;
+        float mouseDeltaY = 0f;
+        float keyDeltaX = 0f;
+        float keyDeltaY = 0f;
+
+        if (!IsBlok)
+        {
+            mouseDeltaX = Input.GetAxisRaw("Mouse X") * _stats.mouseLookSensitivity;
+            mouseDeltaY = Input.GetAxisRaw("Mouse Y") * _stats.mouseLookSensitivity;
+
+            float dt = runner != null ? runner.DeltaTime : Time.deltaTime;
+            if (Input.GetKey(KeyCode.RightArrow)) keyDeltaX += _stats.keyboardLookSensitivity * dt;
+            if (Input.GetKey(KeyCode.LeftArrow))  keyDeltaX -= _stats.keyboardLookSensitivity * dt;
+            if (Input.GetKey(KeyCode.UpArrow))    keyDeltaY += _stats.keyboardLookSensitivity * dt;
+            if (Input.GetKey(KeyCode.DownArrow))  keyDeltaY -= _stats.keyboardLookSensitivity * dt;
+        }
+
+        data.mouseX = mouseDeltaX + keyDeltaX;
+        data.mouseY = mouseDeltaY + keyDeltaY;
+
+        if (!_anglesInitialized)
+        {
+            var cam = Camera.main;
+            if (cam != null)
+            {
+                var e = cam.transform.rotation.eulerAngles;
+                float p = e.x; if (p > 180f) p -= 360f;
+                _yawAbsLocal = Mathf.Repeat(e.y, 360f);
+                _pitchAbsLocal = Mathf.Clamp(p, -89f, 89f);
+                _anglesInitialized = true;
+            }
+        }
+
+        _yawAbsLocal = Mathf.Repeat(_yawAbsLocal + data.mouseX, 360f);
+        _pitchAbsLocal = Mathf.Clamp(_pitchAbsLocal - data.mouseY, -89f, 89f);
+
+        data.yawAbs = _yawAbsLocal;
+        data.pitchAbs = _pitchAbsLocal;
+        data.hasAngles = 1;
+
+        _lastInput = data;
+        input.Set(data);
     }
 }
