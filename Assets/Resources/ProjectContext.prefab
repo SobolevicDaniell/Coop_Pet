@@ -75,3 +75,4 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Game.ProjectInstaller
   _playerStats: {fileID: 11400000, guid: cc20679dc2d8a0340830f3ba31fbbe2f, type: 2}
+  _audioSettings: {fileID: 11400000, guid: 0280a262cb345764f90508067aeea794, type: 2}

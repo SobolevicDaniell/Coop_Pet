@@ -18,19 +18,19 @@ namespace Game.UI
     public class UIController : MonoBehaviour
     {
         [SerializeField] private GameObject _deathScreen;
-        [SerializeField] private GameObject _quickSlotPanel;
         [SerializeField] private GameObject _inventoryPanel;
         [SerializeField] private GameObject _otherInventoryPanel;
-        // [SerializeField] private GameObject _interactionPrompt;
-        [SerializeField] private GameObject _dot;
+        [SerializeField] private GameObject _crosshair;
         [SerializeField] private GameObject _healthBar;
         [SerializeField] private GameObject _drugIcon;
-        [SerializeField] private GameObject _background;
-        [SerializeField] private GameObject _quickbackground;
+        [SerializeField] private GameObject _inventortBackground;
+        [SerializeField] private GameObject _quickSiotsRoot;
+        [SerializeField] private GameObject _quickSiotsBackground;
         [SerializeField] private GameObject _cameraLoading;
         [SerializeField] private GameObject _sceneCamera;
         [SerializeField] private GameObject _manual;
         [SerializeField] private GameObject _menu;
+        [SerializeField] private GameObject _hp;
         [SerializeField] private Canvas _canvasLoading;
         [SerializeField] private Canvas _canvasMain;
         [SerializeField] private InputHandler _inputHandler;
@@ -63,10 +63,10 @@ namespace Game.UI
         private void ApplyPhase(UiPhase phase)
         {
             Phase = phase;
-            // Debug.Log($"UI Phase changed-> {phase}");
+            Debug.Log($"UI Phase changed-> {phase}");
 
             var showQuick = phase == UiPhase.Gameplay || phase == UiPhase.Inventory || phase == UiPhase.OtherInventory;
-            var quickbackground = phase == UiPhase.Gameplay;
+            var quickBackground = phase == UiPhase.Gameplay;
             var showInv = phase == UiPhase.Inventory || phase == UiPhase.OtherInventory;
             var showOtherInv = phase == UiPhase.OtherInventory;
             var showSpawn = phase == UiPhase.Spawn;
@@ -80,15 +80,15 @@ namespace Game.UI
             var menu = phase == UiPhase.Menu;
             var canvasMain = phase != UiPhase.Loading;
 
-            if (_quickSlotPanel != null) _quickSlotPanel.SetActive(showQuick);
-            if (_quickbackground != null) _quickbackground.SetActive(quickbackground);
+            if (_quickSiotsRoot != null) _quickSiotsRoot.SetActive(showQuick);
+            if (_quickSiotsBackground != null) _quickSiotsBackground.SetActive(quickBackground);
             if (_inventoryPanel != null) _inventoryPanel.SetActive(showInv);
-            if (_background != null) _background.SetActive(showInv);
+            if (_inventortBackground != null) _inventortBackground.SetActive(showInv);
             if (_otherInventoryPanel != null) _otherInventoryPanel.SetActive(showOtherInv);
             if (_deathScreen != null) _deathScreen.SetActive(showSpawn);
-            // if (_interactionPrompt != null) _interactionPrompt.gameObject.SetActive(showPrompt);
+            if (_hp != null) _hp.SetActive(showSpawn);
             if (_healthBar != null) _healthBar.SetActive(healthBar);
-            if (_dot != null) _dot.SetActive(showDot);
+            if (_crosshair != null) _crosshair.SetActive(showDot);
             if (_drugIcon != null) _drugIcon.SetActive(drugIcon);
             if (_manual != null) _manual.SetActive(manual);
             if (_menu != null) _menu.SetActive(menu);
@@ -97,7 +97,7 @@ namespace Game.UI
             if (_canvasLoading != null) _canvasLoading.gameObject.SetActive(loading);
             if (_canvasMain != null) _canvasMain.gameObject.SetActive(canvasMain);
 
-            var cursor = phase == UiPhase.Inventory || phase == UiPhase.OtherInventory || phase == UiPhase.Spawn || phase == UiPhase.Loading || phase == UiPhase.Hidden || phase == UiPhase.Menu;
+            var cursor = phase == UiPhase.Inventory || phase == UiPhase.OtherInventory || phase == UiPhase.Spawn || phase == UiPhase.Hidden || phase == UiPhase.Menu;
             Cursor.lockState = cursor ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = cursor;
 

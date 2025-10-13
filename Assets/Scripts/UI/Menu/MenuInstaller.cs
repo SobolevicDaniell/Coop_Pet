@@ -1,3 +1,4 @@
+using Game.UI;
 using UnityEngine;
 using Zenject;
 
@@ -11,7 +12,10 @@ namespace Game.Network
             var storeGo = new GameObject("LaunchRequestStore");
             var store = storeGo.AddComponent<LaunchRequestStore>();
             Container.Bind<LaunchRequestStore>().FromInstance(store).AsSingle();
-            Container.Bind<MainMenuController>().FromComponentInHierarchy().AsSingle();
+
+            Container.Bind<MainMenuUIStateController>().FromComponentInHierarchy().AsSingle();
+            Container.Bind<SessionStarting>().FromComponentInHierarchy().AsSingle();
         }
     }
 }
+ 
