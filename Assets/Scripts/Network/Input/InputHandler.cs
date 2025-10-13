@@ -11,9 +11,11 @@ public sealed class InputHandler : MonoBehaviour
     private bool _lmbHeld;
     private InputData _lastInput;
 
-    private float _yawAbsLocal;
-    private float _pitchAbsLocal;
-    private bool _anglesInitialized;
+    private Transform _localRotationRoot;
+    private Transform _localCameraRoot;
+
+    public float YawLocal   { get; private set; }
+    public float PitchLocal { get; private set; }
 
     public bool IsBlok { get; private set; }
 
@@ -27,10 +29,24 @@ public sealed class InputHandler : MonoBehaviour
     public event Action OnInventoryToggle;
     public event Action OnGlobalUiToggleMenu;
 
+    public void BindLocalAvatar(Transform rotationRoot, Transform cameraRoot)
+    {
+        _localRotationRoot = rotationRoot;
+        _localCameraRoot   = cameraRoot;
+
+        YawLocal = _localRotationRoot != null ? _localRotationRoot.eulerAngles.y : 0f;
+
+        float p = 0f;
+        if (_localCameraRoot != null)
+        {
+            p = _localCameraRoot.localEulerAngles.x;
+            if (p > 180f) p -= 360f;
+        }
+        PitchLocal = Mathf.Clamp(p, -89f, 89f);
+    }
+
     void Update()
     {
-        if (!Application.isPlaying) return;
-
         if (Input.GetKeyDown(KeyCode.Tab))
         {
             OnInventoryToggle?.Invoke();
@@ -77,55 +93,37 @@ public sealed class InputHandler : MonoBehaviour
     {
         var data = new InputData();
 
-        float x = 0f;
-        float y = 0f;
+        float x = 0f, y = 0f;
         if (Input.GetKey(KeyCode.A)) x -= 1f;
         if (Input.GetKey(KeyCode.D)) x += 1f;
         if (Input.GetKey(KeyCode.W)) y += 1f;
         if (Input.GetKey(KeyCode.S)) y -= 1f;
         data.movement = new Vector2(x, y);
-        if (data.movement.sqrMagnitude > 1f) data.movement = data.movement.normalized;
+        if (data.movement.sqrMagnitude > 1f) data.movement.Normalize();
 
         data.jump = Input.GetKey(KeyCode.Space);
 
-        float mouseDeltaX = 0f;
-        float mouseDeltaY = 0f;
-        float keyDeltaX = 0f;
-        float keyDeltaY = 0f;
-
+        float mouseDeltaX = 0f, mouseDeltaY = 0f;
         if (!IsBlok)
         {
             mouseDeltaX = Input.GetAxisRaw("Mouse X") * _stats.mouseLookSensitivity;
             mouseDeltaY = Input.GetAxisRaw("Mouse Y") * _stats.mouseLookSensitivity;
 
             float dt = runner != null ? runner.DeltaTime : Time.deltaTime;
-            if (Input.GetKey(KeyCode.RightArrow)) keyDeltaX += _stats.keyboardLookSensitivity * dt;
-            if (Input.GetKey(KeyCode.LeftArrow))  keyDeltaX -= _stats.keyboardLookSensitivity * dt;
-            if (Input.GetKey(KeyCode.UpArrow))    keyDeltaY += _stats.keyboardLookSensitivity * dt;
-            if (Input.GetKey(KeyCode.DownArrow))  keyDeltaY -= _stats.keyboardLookSensitivity * dt;
+            if (Input.GetKey(KeyCode.RightArrow)) mouseDeltaX += _stats.keyboardLookSensitivity * dt;
+            if (Input.GetKey(KeyCode.LeftArrow))  mouseDeltaX -= _stats.keyboardLookSensitivity * dt;
+            if (Input.GetKey(KeyCode.UpArrow))    mouseDeltaY += _stats.keyboardLookSensitivity * dt;
+            if (Input.GetKey(KeyCode.DownArrow))  mouseDeltaY -= _stats.keyboardLookSensitivity * dt;
+
+            YawLocal   = Mathf.Repeat(YawLocal + mouseDeltaX, 360f);
+            PitchLocal = Mathf.Clamp(PitchLocal - mouseDeltaY, -89f, 89f);
         }
 
-        data.mouseX = mouseDeltaX + keyDeltaX;
-        data.mouseY = mouseDeltaY + keyDeltaY;
+        data.mouseX = mouseDeltaX;
+        data.mouseY = mouseDeltaY;
 
-        if (!_anglesInitialized)
-        {
-            var cam = Camera.main;
-            if (cam != null)
-            {
-                var e = cam.transform.rotation.eulerAngles;
-                float p = e.x; if (p > 180f) p -= 360f;
-                _yawAbsLocal = Mathf.Repeat(e.y, 360f);
-                _pitchAbsLocal = Mathf.Clamp(p, -89f, 89f);
-                _anglesInitialized = true;
-            }
-        }
-
-        _yawAbsLocal = Mathf.Repeat(_yawAbsLocal + data.mouseX, 360f);
-        _pitchAbsLocal = Mathf.Clamp(_pitchAbsLocal - data.mouseY, -89f, 89f);
-
-        data.yawAbs = _yawAbsLocal;
-        data.pitchAbs = _pitchAbsLocal;
+        data.yawAbs   = YawLocal;
+        data.pitchAbs = PitchLocal;
         data.hasAngles = 1;
 
         _lastInput = data;

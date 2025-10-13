@@ -7,7 +7,6 @@ namespace Game
     public sealed class BulletDamageDealer : NetworkBehaviour
     {
         [SerializeField] private LayerMask _targetMask;
-        [SerializeField] private bool _useTriggers = false;
         [SerializeField] private DamageKind _kind = DamageKind.Bullet;
 
         private int _damage = 1;
@@ -35,19 +34,22 @@ namespace Game
         }
 
         private bool IsTarget(Collider other) =>
-            ((_targetMask.value & (1 << other.gameObject.layer)) != 0);
+            (_targetMask.value & (1 << other.gameObject.layer)) != 0;
 
-        private void HitAndDespawn(Collider other, Vector3 point, Vector3 dir)
+        private void TryHit(Collider other, Vector3 point, Vector3 normal)
         {
             if (!Object.HasStateAuthority) return;
+            if (!IsTarget(other)) return;
 
-            int amount = _damage;
-            var b = GetComponentInParent<Bullet>();
-            if (b == null) b = GetComponentInChildren<Bullet>();
-            if (b != null) amount = b.Damage;
+            var damageable = other.GetComponentInParent<IDamageable>();
+            if (damageable != null)
+            {
+                var b = GetComponentInParent<Bullet>() ?? GetComponentInChildren<Bullet>();
+                int amount = b != null ? b.Damage : _damage;
 
-            if (IsTarget(other) && other.TryGetComponent<IDamageable>(out var dmg))
-                dmg.ApplyDamage(new DamageInfo(amount, _kind, point, dir, Source));
+                Vector3 dir = normal.sqrMagnitude > 1e-6f ? -normal.normalized : transform.forward;
+                damageable.ApplyDamage(new DamageInfo(amount, _kind, point, dir, Source));
+            }
 
             if (Runner != null && Object != null) Runner.Despawn(Object);
             else Destroy(gameObject);
@@ -55,17 +57,15 @@ namespace Game
 
         private void OnTriggerEnter(Collider other)
         {
-            if (!_useTriggers) return;
-            var pt  = other.ClosestPoint(transform.position);
-            var dir = (other.transform.position - transform.position).normalized;
-            HitAndDespawn(other, pt, dir);
+            var hitPoint = other.ClosestPoint(transform.position);
+            var normal   = transform.position - hitPoint; // из цели к пуле
+            TryHit(other, hitPoint, normal);
         }
 
         private void OnCollisionEnter(Collision collision)
         {
-            if (_useTriggers) return;
             var c = collision.GetContact(0);
-            HitAndDespawn(collision.collider, c.point, c.normal);
+            TryHit(collision.collider, c.point, c.normal);
         }
     }
 }

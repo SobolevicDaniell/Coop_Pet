@@ -13,11 +13,11 @@ namespace Game
         [SerializeField] private Transform _rotationRoot;
 
         [Inject] private PlayerStatsSO _stats;
+        [Inject(Optional = true)] private InputHandler _inputHandler;
 
-        [Networked] private float Yaw { get; set; }
+        [Networked] private float Yaw   { get; set; }
         [Networked] private float Pitch { get; set; }
 
-        private float _pitchLocal;
         private Vector3 _planarVelocity;
 
         public override void Spawned()
@@ -25,13 +25,17 @@ namespace Game
             if (_kcc == null) _kcc = GetComponent<SimpleKCC>();
             if (_rotationRoot == null) _rotationRoot = transform;
 
-            float initialYaw = _rotationRoot.eulerAngles.y;
-            if (Object.HasStateAuthority) Yaw = initialYaw;
-            if (Object.HasStateAuthority) Pitch = 0f;
+            if (Object.HasStateAuthority)
+            {
+                Yaw = _rotationRoot.eulerAngles.y;
+                Pitch = 0f;
+            }
 
-            _pitchLocal = 0f;
             _planarVelocity = Vector3.zero;
             _kcc.SetGravity(_stats.gravity);
+
+            if (Object.HasInputAuthority && _inputHandler != null)
+                _inputHandler.BindLocalAvatar(_rotationRoot, _cameraRoot);
         }
 
         public override void FixedUpdateNetwork()
@@ -44,18 +48,15 @@ namespace Game
             {
                 if (input.hasAngles != 0)
                 {
-                    Yaw = Mathf.Repeat(input.yawAbs, 360f);
+                    Yaw   = Mathf.Repeat(input.yawAbs, 360f);
                     Pitch = Mathf.Clamp(input.pitchAbs, -89f, 89f);
                 }
                 else
                 {
-                    Yaw = Mathf.Repeat(Yaw + input.mouseX, 360f);
+                    Yaw   = Mathf.Repeat(Yaw + input.mouseX, 360f);
                     Pitch = Mathf.Clamp(Pitch - input.mouseY, -89f, 89f);
                 }
             }
-
-            if (Object.HasInputAuthority && _cameraRoot != null)
-                _pitchLocal = Mathf.Clamp(_pitchLocal - input.mouseY, -89f, 89f);
 
             Quaternion rotY = Quaternion.Euler(0f, Yaw, 0f);
 
@@ -98,12 +99,17 @@ namespace Game
         public override void Render()
         {
             if (_rotationRoot != null)
-                _rotationRoot.rotation = Quaternion.Euler(0f, Yaw, 0f);
+            {
+                if (Object.HasInputAuthority && _inputHandler != null)
+                    _rotationRoot.rotation = Quaternion.Euler(0f, _inputHandler.YawLocal, 0f);
+                else
+                    _rotationRoot.rotation = Quaternion.Euler(0f, Yaw, 0f);
+            }
 
             if (_cameraRoot != null)
             {
-                if (Object.HasInputAuthority)
-                    _cameraRoot.localRotation = Quaternion.Euler(_pitchLocal, 0f, 0f);
+                if (Object.HasInputAuthority && _inputHandler != null)
+                    _cameraRoot.localRotation = Quaternion.Euler(_inputHandler.PitchLocal, 0f, 0f);
                 else
                     _cameraRoot.localRotation = Quaternion.Euler(Pitch, 0f, 0f);
             }

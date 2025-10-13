@@ -91,10 +91,7 @@ namespace Game
             }
         }
 
-        public void OnUseReleased()
-        {
-            _triggerHeld = false;
-        }
+        public void OnUseReleased() => _triggerHeld = false;
 
         public bool IsValid()
         {
@@ -103,10 +100,7 @@ namespace Game
             return _cachedMuzzle != null || _ic.handPoint != null;
         }
 
-        public void ServerReload()
-        {
-            _rpc?.RPC_RequestReload(-1);
-        }
+        public void ServerReload() => _rpc?.RPC_RequestReload(-1);
 
         private void FireOnce(bool isAuto)
         {
@@ -121,8 +115,10 @@ namespace Game
             if (_ic.camera != null)
             {
                 var ray = _ic.camera.ScreenPointToRay(new Vector3(Screen.width * 0.5f, Screen.height * 0.5f));
-                dir = (ray.origin + ray.direction * 1000f - muzzle.position).normalized;
+                Vector3 farPoint = ray.origin + ray.direction * 1000f;
+                dir = (farPoint - muzzle.position).normalized;
             }
+
             dir = ApplySpread(dir, _spreadDeg, ref _randSeed);
 
             int slotIndexToSend =
@@ -130,10 +126,7 @@ namespace Game
                 ? _ic.inventory.SelectedQuickSlot
                 : _quickSlotIndex;
 
-            Vector3 muzzlePos = muzzle.position;
-            Vector3 muzzleFwd = dir;
-
-            _rpc.RPC_RequestShoot(_itemId, slotIndexToSend, muzzlePos, muzzleFwd, _randSeed, isAuto);
+            _rpc.RPC_RequestShoot(_itemId, slotIndexToSend, muzzle.position, dir, _randSeed, isAuto);
             _randSeed++;
         }
 
@@ -165,23 +158,6 @@ namespace Game
                 if (giLocal != null && giLocal.MuzzlePoint != null) return giLocal.MuzzlePoint;
             }
 
-            Transform best = null;
-            float bestDist = float.MaxValue;
-            var camPos = _ic != null && _ic.camera != null ? _ic.camera.transform.position : (_ic != null ? _ic.transform.position : Vector3.zero);
-            var all = GameObject.FindObjectsOfType<GunInfo>(true);
-            for (int i = 0; i < all.Length; i++)
-            {
-                var gi = all[i];
-                if (gi == null || gi.MuzzlePoint == null) continue;
-                float d = (gi.MuzzlePoint.position - camPos).sqrMagnitude;
-                if (d < bestDist && d < 4.0f)
-                {
-                    bestDist = d;
-                    best = gi.MuzzlePoint;
-                }
-            }
-            if (best != null) return best;
-
             return _ic != null ? _ic.handPoint : null;
         }
 
@@ -199,12 +175,9 @@ namespace Game
             Vector3 right = Vector3.Cross(dir, Vector3.up);
             if (right.sqrMagnitude < 1e-6f) right = Vector3.Cross(dir, Vector3.forward);
             right.Normalize();
-            Vector3 up = Vector3.Cross(right, dir);
-
             Quaternion qYaw = Quaternion.AngleAxis(yaw, dir);
             Quaternion qPitch = Quaternion.AngleAxis(pitch, right);
-            Vector3 sp = qYaw * (qPitch * dir);
-            return sp.normalized;
+            return (qYaw * (qPitch * dir)).normalized;
         }
 
         private void TryReadWeaponParamsFromSO()
@@ -222,7 +195,6 @@ namespace Game
             }
 
             var t = so.GetType();
-
             var auto = ReadBool(t, so, "IsAutomatic", "Automatic", "isAutomatic");
             if (auto.HasValue) _isAutomatic = auto.Value;
 
@@ -237,11 +209,7 @@ namespace Game
             if (spr.HasValue) _spreadDeg = spr.Value;
         }
 
-        private static float? ConvertRpmToSps(float? rpm)
-        {
-            if (!rpm.HasValue) return null;
-            return Mathf.Max(0.01f, rpm.Value / 60f);
-        }
+        private static float? ConvertRpmToSps(float? rpm) => rpm.HasValue ? Mathf.Max(0.01f, rpm.Value / 60f) : null;
 
         private static bool? ReadBool(Type t, object inst, params string[] names)
         {

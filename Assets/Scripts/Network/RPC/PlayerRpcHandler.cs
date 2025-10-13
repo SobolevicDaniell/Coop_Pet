@@ -403,16 +403,22 @@ namespace Game
             if (!_invServer.TryConsumeAmmoFromQuick(actor, selected, 1, out var newAmmo, out var quickDelta, out var weaponSO, out var reason))
                 return;
 
+            // КД по серверу
             float rate = 0f;
             if (weaponSO != null)
                 rate = isAuto ? weaponSO.fireRate : (weaponSO.fireRateSingle > 0f ? weaponSO.fireRateSingle : weaponSO.fireRate);
             if (rate <= 0f) rate = 10f;
             _fireCooldown = TickTimer.CreateFromSeconds(Runner, 1f / Mathf.Max(0.01f, rate));
 
-            Vector3 forward = clientMuzzleFwd.sqrMagnitude > 1e-12f ? clientMuzzleFwd.normalized : (ic != null ? ic.transform.forward : Vector3.forward);
-            Vector3 origin = ResolveMuzzleOriginValidated(ic, clientMuzzlePos, forward);
+            // 1) Нормализуем forward, если нужно
+            Vector3 forward = NormalizeSafe(clientMuzzleFwd, ic != null ? ic.transform.forward : Vector3.forward);
 
+            // 2) Берём origin от клиента, если он валиден; иначе — минимальный фоллбек
+            Vector3 origin = IsFinite(clientMuzzlePos)
+                ? clientMuzzlePos
+                : ResolveServerFallbackOrigin(ic, forward);
 
+            // Спавн снаряда / хитскан
             if (weaponSO != null && weaponSO.bulletPrefab != null)
             {
                 var prefabNo = weaponSO.bulletPrefab.GetComponent<NetworkObject>();
@@ -463,51 +469,21 @@ namespace Game
             RPC_SetSlotAmmo(selected, newAmmo);
         }
 
-        private Vector3 ResolveMuzzleOriginValidated(InteractionController ic, Vector3 clientMuzzlePos, Vector3 forward)
+        private static bool IsFinite(Vector3 v) =>
+            float.IsFinite(v.x) && float.IsFinite(v.y) && float.IsFinite(v.z);
+
+        private static Vector3 NormalizeSafe(Vector3 v, Vector3 fallback)
         {
-            bool fx = float.IsFinite(clientMuzzlePos.x);
-            bool fy = float.IsFinite(clientMuzzlePos.y);
-            bool fz = float.IsFinite(clientMuzzlePos.z);
-            if (fx && fy && fz)
-                return clientMuzzlePos;
-
-            Transform muzzle = FindMuzzlePointTransformSafe(ic);
-            if (muzzle != null) return muzzle.position;
-
-            var basePos = ic != null ? ic.transform.position : transform.position;
-            return basePos + forward * 0.5f;
+            if (!IsFinite(v)) return fallback.normalized;
+            float m2 = v.sqrMagnitude;
+            if (m2 < 1e-10f) return fallback.normalized;
+            return v / Mathf.Sqrt(m2);
         }
 
-
-        private Transform FindMuzzlePointTransformSafe(InteractionController ic)
+        private static Vector3 ResolveServerFallbackOrigin(InteractionController ic, Vector3 forward)
         {
-            if (ic == null) return null;
-
-            var handNetObj = ic.GetHandModelNetworkInstance();
-            if (handNetObj != null)
-            {
-                var gi = handNetObj.GetComponentInChildren<GunInfo>(true);
-                if (gi != null && gi.MuzzlePoint != null) return gi.MuzzlePoint;
-            }
-
-            var hic = ic.handItemController != null ? ic.handItemController.transform : null;
-            if (hic != null)
-            {
-                var gi2 = hic.GetComponentInChildren<GunInfo>(true);
-                if (gi2 != null && gi2.MuzzlePoint != null) return gi2.MuzzlePoint;
-            }
-
-            var localGi = ic.GetComponentInChildren<GunInfo>(true);
-            if (localGi != null && localGi.MuzzlePoint != null) return localGi.MuzzlePoint;
-
-            if (ic.camera != null)
-            {
-                var giCam = ic.camera.GetComponentInChildren<GunInfo>(true);
-                if (giCam != null && giCam.MuzzlePoint != null) return giCam.MuzzlePoint;
-            }
-
-            var localMp = ic.GetComponentInChildren<MuzzlePoint>(true);
-            return localMp != null ? localMp.transform : null;
+            var basePos = ic != null ? ic.transform.position : Vector3.zero;
+            return basePos + (forward.sqrMagnitude > 0f ? forward : Vector3.forward) * 0.5f;
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.InputAuthority)]
