@@ -24,8 +24,8 @@ namespace Game.Network
         [SerializeField] private InventoryPanel _playerInventoryPanel;
         [SerializeField] private OtherInventoryPanel _otherInventoryPanel;
 
-        [Header("Config")]
-        [SerializeField] private PlayerStatsSO _playerStats;
+        // [Header("Config")]
+        // [SerializeField] private PlayerStatsSO _playerStats;
 
         public override void InstallBindings()
         {
@@ -59,8 +59,8 @@ namespace Game.Network
 
             Container.Bind<InventoryViewService>().AsSingle().NonLazy();
 
-            Container.Bind<PlayerStatsSO>().FromInstance(_playerStats).AsSingle();
-            Container.BindInterfacesAndSelfTo<Game.Network.FusionZenjectInjector>().AsSingle();
+            // Container.Bind<PlayerStatsSO>().FromInstance(_playerStats).AsSingle();
+            Container.BindInterfacesAndSelfTo<FusionZenjectInjector>().AsSingle();
 
             Container.Bind<ISpawnPointProvider>().FromComponentInHierarchy().AsSingle();
 

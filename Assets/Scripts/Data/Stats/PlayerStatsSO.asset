@@ -16,4 +16,14 @@ MonoBehaviour:
   inventorySlotsCount: 24
   quickSlotsCount: 10
   keyboardLookSensitivity: 100
-  mouseLookSensitivity: 10
+  defaultMouseLookSensitivity: 5
+  minMouseLookSensitivity: 0.5
+  maxMouseLookSensitivity: 20
+  moveSpeed: 14
+  groundAcceleration: 70
+  groundFriction: 14
+  airAcceleration: 42
+  airDrag: 0.5
+  jumpImpulse: 8
+  gravity: -20
+  groundedCoyoteTime: 0.08

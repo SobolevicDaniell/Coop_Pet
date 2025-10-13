@@ -1905,6 +1905,7 @@ MonoBehaviour:
   _exitToMenuButton: {fileID: 0}
   _quitGameButton: {fileID: 1369185824}
   _mainMenuSceneName: MainMenu
+  _sensitivitySlider: {fileID: 0}
 --- !u!224 &6696321006959027943
 RectTransform:
   m_ObjectHideFlags: 0
