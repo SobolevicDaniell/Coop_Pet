@@ -4017,6 +4017,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Game.Network.SessionStarting
   _sessionInput: {fileID: 8921024654227766132}
   _connectButton: {fileID: 4894927443234572506}
+  _yesButton: {fileID: 8773441636699369019}
+  _noButton: {fileID: 2338649839617199277}
+  _confirmationText: {fileID: 213777133344180626}
   _defaultSessionName: DefaultSession
   _scenrToLoad: Level 1
 --- !u!114 &6644807383408471591

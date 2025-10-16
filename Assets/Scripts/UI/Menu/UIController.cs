@@ -79,6 +79,7 @@ namespace Game.UI
             var sceneCamera = phase == UiPhase.Spawn;
             var menu = phase == UiPhase.Menu;
             var canvasMain = phase != UiPhase.Loading;
+            var hp = phase != UiPhase.Loading;
 
             if (_quickSiotsRoot != null) _quickSiotsRoot.SetActive(showQuick);
             if (_quickSiotsBackground != null) _quickSiotsBackground.SetActive(quickBackground);
@@ -86,7 +87,7 @@ namespace Game.UI
             if (_inventortBackground != null) _inventortBackground.SetActive(showInv);
             if (_otherInventoryPanel != null) _otherInventoryPanel.SetActive(showOtherInv);
             if (_deathScreen != null) _deathScreen.SetActive(showSpawn);
-            if (_hp != null) _hp.SetActive(showSpawn);
+            if (_hp != null) _hp.SetActive(hp);
             if (_healthBar != null) _healthBar.SetActive(healthBar);
             if (_crosshair != null) _crosshair.SetActive(showDot);
             if (_drugIcon != null) _drugIcon.SetActive(drugIcon);
