@@ -8,7 +8,6 @@ namespace Game.UI
 {
     public sealed class DeathScreen : MonoBehaviour
     {
-        [SerializeField] private UIController _ui;
         [SerializeField] private Button _respawnButton;
         [SerializeField] private float _cameraHeight = 6f;
 

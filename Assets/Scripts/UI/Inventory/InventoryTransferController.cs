@@ -4,6 +4,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Zenject;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.UI;
 
 namespace Game.UI
 {
@@ -12,6 +14,17 @@ namespace Game.UI
         [Header("UI")]
         [SerializeField] private Image _dragIcon;
         [SerializeField] private Canvas _canvas;
+
+        [Header("UI Actions (for auto-wiring created EventSystem)")]
+        [SerializeField] private InputActionAsset _uiActionsAsset;
+        [SerializeField] private InputActionReference _uiPoint;
+        [SerializeField] private InputActionReference _uiLeftClick;
+        [SerializeField] private InputActionReference _uiRightClick;
+        [SerializeField] private InputActionReference _uiMiddleClick;
+        [SerializeField] private InputActionReference _uiScroll;
+        [SerializeField] private InputActionReference _uiNavigate;
+        [SerializeField] private InputActionReference _uiSubmit;
+        [SerializeField] private InputActionReference _uiCancel;
 
         private InventoryPanel _playerPanel;
         private QuickSlotPanel _quickPanel;
@@ -34,12 +47,14 @@ namespace Game.UI
 
         [SerializeField] private LayerMask _slotsLayers;
 
+        private static readonly List<RaycastResult> _rayResults = new List<RaycastResult>(16);
+
         public void Initialize(InventoryService inv,
-                       InventoryPanel playerPanel,
-                       QuickSlotPanel quickPanel,
-                       OtherInventoryPanel otherPanel,
-                       InteractionController ic,
-                       InventoryClientFacade facade)
+                               InventoryPanel playerPanel,
+                               QuickSlotPanel quickPanel,
+                               OtherInventoryPanel otherPanel,
+                               InteractionController ic,
+                               InventoryClientFacade facade)
         {
             _inv = inv ?? _inv;
             _playerPanel = playerPanel;
@@ -49,6 +64,7 @@ namespace Game.UI
             _facade = facade ?? _facade;
 
             EnsureFacadeReady();
+            EnsureEventSystemAlive();
 
             if (_subscribed) UnsubscribeAll();
             SubscribeAll();
@@ -58,7 +74,19 @@ namespace Game.UI
             {
                 _dragIcon.enabled = false;
                 _dragIcon.raycastTarget = false;
+                _dragIcon.transform.SetAsLastSibling();
             }
+        }
+
+        private void OnEnable()
+        {
+            EnsureEventSystemAlive();
+        }
+
+        private void OnDisable()
+        {
+            if (_subscribed) UnsubscribeAll();
+            _subscribed = false;
         }
 
         private Game.InteractionController ResolveLocalIC()
@@ -162,18 +190,21 @@ namespace Game.UI
         {
             if (_dragIcon == null || !_dragIcon.enabled) return;
 
+            var pointer = GetPointerPosition();
+
             if (_canvas != null && _canvas.renderMode != RenderMode.ScreenSpaceOverlay)
             {
+                var cam = _canvas.worldCamera != null ? _canvas.worldCamera : Camera.main;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(
                     _canvas.transform as RectTransform,
-                    Input.mousePosition,
-                    _canvas.worldCamera,
+                    pointer,
+                    cam,
                     out var local);
                 (_dragIcon.transform as RectTransform).anchoredPosition = local;
             }
             else
             {
-                (_dragIcon.transform as RectTransform).position = Input.mousePosition;
+                (_dragIcon.transform as RectTransform).position = pointer;
             }
         }
 
@@ -189,6 +220,7 @@ namespace Game.UI
                 _dragIcon.sprite = slot.Item.Icon;
                 _dragIcon.enabled = true;
                 _dragIcon.raycastTarget = false;
+                _dragIcon.transform.SetAsLastSibling();
             }
         }
 
@@ -207,7 +239,7 @@ namespace Game.UI
             }
         }
 
-        void OnEndDrag(InventorySlotUI _)
+        private void OnEndDrag(InventorySlotUI _)
         {
             if (_dragIcon != null) _dragIcon.enabled = false;
             if (_srcSlot == null || _srcSlot.Item == null) { ResetDrag(); return; }
@@ -215,7 +247,7 @@ namespace Game.UI
             if (_hoverSlot == null || _hoverPanel == null)
                 TryPickSlotUnderPointer(out _hoverSlot, out _hoverPanel);
 
-            var overSlot = _hoverSlot != null && _hoverPanel != null;
+            bool overSlot = _hoverSlot != null && _hoverPanel != null;
 
             if (!overSlot)
             {
@@ -225,11 +257,7 @@ namespace Game.UI
             }
 
             EnsureFacadeReady();
-            if (_facade == null)
-            {
-                ResetDrag();
-                return;
-            }
+            if (_facade == null) { ResetDrag(); return; }
 
             ContainerId fromId, toId;
 
@@ -266,12 +294,7 @@ namespace Game.UI
             int fromIdx = _srcSlot.SlotIndex;
             int toIdx = _hoverSlot.SlotIndex;
 
-            if (!IsIndexValid(_srcPanel.Kind, fromIdx) || !IsIndexValid(_hoverPanel.Kind, toIdx))
-            {
-                ResetDrag();
-                return;
-            }
-
+            if (!IsIndexValid(_srcPanel.Kind, fromIdx) || !IsIndexValid(_hoverPanel.Kind, toIdx)) { ResetDrag(); return; }
             if (fromIdx == toIdx && fromId.Equals(toId)) { ResetDrag(); return; }
 
             int amount;
@@ -311,7 +334,7 @@ namespace Game.UI
             _hoverPanel = null;
         }
 
-        void TryWorldDropFromSource()
+        private void TryWorldDropFromSource()
         {
             _ic = ResolveLocalIC();
             var rpc = ResolveLocalRpc();
@@ -506,12 +529,6 @@ namespace Game.UI
             }
         }
 
-       
-
-
-
-        private static readonly List<RaycastResult> _rayResults = new List<RaycastResult>(16);
-
         private bool TryPickSlotUnderPointer(out InventorySlotUI slot, out IInventoryPanelUI panel)
         {
             slot = null; panel = null;
@@ -519,7 +536,7 @@ namespace Game.UI
             var es = EventSystem.current;
             if (es == null) return false;
 
-            var ev = new PointerEventData(es) { position = Input.mousePosition };
+            var ev = new PointerEventData(es) { position = GetPointerPosition() };
             _rayResults.Clear();
             es.RaycastAll(ev, _rayResults);
 
@@ -598,7 +615,7 @@ namespace Game.UI
             {
                 var poId = default(NetworkId);
                 if (router.Runner != null &&
-                    router.Runner.TryGetPlayerObject(wantOwner, out var po2) && po2 != null)
+                    router.Runner.TryGetPlayerObject(_ic.Object.InputAuthority, out var po2) && po2 != null)
                 {
                     poId = po2.Id;
                 }
@@ -665,6 +682,37 @@ namespace Game.UI
             if (kind == PanelKind.Player) return idx < GetMainLen();
             if (kind == PanelKind.Chest) return idx < GetOtherLen();
             return false;
+        }
+
+        private Vector2 GetPointerPosition()
+        {
+            if (Pointer.current != null) return Pointer.current.position.ReadValue();
+            if (Mouse.current != null) return Mouse.current.position.ReadValue();
+            if (Touchscreen.current != null)
+            {
+                var t = Touchscreen.current.primaryTouch;
+                if (t.press.isPressed) return t.position.ReadValue();
+            }
+            return Vector2.zero;
+        }
+
+        private void EnsureEventSystemAlive()
+        {
+            if (EventSystem.current != null) return;
+
+            var go = new GameObject("EventSystem");
+            go.AddComponent<EventSystem>();
+            var ui = go.AddComponent<InputSystemUIInputModule>();
+
+            if (_uiActionsAsset != null) ui.actionsAsset = _uiActionsAsset;
+            if (_uiPoint != null) ui.point = _uiPoint;
+            if (_uiLeftClick != null) ui.leftClick = _uiLeftClick;
+            if (_uiRightClick != null) ui.rightClick = _uiRightClick;
+            if (_uiMiddleClick != null) ui.middleClick = _uiMiddleClick;
+            if (_uiScroll != null) ui.scrollWheel = _uiScroll;
+            if (_uiNavigate != null) ui.move = _uiNavigate;
+            if (_uiSubmit != null) ui.submit = _uiSubmit;
+            if (_uiCancel != null) ui.cancel = _uiCancel;
         }
     }
 }
